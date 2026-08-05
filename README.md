@@ -31,7 +31,7 @@ cd backend
 cp .env.example .env
 # paste your GROQ_API_KEY into .env
 docker compose up -d db          # from project root, starts Postgres only
-python -m venv venv && source venv/bin/activate
+python -m venv venv && source venv/Scripts/Activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```

@@ -3,5 +3,8 @@ __pycache__/
 *.pyc
 node_modules/
 dist/
-.env.example
+.env
 .DS_Store
+
+
+package-lock.json
