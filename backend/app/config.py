@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     # LLM provider config (Groq recommended: fast, free tier, Llama/Qwen models)
     groq_api_key: str = ""
-    groq_model: str = "llama-3.1-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
     groq_base_url: str = "https://api.groq.com/openai/v1"
 
     # Market focus for MVP
