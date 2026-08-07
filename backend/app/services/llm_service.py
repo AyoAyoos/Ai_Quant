@@ -41,6 +41,9 @@ async def chat_completion(messages: list[dict]) -> str:
             json=payload,
             headers=headers,
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            print(resp.status_code)
+            print(resp.text)
+            raise Exception(f"Failed to get chat completion: {resp.text}")
         data = resp.json()
         return data["choices"][0]["message"]["content"]
