@@ -1,0 +1,35 @@
+
+### 1. The "Vague Request" (Tests Phase 1: Requirement Gathering)
+
+Use this to verify that the LLM holds back and asks clarifying questions instead of immediately writing code. Your terminal should show `looks_final=False` (or log nothing), and no database row should be created.
+
+* **Prompt:** *"I want to build a mean reversion strategy using the RSI indicator."*
+* **Expected Output:** The AI should ask you about your preferred timeframe, overbought/oversold thresholds, and position sizing. It should **not** output the `STRATEGY_READY` marker.
+
+### 2. The "Highly Specific" (Tests Phase 2: Direct Extraction)
+
+Use this to test if the LLM can generate a flawless, compliant output on the very first try when given all the necessary parameters.
+
+* **Prompt:** *"Write a complete Backtrader strategy using a Bollinger Bands breakout. Go long when the price closes above the upper band, and exit when it crosses below the middle band. Use a 20-day period and 2 standard deviations for the bands, and invest 10% of portfolio cash per trade. I have no more requirements, please finalize the code."*
+* **Expected Output:** The AI should immediately output the `STRATEGY_READY` marker, the strategy details, and the `GeneratedStrategy` class. Your FastAPI endpoint should save this to the database and return the payload cleanly.
+
+### 3. The "Multi-Condition Logic" (Tests Code Quality)
+
+Use this to see if the LLM can combine multiple indicators without messing up the strict formatting rules at the end of the prompt.
+
+* **Prompt:** *"I need a trend-following Backtrader script. The rules are: only take long trades if the current close is above the 200-day SMA AND the 14-period RSI drops below 30. Exit the position when the RSI crosses above 70. Please finalize the code."*
+* **Expected Output:** A cleanly formatted `STRATEGY_READY` response with a code block containing both SMA and RSI logic in the `next()` method.
+
+### 4. The "Conversational Transition" (Tests Memory & State)
+
+This requires two steps to ensure the model transitions from Phase 1 to Phase 2 correctly within the same conversation thread (using the `conversation_id`).
+
+* **Step 1 Prompt:** *"Let's build a MACD crossover strategy."*
+* *(Wait for the AI to ask clarifying questions).*
+
+
+* **Step 2 Prompt:** *"Use the standard MACD settings (12, 26, 9). I want to trade NIFTY50 daily candles. Buy on a bullish crossover (MACD line crosses above signal line) and sell on a bearish crossover. Risk 5% of cash. That's it, finalize the code."*
+* **Expected Output:** The AI should successfully recall the MACD context from Step 1, apply the parameters from Step 2, and output the finalized code with the correct markers.
+
+---
+
