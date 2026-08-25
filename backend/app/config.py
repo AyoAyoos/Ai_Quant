@@ -5,9 +5,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://quant_user:quant_pass@localhost:5432/quant_trading"
 
     # LLM provider config (Groq recommended: fast, free tier, Llama/Qwen models)
-    groq_api_key: str = ""
-    groq_model: str = "openai/gpt-oss-120b"
-    groq_base_url: str = "https://api.groq.com/openai/v1"
+    
+
+     # Gemini LLM configuration
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+
 
     # Market focus for MVP
     default_market: str = "NIFTY50"
@@ -17,3 +20,9 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+
+
+
+

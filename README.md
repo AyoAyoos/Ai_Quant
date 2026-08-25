@@ -34,7 +34,8 @@ cp .env.example .env
 docker compose up -d db          # from project root, starts Postgres only
 python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\Activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn app.main:app --reloadnpm run dev
+
 ```
 Backend runs at http://localhost:8000 (health check: `/health`).
 
