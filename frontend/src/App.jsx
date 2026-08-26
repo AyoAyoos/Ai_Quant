@@ -1,72 +1,162 @@
-import { useState, useRef, useEffect } from 'react'
-import './App.css'
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 
-const API_BASE = 'http://localhost:8000'
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+
+// Replace this with your actual chat page
+import Chat from "./pages/Chat";
 
 function App() {
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Hi! Describe the trading strategy you'd like — e.g. \"medium-risk NIFTY 50 strategy, hold 2-5 days, avoid high volatility.\"" }
-  ])
-  const [input, setInput] = useState('')
-  const [conversationId, setConversationId] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const bottomRef = useRef(null)
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  async function sendMessage() {
-    if (!input.trim() || loading) return
-    const userMsg = { role: 'user', content: input }
-    setMessages((prev) => [...prev, userMsg])
-    setInput('')
-    setLoading(true)
-
-    try {
-      const res = await fetch(`${API_BASE}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation_id: conversationId, content: userMsg.content }),
-      })
-      const data = await res.json()
-      setConversationId(data.conversation_id)
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }])
-    } catch (err) {
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Error reaching the backend. Is it running?' }])
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
-    <div className="chat-app">
-      <header className="chat-header">
-        <h1>Quant Strategy Assistant</h1>
-        <p className="disclaimer">⚠️ Educational prototype. No guaranteed returns. Paper trading only.</p>
-      </header>
+    <BrowserRouter>
 
-      <div className="chat-window">
-        {messages.map((m, i) => (
-          <div key={i} className={`bubble ${m.role}`}>
-            {m.content}
-          </div>
-        ))}
-        {loading && <div className="bubble assistant">Thinking…</div>}
-        <div ref={bottomRef} />
-      </div>
+      <Routes>
 
-      <div className="chat-input">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-          placeholder="Describe your strategy idea..."
+        <Route
+          path="/"
+          element={
+            <Navigate
+              to="/login"
+              replace
+            />
+          }
         />
-        <button onClick={sendMessage} disabled={loading}>Send</button>
-      </div>
-    </div>
-  )
+
+        <Route
+          path="/login"
+          element={
+            <Login />
+          }
+        />
+
+        <Route
+          path="/signup"
+          element={
+            <Signup />
+          }
+        />
+
+        <Route
+          path="/chat"
+          element={
+            <Chat />
+          }
+        />
+
+      </Routes>
+
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
+// // import { useState, useRef, useEffect } from 'react'
+// // import './App.css'
+
+// // const API_BASE = 'http://localhost:8000'
+
+// // function App() {
+// //   const [messages, setMessages] = useState([
+// //     { role: 'assistant', content: "Hi! Describe the trading strategy you'd like — e.g. \"medium-risk NIFTY 50 strategy, hold 2-5 days, avoid high volatility.\"" }
+// //   ])
+// //   const [input, setInput] = useState('')
+// //   const [conversationId, setConversationId] = useState(null)
+// //   const [loading, setLoading] = useState(false)
+// //   const bottomRef = useRef(null)
+
+// //   useEffect(() => {
+// //     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+// //   }, [messages])
+
+// //   async function sendMessage() {
+// //     if (!input.trim() || loading) return
+// //     const userMsg = { role: 'user', content: input }
+// //     setMessages((prev) => [...prev, userMsg])
+// //     setInput('')
+// //     setLoading(true)
+
+// //     try {
+// //       const res = await fetch(`${API_BASE}/chat`, {
+// //         method: 'POST',
+// //         headers: { 'Content-Type': 'application/json' },
+// //         body: JSON.stringify({ conversation_id: conversationId, content: userMsg.content }),
+// //       })
+// //       const data = await res.json()
+// //       setConversationId(data.conversation_id)
+// //       setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }])
+// //     } catch (err) {
+// //       setMessages((prev) => [...prev, { role: 'assistant', content: 'Error reaching the backend. Is it running?' }])
+// //     } finally {
+// //       setLoading(false)
+// //     }
+// //   }
+
+// //   return (
+// //     <div className="chat-app">
+// //       <header className="chat-header">
+// //         <h1>Quant Strategy Assistant</h1>
+// //         <p className="disclaimer">⚠️ Educational prototype. No guaranteed returns. Paper trading only.</p>
+// //       </header>
+
+// //       <div className="chat-window">
+// //         {messages.map((m, i) => (
+// //           <div key={i} className={`bubble ${m.role}`}>
+// //             {m.content}
+// //           </div>
+// //         ))}
+// //         {loading && <div className="bubble assistant">Thinking…</div>}
+// //         <div ref={bottomRef} />
+// //       </div>
+
+// //       <div className="chat-input">
+// //         <input
+// //           value={input}
+// //           onChange={(e) => setInput(e.target.value)}
+// //           onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+// //           placeholder="Describe your strategy idea..."
+// //         />
+// //         <button onClick={sendMessage} disabled={loading}>Send</button>
+// //       </div>
+// //     </div>
+// //   )
+// // }
+
+// // export default App
+
+// import React from "react";
+// import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+
+// import Login from "./pages/Login";
+// import Signup from "./pages/Signup";
+
+// function App() {
+//   return (
+//     <BrowserRouter>
+//       <Routes>
+
+//         <Route
+//           path="/"
+//           element={<Navigate to="/login" replace />}
+//         />
+
+//         <Route
+//           path="/login"
+//           element={<Login />}
+//         />
+
+//         <Route
+//           path="/signup"
+//           element={<Signup />}
+//         />
+
+//       </Routes>
+//     </BrowserRouter>
+//   );
+// }
+
+// export default App;

@@ -11,7 +11,7 @@ asked to juggle "chat naturally AND remember to format your final answer."
 import json
 import httpx
 
-from app.config import settings
+from app.config import settings 
 
 FINALIZE_SYSTEM_PROMPT = """You convert a finished trading-strategy conversation into JSON.
 You will be given the full chat history. Output ONLY a JSON object — no markdown fences,
