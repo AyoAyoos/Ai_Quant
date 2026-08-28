@@ -94,13 +94,21 @@ body {
 } */
 
 
+```css
+/* =========================================
+   GLOBAL APP
+========================================= */
+
 .app {
   display: flex;
   min-height: 100vh;
   background: var(--bg-primary);
 }
 
-/* SIDEBAR */
+
+/* =========================================
+   SIDEBAR
+========================================= */
 
 .sidebar {
   width: 250px;
@@ -209,7 +217,10 @@ body {
   margin-top: 3px;
 }
 
-/* MAIN */
+
+/* =========================================
+   MAIN
+========================================= */
 
 .main-content {
   width: calc(100% - 250px);
@@ -270,7 +281,10 @@ body {
   font-weight: 700;
 }
 
-/* PAGE */
+
+/* =========================================
+   PAGE
+========================================= */
 
 .page-content {
   padding: 32px;
@@ -301,7 +315,10 @@ body {
   letter-spacing: 1.5px;
 }
 
-/* BUTTONS */
+
+/* =========================================
+   BUTTONS
+========================================= */
 
 .primary-button {
   border: none;
@@ -318,7 +335,10 @@ body {
   color: var(--accent);
 }
 
-/* METRICS */
+
+/* =========================================
+   METRICS
+========================================= */
 
 .metrics-grid {
   display: grid;
@@ -354,7 +374,10 @@ body {
   font-size: 12px;
 }
 
-/* PANELS */
+
+/* =========================================
+   PANELS
+========================================= */
 
 .dashboard-grid {
   display: grid;
@@ -387,7 +410,10 @@ body {
   border-radius: 6px;
 }
 
-/* CHART */
+
+/* =========================================
+   CHART
+========================================= */
 
 .chart-placeholder {
   height: 270px;
@@ -417,7 +443,10 @@ body {
   font-size: 10px;
 }
 
-/* STRATEGIES */
+
+/* =========================================
+   STRATEGIES
+========================================= */
 
 .strategy-row {
   padding: 18px 0;
@@ -460,218 +489,448 @@ body {
   color: var(--text-secondary);
 }
 
-/* RESPONSIVE */
 
-@media (max-width: 1000px) {
-  .metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 700px) {
-  .sidebar {
-    width: 70px;
-  }
-
-  .sidebar .logo div:not(.logo-mark),
-  .sidebar .nav-item span:last-child,
-  .sidebar .user-card div:last-child {
-    display: none;
-  }
-
-  .main-content {
-    width: calc(100% - 70px);
-    margin-left: 70px;
-  }
-
-  .page-content {
-    padding: 20px;
-  }
-
-  .welcome-section {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 18px;
-  }
-
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-}
-/* =========================
-   AI CHAT
-========================= */
+/* =========================================
+   AI CHAT - MINIMAL QUANT WORKSPACE
+========================================= */
 
 .ai-chat-page {
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-.ai-chat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 28px;
-}
-
-.ai-chat-header h2 {
-  font-size: 30px;
-  margin: 8px 0;
-  max-width: 650px;
-}
-
-.ai-chat-header p:not(.eyebrow) {
-  color: var(--text-secondary);
-  max-width: 650px;
-  line-height: 1.6;
-}
-
-.ai-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  border-radius: 20px;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.ai-status span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 10px var(--success);
-}
-
-/* CHAT BOX */
-
-.chat-container {
-  min-height: 560px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 40px;
+  width: 100%;
+  height: calc(100vh - 80px);
+  position: relative;
   display: flex;
   flex-direction: column;
 }
 
-.chat-welcome {
-  text-align: center;
-  max-width: 600px;
-  margin: auto auto 28px;
-}
 
-.ai-icon {
-  width: 58px;
-  height: 58px;
-  margin: 0 auto 18px;
-  display: grid;
-  place-items: center;
-  border-radius: 16px;
-  background: var(--accent-soft);
-  border: 1px solid rgba(34, 211, 238, 0.25);
-  color: var(--accent);
-  font-size: 28px;
-  box-shadow: 0 0 30px rgba(34, 211, 238, 0.08);
-}
+/* =========================================
+   HEADER
+========================================= */
 
-.chat-welcome h3 {
-  font-size: 22px;
-  margin-bottom: 10px;
-}
-
-.chat-welcome p {
-  color: var(--text-secondary);
-  line-height: 1.6;
-  font-size: 13px;
-}
-
-/* SUGGESTIONS */
-
-.suggestions {
+.ai-chat-header {
+  position: relative;
   display: flex;
+  align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 22px;
+  height: 55px;
+  border-bottom: 1px solid var(--border);
 }
 
-.suggestions button {
-  background: var(--bg-secondary);
+.ai-chat-header h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+
+/* =========================================
+   HOW BUTTON
+========================================= */
+
+.how-button {
+  position: absolute;
+  right: 10px;
+
   border: 1px solid var(--border);
-  color: var(--text-secondary);
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  transition: 0.2s;
+  background: transparent;
+
+  color: var(--muted);
+
+  padding: 5px 10px;
+  border-radius: 6px;
+
+  font-size: 11px;
+  cursor: pointer;
+
+  transition: 0.2s ease;
 }
 
-.suggestions button:hover {
-  border-color: var(--accent);
+.how-button:hover {
   color: var(--accent);
-  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 
-/* INPUT */
+
+/* =========================================
+   HOW POPUP
+========================================= */
+
+.how-popup {
+  position: absolute;
+  right: 10px;
+  top: 48px;
+
+  width: 190px;
+
+  padding: 14px;
+
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  z-index: 20;
+
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.how-popup-title {
+  font-size: 11px;
+  font-weight: 600;
+
+  color: var(--text);
+
+  margin-bottom: 12px;
+}
+
+.how-popup-step {
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+
+  font-size: 11px;
+  color: var(--muted);
+
+  margin-bottom: 9px;
+}
+
+.how-popup-step:last-child {
+  margin-bottom: 0;
+}
+
+.how-popup-step span {
+  width: 19px;
+  height: 19px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: rgba(34, 211, 238, 0.1);
+  color: var(--accent);
+
+  font-size: 9px;
+}
+
+
+/* =========================================
+   CHAT MESSAGES
+========================================= */
+
+.chat-messages {
+  flex: 1;
+
+  overflow-y: auto;
+
+  padding: 35px 80px 110px;
+
+  scrollbar-width: thin;
+}
+
+.chat-message {
+  max-width: 900px;
+
+  margin-bottom: 28px;
+}
+
+.chat-message.user {
+  margin-left: auto;
+  text-align: right;
+}
+
+.message-name {
+  font-size: 11px;
+
+  font-weight: 600;
+
+  color: var(--muted);
+
+  margin-bottom: 7px;
+}
+
+.chat-message.assistant .message-name {
+  color: var(--accent);
+}
+
+.message-text {
+  font-size: 14px;
+
+  line-height: 1.7;
+
+  color: var(--text);
+
+  text-align: justify;
+
+  white-space: normal;
+}
+
+.chat-message.user .message-text {
+  text-align: right;
+}
+
+
+/* =========================================
+   NORMAL AI TEXT
+========================================= */
+
+.ai-text-block {
+  white-space: pre-wrap;
+  margin-bottom: 12px;
+}
+
+
+/* =========================================
+   PYTHON CODE
+========================================= */
+
+.ai-code-block {
+  margin: 16px 0;
+
+  padding: 18px;
+
+  border-radius: 9px;
+
+  background: #0a1622;
+
+  border: 1px solid rgba(34, 211, 238, 0.25);
+
+  overflow-x: auto;
+
+  text-align: left;
+}
+
+.ai-code-block code {
+  font-family: "Consolas", "Courier New", monospace;
+
+  font-size: 12px;
+
+  line-height: 1.7;
+
+  color: #8be9fd;
+
+  white-space: pre;
+}
+
+
+/* =========================================
+   THINKING
+========================================= */
+
+.thinking {
+  opacity: 0.55;
+}
+
+
+/* =========================================
+   INPUT
+========================================= */
 
 .chat-input-area {
+  position: absolute;
+
+  left: 80px;
+  right: 80px;
+  bottom: 22px;
+
+  height: 50px;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 7px;
+
+  background: var(--panel);
+
   border: 1px solid var(--border);
-  background: var(--bg-secondary);
+
   border-radius: 12px;
-  padding: 12px;
 }
 
-.chat-input-area textarea {
-  width: 100%;
-  resize: none;
+
+/* =========================================
+   TEXT INPUT
+========================================= */
+
+.chat-input-area input[type="text"] {
+  flex: 1;
+
+  height: 100%;
+
   border: none;
   outline: none;
+
   background: transparent;
-  color: var(--text-primary);
-  padding: 10px;
-  line-height: 1.5;
+
+  color: var(--text);
+
+  font-size: 13px;
+
+  padding: 0 8px;
 }
 
-.chat-input-area textarea::placeholder {
-  color: var(--text-muted);
+.chat-input-area input[type="text"]::placeholder {
+  color: var(--muted);
 }
 
-.chat-input-area .primary-button {
-  display: block;
-  margin-left: auto;
-  margin-top: 8px;
+
+/* =========================================
+   PLUS
+========================================= */
+
+.attachment-button {
+  width: 36px;
+  height: 36px;
+
+  border: none;
+
+  background: transparent;
+
+  color: var(--muted);
+
+  font-size: 22px;
+
+  cursor: pointer;
+
+  border-radius: 8px;
+
+  transition: 0.2s ease;
 }
 
-/* MOBILE */
+.attachment-button:hover {
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.04);
+}
 
-@media (max-width: 700px) {
-  .ai-chat-header {
-    flex-direction: column;
-    gap: 15px;
+
+/* =========================================
+   SEND ARROW
+========================================= */
+
+.send-button {
+  width: 36px;
+  height: 36px;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: var(--accent);
+
+  color: #07111f;
+
+  font-size: 19px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.send-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+
+/* =========================================
+   ATTACHMENT
+========================================= */
+
+.attachment-preview {
+  position: absolute;
+
+  left: 80px;
+  bottom: 80px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 6px 10px;
+
+  background: var(--panel);
+
+  border: 1px solid var(--border);
+
+  border-radius: 7px;
+
+  font-size: 11px;
+
+  max-width: 300px;
+}
+
+.attachment-name {
+  max-width: 200px;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+.remove-attachment {
+  border: none;
+
+  background: transparent;
+
+  color: var(--muted);
+
+  cursor: pointer;
+
+  font-size: 16px;
+}
+
+
+/* =========================================
+   SCROLLBAR
+========================================= */
+
+.chat-messages::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: var(--border);
+
+  border-radius: 10px;
+}
+
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 800px) {
+
+  .chat-messages {
+    padding-left: 25px;
+    padding-right: 25px;
   }
 
-  .ai-chat-header h2 {
-    font-size: 24px;
+  .chat-input-area {
+    left: 25px;
+    right: 25px;
   }
 
-  .chat-container {
-    padding: 22px;
-  }
-
-  .suggestions {
-    justify-content: flex-start;
+  .attachment-preview {
+    left: 25px;
   }
 }
-/* =========================
+
+
+/* =========================================
    STRATEGY BUILDER
-========================= */
+========================================= */
 
 .strategy-page {
   max-width: 1200px;
@@ -931,10 +1190,13 @@ body {
     align-items: flex-start;
     gap: 18px;
   }
+
 }
-/* =========================
+
+
+/* =========================================
    BACKTESTING
-========================= */
+========================================= */
 
 .backtesting-page {
   max-width: 1200px;
@@ -1288,10 +1550,13 @@ body {
   .ai-summary {
     flex-direction: column;
   }
+
 }
-/* =========================
+
+
+/* =========================================
    LOGIN
-========================= */
+========================================= */
 
 .login-page {
   min-height: 100vh;
@@ -1302,7 +1567,6 @@ body {
       transparent 35%
     ),
     var(--bg-primary);
-
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1513,9 +1777,11 @@ body {
   }
 
 }
-/* =========================
+
+
+/* =========================================
    ANALYTICS
-========================= */
+========================================= */
 
 .analytics-page {
   max-width: 1200px;
@@ -1873,9 +2139,11 @@ body {
   }
 
 }
-/* =========================
+
+
+/* =========================================
    SETTINGS
-========================= */
+========================================= */
 
 .settings-page {
   max-width: 1200px;
@@ -2057,6 +2325,7 @@ body {
 }
 
 @media (max-width: 800px) {
+
   .settings-layout {
     grid-template-columns: 1fr;
   }
@@ -2073,11 +2342,13 @@ body {
   .theme-options {
     grid-template-columns: 1fr;
   }
+
 }
 
-/* =========================
+
+/* =========================================
    THEME SYSTEM
-========================= */
+========================================= */
 
 :root {
   --bg-primary: #080d16;
@@ -2097,13 +2368,21 @@ body {
   --negative: #fb7185;
 
   --radius: 10px;
+
+  /* Compatibility variables for AI Chat */
+  --panel: #111a28;
+  --text: #f1f5f9;
+  --muted: #687386;
+
+  --success: #34d399;
+  --danger: #fb7185;
 }
 
 
-/* =========================
+/* =========================================
    THEME 1
    QUANT DARK
-========================= */
+========================================= */
 
 .theme-quant-dark {
   --bg-primary: #080d16;
@@ -2121,13 +2400,20 @@ body {
 
   --positive: #34d399;
   --negative: #fb7185;
+
+  --panel: #111a28;
+  --text: #f1f5f9;
+  --muted: #687386;
+
+  --success: #34d399;
+  --danger: #fb7185;
 }
 
 
-/* =========================
+/* =========================================
    THEME 2
    CLEAN LIGHT
-========================= */
+========================================= */
 
 .theme-clean-light {
   --bg-primary: #f5f7fb;
@@ -2145,13 +2431,20 @@ body {
 
   --positive: #059669;
   --negative: #dc2626;
+
+  --panel: #ffffff;
+  --text: #172033;
+  --muted: #8792a6;
+
+  --success: #059669;
+  --danger: #dc2626;
 }
 
 
-/* =========================
+/* =========================================
    THEME 3
    MIDNIGHT BLUE
-========================= */
+========================================= */
 
 .theme-midnight-blue {
   --bg-primary: #061522;
@@ -2169,8 +2462,19 @@ body {
 
   --positive: #2dd4bf;
   --negative: #fb7185;
+
+  --panel: #0d2940;
+  --text: #e8f1f8;
+  --muted: #668398;
+
+  --success: #2dd4bf;
+  --danger: #fb7185;
 }
-/* Smooth theme transition */
+
+
+/* =========================================
+   SMOOTH THEME TRANSITION
+========================================= */
 
 .app,
 .sidebar,
@@ -2179,6 +2483,10 @@ body {
 .analytics-card,
 .login-card,
 .settings-panel,
+.chat-container,
+.chat-input-area,
+.message-avatar,
+.attachment-preview,
 input,
 select,
 button {
@@ -2187,6 +2495,12 @@ button {
     color 0.25s ease,
     border-color 0.25s ease;
 }
+
+
+/* =========================================
+   THEME OPTIONS
+========================================= */
+
 .theme-option {
   cursor: pointer;
   position: relative;
@@ -2208,4 +2522,54 @@ button {
   margin-top: 5px;
   color: var(--accent);
   font-size: 9px;
+}
+
+
+/* =========================================
+   GLOBAL RESPONSIVE
+========================================= */
+
+@media (max-width: 1000px) {
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media (max-width: 700px) {
+
+  .sidebar {
+    width: 70px;
+  }
+
+  .sidebar .logo div:not(.logo-mark),
+  .sidebar .nav-item span:last-child,
+  .sidebar .user-card div:last-child {
+    display: none;
+  }
+
+  .main-content {
+    width: calc(100% - 70px);
+    margin-left: 70px;
+  }
+
+  .page-content {
+    padding: 20px;
+  }
+
+  .welcome-section {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
 }
