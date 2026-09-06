@@ -40,15 +40,13 @@ export default function Signup() {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/auth/signup",
+        "http://localhost:8000/auth/signup",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
 
-          // Current backend SignupRequest accepts
-          // email and password only.
           body: JSON.stringify({
             email,
             password,
@@ -82,74 +80,64 @@ export default function Signup() {
         data.email
       );
 
-      // Temporary frontend storage until
-      // backend User model supports full_name.
+      // Temporary frontend-only storage
+      // until backend supports full_name.
       localStorage.setItem(
         "name",
         name
       );
 
       navigate("/chat");
-
     } catch (err) {
+      console.error("Signup error:", err);
 
-      console.error(
-        "Signup error:",
-        err
-      );
-
-      setError(
-        err.message
-      );
-
+      if (err instanceof TypeError) {
+        setError(
+          "Unable to connect to the server. Please make sure the backend is running."
+        );
+      } else {
+        setError(err.message);
+      }
     } finally {
-
       setLoading(false);
-
     }
   };
 
   return (
     <div className="auth-page">
-
       <div className="auth-background-grid"></div>
 
       <div className="auth-container">
+        {/* ================= LEFT SIDE ================= */}
 
-        {/* LEFT SIDE */}
-
-        <div className="auth-visual signup-visual">
-
+        <section className="auth-visual signup-visual">
           <div className="brand-small">
-            <div className="brand-icon">
-              ✦
-            </div>
+            <div className="brand-icon">AQ</div>
 
-            <span>
-              QuantAI
-            </span>
+            <div className="brand-text">
+              <strong>AI QUANT</strong>
+              <small>Quant Intelligence</small>
+            </div>
           </div>
 
           <div className="signup-visual-content">
+            <div className="login-status-badge">
+              <span className="status-dot"></span>
+              AI-DRIVEN STRATEGY WORKSPACE
+            </div>
 
+            {/* STRATEGY ORBIT */}
             <div className="strategy-orbit">
-
               <div className="orbit-circle orbit-one"></div>
-
               <div className="orbit-circle orbit-two"></div>
-
               <div className="orbit-circle orbit-three"></div>
 
               <div className="strategy-core">
-
                 <div className="core-chart">
                   ↗
                 </div>
 
-                <span>
-                  AI
-                </span>
-
+                <span>AI</span>
               </div>
 
               <div className="orbit-node node-one">
@@ -163,36 +151,28 @@ export default function Signup() {
               <div className="orbit-node node-three">
                 ▥
               </div>
-
             </div>
 
             <h1>
               Build Smarter.
               <br />
-              <span>
-                Trade Smarter.
-              </span>
+              <span>Trade Smarter.</span>
             </h1>
 
             <p className="visual-description">
-              Describe your trading idea in plain language
-              and let AI help transform it into a systematic
-              strategy.
+              Describe your trading idea in plain language and
+              use AI to transform it into a structured
+              quantitative strategy.
             </p>
 
+            {/* WORKFLOW */}
             <div className="workflow-preview">
-
               <div className="workflow-step">
                 <span>01</span>
 
                 <div>
-                  <strong>
-                    Describe
-                  </strong>
-
-                  <small>
-                    Your trading idea
-                  </small>
+                  <strong>Describe</strong>
+                  <small>Trading idea</small>
                 </div>
               </div>
 
@@ -202,13 +182,8 @@ export default function Signup() {
                 <span>02</span>
 
                 <div>
-                  <strong>
-                    Generate
-                  </strong>
-
-                  <small>
-                    AI strategy logic
-                  </small>
+                  <strong>Generate</strong>
+                  <small>AI strategy</small>
                 </div>
               </div>
 
@@ -218,73 +193,54 @@ export default function Signup() {
                 <span>03</span>
 
                 <div>
-                  <strong>
-                    Backtest
-                  </strong>
-
-                  <small>
-                    Historical performance
-                  </small>
+                  <strong>Backtest</strong>
+                  <small>Performance</small>
                 </div>
               </div>
-
             </div>
-
           </div>
 
           <div className="visual-footer">
-            Designed for systematic traders & AI enthusiasts
+            AI QUANT • Quant Intelligence Platform
           </div>
+        </section>
 
-        </div>
+        {/* ================= RIGHT SIDE ================= */}
 
-        {/* RIGHT SIDE */}
-
-        <div className="auth-form-section">
-
+        <section className="auth-form-section">
           <div className="auth-form-wrapper signup-form-wrapper">
-
+            {/* MOBILE BRAND */}
             <div className="mobile-brand">
+              <div className="brand-icon">AQ</div>
 
-              <div className="brand-icon">
-                ✦
+              <div className="brand-text">
+                <strong>AI QUANT</strong>
+                <small>Quant Intelligence</small>
               </div>
-
-              <span>
-                QuantAI
-              </span>
-
             </div>
 
+            {/* HEADING */}
             <div className="form-heading">
-
               <span className="eyebrow">
-                GET STARTED
+                CREATE YOUR WORKSPACE
               </span>
 
-              <h2>
-                Create Your Account
-              </h2>
+              <h2>Create your account</h2>
 
               <p>
-                Start building and backtesting strategies
-                powered by AI.
+                Join AI QUANT and start building
+                data-driven trading strategies.
               </p>
-
             </div>
 
             <form onSubmit={handleSubmit}>
-
-              {/* NAME */}
-
+              {/* FULL NAME */}
               <div className="form-group">
-
                 <label htmlFor="name">
                   Full Name
                 </label>
 
                 <div className="input-wrapper">
-
                   <span className="input-icon">
                     ◯
                   </span>
@@ -297,23 +253,19 @@ export default function Signup() {
                     onChange={(e) =>
                       setName(e.target.value)
                     }
+                    autoComplete="name"
                     required
                   />
-
                 </div>
-
               </div>
 
               {/* EMAIL */}
-
               <div className="form-group">
-
                 <label htmlFor="signup-email">
-                  Email
+                  Email Address
                 </label>
 
                 <div className="input-wrapper">
-
                   <span className="input-icon">
                     ✉
                   </span>
@@ -326,25 +278,21 @@ export default function Signup() {
                     onChange={(e) =>
                       setEmail(e.target.value)
                     }
+                    autoComplete="email"
                     required
                   />
-
                 </div>
-
               </div>
 
               {/* PASSWORD */}
-
               <div className="form-group">
-
                 <label htmlFor="signup-password">
                   Password
                 </label>
 
                 <div className="input-wrapper">
-
                   <span className="input-icon">
-                    🔒
+                    ◈
                   </span>
 
                   <input
@@ -360,6 +308,7 @@ export default function Signup() {
                     onChange={(e) =>
                       setPassword(e.target.value)
                     }
+                    autoComplete="new-password"
                     required
                   />
 
@@ -371,26 +320,26 @@ export default function Signup() {
                         !showPassword
                       )
                     }
+                    aria-label={
+                      showPassword
+                        ? "Hide password"
+                        : "Show password"
+                    }
                   >
                     {showPassword ? "◉" : "○"}
                   </button>
-
                 </div>
-
               </div>
 
               {/* CONFIRM PASSWORD */}
-
               <div className="form-group">
-
                 <label htmlFor="confirm-password">
                   Confirm Password
                 </label>
 
                 <div className="input-wrapper">
-
                   <span className="input-icon">
-                    🔒
+                    ◈
                   </span>
 
                   <input
@@ -408,6 +357,7 @@ export default function Signup() {
                         e.target.value
                       )
                     }
+                    autoComplete="new-password"
                     required
                   />
 
@@ -419,22 +369,22 @@ export default function Signup() {
                         !showConfirmPassword
                       )
                     }
+                    aria-label={
+                      showConfirmPassword
+                        ? "Hide confirm password"
+                        : "Show confirm password"
+                    }
                   >
                     {showConfirmPassword
                       ? "◉"
                       : "○"}
                   </button>
-
                 </div>
-
               </div>
 
               {/* TERMS */}
-
               <div className="terms-row">
-
                 <label className="checkbox-container">
-
                   <input
                     type="checkbox"
                     checked={agreeTerms}
@@ -446,7 +396,6 @@ export default function Signup() {
                   />
 
                   <span className="custom-checkbox"></span>
-
                 </label>
 
                 <p>
@@ -468,24 +417,17 @@ export default function Signup() {
                     Privacy Policy
                   </button>
                 </p>
-
               </div>
 
               {/* ERROR */}
-
               {error && (
-                <p
-                  style={{
-                    color: "#ff5c5c",
-                    marginBottom: "12px",
-                  }}
-                >
-                  {error}
-                </p>
+                <div className="auth-error">
+                  <span>!</span>
+                  <p>{error}</p>
+                </div>
               )}
 
-              {/* SUBMIT */}
-
+              {/* CREATE ACCOUNT */}
               <button
                 type="submit"
                 className="primary-button"
@@ -494,569 +436,46 @@ export default function Signup() {
                   loading
                 }
               >
-
                 <span>
                   {loading
-                    ? "Creating Account..."
+                    ? "Creating account..."
                     : "Create Account"}
                 </span>
 
                 <span className="button-arrow">
                   →
                 </span>
-
               </button>
 
-              <div className="divider">
-
-                <span></span>
-
-                <p>
-                  or
-                </p>
-
-                <span></span>
-
-              </div>
-
-              <button
-                type="button"
-                className="google-button"
-                onClick={() =>
-                  console.log(
-                    "Google signup"
-                  )
-                }
-              >
-
-                <span className="google-icon">
-                  G
-                </span>
-
-                Sign up with Google
-
-              </button>
-
+              {/* LOGIN */}
               <div className="switch-auth">
-
                 Already have an account?
 
                 <Link to="/login">
-                  Login
+                  Sign in
                 </Link>
-
               </div>
-
             </form>
 
+            {/* SECURITY NOTE */}
+            <div className="security-note">
+              <span className="security-icon">
+                ✓
+              </span>
+
+              <div>
+                <strong>
+                  Secure account setup
+                </strong>
+
+                <small>
+                  Your account information is protected.
+                </small>
+              </div>
+            </div>
           </div>
-
-        </div>
-
+        </section>
       </div>
-
     </div>
   );
 }
-
-// import React, { useState } from "react";
-// import { Link } from "react-router-dom";
-// import "../styles/auth.css";
-
-// export default function Signup() {
-//   const [showPassword, setShowPassword] = useState(false);
-//   const [showConfirmPassword, setShowConfirmPassword] =
-//     useState(false);
-
-//   const [agreeTerms, setAgreeTerms] = useState(false);
-
-//   const handleSubmit = (e) => {
-//     e.preventDefault();
-
-//     // Backend registration will be connected here later.
-//     console.log("Signup submitted");
-//   };
-
-//   return (
-//     <div className="auth-page">
-//       <div className="auth-background-grid"></div>
-
-//       <div className="auth-container">
-
-//         {/* LEFT SIDE */}
-
-//         <div className="auth-visual signup-visual">
-
-//           <div className="brand-small">
-//             <div className="brand-icon">✦</div>
-//             <span>QuantAI</span>
-//           </div>
-
-//           <div className="signup-visual-content">
-
-//             <div className="strategy-orbit">
-
-//               <div className="orbit-circle orbit-one"></div>
-
-//               <div className="orbit-circle orbit-two"></div>
-
-//               <div className="orbit-circle orbit-three"></div>
-
-//               <div className="strategy-core">
-
-//                 <div className="core-chart">
-//                   ↗
-//                 </div>
-
-//                 <span>AI</span>
-
-//               </div>
-
-//               <div className="orbit-node node-one">
-//                 ✦
-//               </div>
-
-//               <div className="orbit-node node-two">
-//                 ◇
-//               </div>
-
-//               <div className="orbit-node node-three">
-//                 ▥
-//               </div>
-
-//             </div>
-
-
-//             <h1>
-//               Build Smarter.
-//               <br />
-//               <span>Trade Smarter.</span>
-//             </h1>
-
-//             <p className="visual-description">
-//               Describe your trading idea in plain language
-//               and let AI help transform it into a systematic
-//               strategy.
-//             </p>
-
-
-//             <div className="workflow-preview">
-
-//               <div className="workflow-step">
-//                 <span>01</span>
-//                 <div>
-//                   <strong>Describe</strong>
-//                   <small>Your trading idea</small>
-//                 </div>
-//               </div>
-
-//               <div className="workflow-line"></div>
-
-//               <div className="workflow-step">
-//                 <span>02</span>
-//                 <div>
-//                   <strong>Generate</strong>
-//                   <small>AI strategy logic</small>
-//                 </div>
-//               </div>
-
-//               <div className="workflow-line"></div>
-
-//               <div className="workflow-step">
-//                 <span>03</span>
-//                 <div>
-//                   <strong>Backtest</strong>
-//                   <small>Historical performance</small>
-//                 </div>
-//               </div>
-
-//             </div>
-
-//           </div>
-
-//           <div className="visual-footer">
-//             Designed for systematic traders & AI enthusiasts
-//           </div>
-
-//         </div>
-
-
-//         {/* RIGHT SIDE */}
-
-//         <div className="auth-form-section">
-
-//           <div className="auth-form-wrapper signup-form-wrapper">
-
-//             <div className="mobile-brand">
-
-//               <div className="brand-icon">✦</div>
-
-//               <span>QuantAI</span>
-
-//             </div>
-
-
-//             <div className="form-heading">
-
-//               <span className="eyebrow">
-//                 GET STARTED
-//               </span>
-
-//               <h2>Create Your Account</h2>
-
-//               <p>
-//                 Start building and backtesting strategies
-//                 powered by AI.
-//               </p>
-
-//             </div>
-
-
-//             <form onSubmit={handleSubmit}>
-
-//               {/* FULL NAME */}
-
-//               <div className="form-group">
-
-//                 <label htmlFor="name">
-//                   Full Name
-//                 </label>
-
-//                 <div className="input-wrapper">
-
-//                   <span className="input-icon">
-//                     ◯
-//                   </span>
-
-//                   <input
-//                     id="name"
-//                     type="text"
-//                     placeholder="Enter your full name"
-//                     required
-//                   />
-
-//                 </div>
-
-//               </div>
-
-
-//               {/* EMAIL */}
-
-//               <div className="form-group">
-
-//                 <label htmlFor="signup-email">
-//                   Email
-//                 </label>
-
-//                 <div className="input-wrapper">
-
-//                   <span className="input-icon">
-//                     ✉
-//                   </span>
-
-//                   <input
-//                     id="signup-email"
-//                     type="email"
-//                     placeholder="Enter your email"
-//                     required
-//                   />
-
-//                 </div>
-
-//               </div>
-
-
-//               {/* PASSWORD */}
-
-//               <div className="form-group">
-
-//                 <label htmlFor="signup-password">
-//                   Password
-//                 </label>
-
-//                 <div className="input-wrapper">
-
-//                   <span className="input-icon">
-//                     🔒
-//                   </span>
-
-//                   <input
-//                     id="signup-password"
-//                     type={
-//                       showPassword
-//                         ? "text"
-//                         : "password"
-//                     }
-//                     placeholder="Create a password"
-//                     minLength="8"
-//                     required
-//                   />
-
-//                   <button
-//                     type="button"
-//                     className="password-toggle"
-//                     onClick={() =>
-//                       setShowPassword(!showPassword)
-//                     }
-//                   >
-//                     {showPassword ? "◉" : "○"}
-//                   </button>
-
-//                 </div>
-
-//               </div>
-
-
-//               {/* CONFIRM PASSWORD */}
-
-//               <div className="form-group">
-
-//                 <label htmlFor="confirm-password">
-//                   Confirm Password
-//                 </label>
-
-//                 <div className="input-wrapper">
-
-//                   <span className="input-icon">
-//                     🔒
-//                   </span>
-
-//                   <input
-//                     id="confirm-password"
-//                     type={
-//                       showConfirmPassword
-//                         ? "text"
-//                         : "password"
-//                     }
-//                     placeholder="Confirm your password"
-//                     minLength="8"
-//                     required
-//                   />
-
-//                   <button
-//                     type="button"
-//                     className="password-toggle"
-//                     onClick={() =>
-//                       setShowConfirmPassword(
-//                         !showConfirmPassword
-//                       )
-//                     }
-//                   >
-//                     {showConfirmPassword ? "◉" : "○"}
-//                   </button>
-
-//                 </div>
-
-//               </div>
-
-
-//               {/* TERMS */}
-
-//               <div className="terms-row">
-
-//                 <label className="checkbox-container">
-
-//                   <input
-//                     type="checkbox"
-//                     checked={agreeTerms}
-//                     onChange={(e) =>
-//                       setAgreeTerms(e.target.checked)
-//                     }
-//                     required
-//                   />
-
-//                   <span className="custom-checkbox"></span>
-
-//                 </label>
-
-//                 <p>
-//                   I agree to the{" "}
-//                   <button
-//                     type="button"
-//                     className="inline-link"
-//                   >
-//                     Terms of Service
-//                   </button>{" "}
-//                   and{" "}
-//                   <button
-//                     type="button"
-//                     className="inline-link"
-//                   >
-//                     Privacy Policy
-//                   </button>
-//                 </p>
-
-//               </div>
-
-
-//               {/* SIGN UP BUTTON */}
-
-//               <button
-//                 type="submit"
-//                 className="primary-button"
-//                 disabled={!agreeTerms}
-//               >
-
-//                 <span>Create Account</span>
-
-//                 <span className="button-arrow">
-//                   →
-//                 </span>
-
-//               </button>
-
-
-//               {/* DIVIDER */}
-
-//               <div className="divider">
-
-//                 <span></span>
-
-//                 <p>or</p>
-
-//                 <span></span>
-
-//               </div>
-
-
-//               {/* GOOGLE */}
-
-//               <button
-//                 type="button"
-//                 className="google-button"
-//                 onClick={() =>
-//                   console.log("Google signup")
-//                 }
-//               >
-
-//                 <span className="google-icon">
-//                   G
-//                 </span>
-
-//                 Sign up with Google
-
-//               </button>
-
-
-//               {/* LOGIN */}
-
-//               <div className="switch-auth">
-
-//                 Already have an account?
-
-//                 <Link to="/login">
-//                   Login
-//                 </Link>
-
-//               </div>
-
-//             </form>
-
-
-//             <div className="security-note">
-
-//               <span>🔒</span>
-
-//               <div>
-
-//                 <strong>Secure by design</strong>
-
-//                 <small>
-//                   Your credentials are protected.
-//                 </small>
-
-//               </div>
-
-//             </div>
-
-//           </div>
-
-//         </div>
-
-//       </div>
-
-
-//       {/* BOTTOM FEATURES */}
-
-//       <div className="website-features">
-
-//         <div className="website-feature">
-
-//           <span>✦</span>
-
-//           <div>
-
-//             <strong>
-//               AI Strategy Generation
-//             </strong>
-
-//             <small>
-//               Turn ideas into trading logic
-//             </small>
-
-//           </div>
-
-//         </div>
-
-
-//         <div className="website-feature">
-
-//           <span>▥</span>
-
-//           <div>
-
-//             <strong>
-//               Historical Backtesting
-//             </strong>
-
-//             <small>
-//               Evaluate your strategy
-//             </small>
-
-//           </div>
-
-//         </div>
-
-
-//         <div className="website-feature">
-
-//           <span>◇</span>
-
-//           <div>
-
-//             <strong>
-//               Paper Trading
-//             </strong>
-
-//             <small>
-//               Practice without real money
-//             </small>
-
-//           </div>
-
-//         </div>
-
-
-//         <div className="website-feature">
-
-//           <span>🔒</span>
-
-//           <div>
-
-//             <strong>
-//               Secure Account
-//             </strong>
-
-//             <small>
-//               Your data stays protected
-//             </small>
-
-//           </div>
-
-//         </div>
-
-//       </div>
-
-//     </div>
-//   );
-// }
