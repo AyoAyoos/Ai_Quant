@@ -102,3 +102,19 @@ class _Guardrails(ast.NodeVisitor):
             if name in BLOCKED_CALLS:
                 raise GuardrailError(f"refused call to: {name}()")
         self.generic_visit(node)
+
+
+def check_guardrails(code: str) -> None:
+    """Raise GuardrailError if the code trips a static rule. No execution."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as exc:
+        raise GuardrailError(f"strategy code does not parse: {exc.args[0]}")
+
+    visitor = _Guardrails()
+    try:
+        visitor.visit(tree)
+    except GuardrailError:
+        raise
+    except Exception as exc:  # defensively treat any ast hiccup as a reject
+        raise GuardrailError(f"guardrail analysis failed: {exc}")
