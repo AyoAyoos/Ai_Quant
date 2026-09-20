@@ -172,3 +172,14 @@ def _extract_trade_metrics(analysis: dict) -> dict:
         ),
         "closed_pnl": _sanitize(round(closed_pnl, 2)),
     }
+
+
+def _extract_drawdown(analysis: dict) -> dict:
+    return {
+        "max_drawdown_pct": _sanitize(
+            _safe_get(analysis, "max", "drawdown", default=None)
+        ),
+        "max_drawdown_duration_bars": _sanitize(
+            _safe_get(analysis, "max", "len", default=None)
+        ),
+    }
