@@ -15,7 +15,6 @@ from app.models import (
 )
 from app.schemas import BacktestRequest, BacktestResultOut
 from app.services.strategy_runner import run_backtest
-from pathlib import Path
 
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
