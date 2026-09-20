@@ -220,3 +220,122 @@ def load_dataframe(path: str):
         raise ValueError("data has zero volume throughout; refusing to run")
 
     return df
+
+
+# --------------------------------------------------------------------------- #
+# Cerebro orchestration
+# --------------------------------------------------------------------------- #
+def run_backtest(code: str, data_path: str, cash: float, commission_pct: float,
+                 sizer_percents: float) -> dict:
+    check_guardrails(code)
+
+    # Run in a fresh namespace with real builtins. The guardrail (not builtin
+    # stripping) is the boundary here; keeping real builtins is what makes
+    # class-definition machinery (__build_class__) and ordinary helpers
+    # (range/len/min/max/super/print) work without special casing.
+    # backtrader's metaclass machinery (MetaParams.donew) does
+    # `sys.modules[cls.__module__]` every time a strategy is instantiated, so
+    # the exec'd class's module needs a real, unique entry in sys.modules
+    # rather than a bare dict passed as the exec namespace.
+    module_name = f"__strategy_{uuid.uuid4().hex}__"
+    module = types.ModuleType(module_name)
+    module.__file__ = "<generated>"
+    sys.modules[module_name] = module
+    try:
+        exec(compile(code, "<strategy>", "exec"), module.__dict__)
+
+        strategy_cls = None
+        for name, obj in module.__dict__.items():
+            if isinstance(obj, type) and issubclass(obj, bt.Strategy):
+                if name == "GeneratedStrategy":
+                    strategy_cls = obj
+                    break
+                strategy_cls = obj  # accept differently-named subclasses too
+        if strategy_cls is None:
+            raise ValueError("no bt.Strategy subclass found in the generated code")
+
+        return _run_cerebro(strategy_cls, data_path, cash, commission_pct, sizer_percents)
+    finally:
+        del sys.modules[module_name]
+
+
+def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: float,
+                  sizer_percents: float) -> dict:
+    df = load_dataframe(data_path)
+
+    cerebro = bt.Cerebro(stdstats=False)
+    cerebro.broker.setcash(cash)
+    cerebro.broker.setcommission(commission=pct_to_fraction(commission_pct))
+
+    data = bt.feeds.PandasData(
+        dataname=df,
+        open="Open", high="High", low="Low", close="Close",
+        volume="Volume", openinterest=None,
+    )
+    cerebro.adddata(data)
+    cerebro.addstrategy(strategy_cls)
+
+    # PercentSizer so a bare buy() uses ~sizer_percents% of cash instead of
+    # backtrader's default "1 unit" (which makes index-level strategies look
+    # like ~0% returns). Single-position assumption, noted for Phase >3.
+    cerebro.addsizer(bt.sizers.PercentSizer, percents=sizer_percents)
+
+    # Attach analyzers by name so the runner survives backtrader version drift
+    # (e.g. SortinoRatio_A is absent in 1.9.78.123 but present in later builds).
+    _ANALYZERS = (
+        ("sharpe", "SharpeRatio_A", dict(timeframe=bt.TimeFrame.Days, annualize=True)),
+        ("sortino", "SortinoRatio_A", dict(timeframe=bt.TimeFrame.Days, annualize=True)),
+        ("drawdown", "DrawDown", {}),
+        ("trades", "TradeAnalyzer", {}),
+        ("returns", "Returns", {}),
+    )
+    available = {}
+    for _name, _cls_name, _kwargs in _ANALYZERS:
+        cls = getattr(bt.analyzers, _cls_name, None)
+        if cls is None:
+            available[_name] = False
+            continue
+        cerebro.addanalyzer(cls, _name=_name, **_kwargs)
+        available[_name] = True
+
+    results = cerebro.run()
+    strat = results[0]
+
+    value_start = cash
+    value_end = cerebro.broker.getvalue()
+    if not value_end or value_end <= 0:
+        raise ValueError("portfolio ended with a non-positive value")
+
+    def analysis(name, default=None):
+        analyzer = getattr(strat.analyzers, name, None)
+        if analyzer is None:
+            return default
+        return _safe_get(analyzer.get_analysis(), default=default)
+
+    sharpe = analysis("sharpe", default={})
+    sortino = analysis("sortino", default={})
+    drawdown = analysis("drawdown", default={})
+    trades = analysis("trades", default={})
+
+    first_close = float(df["Close"].iloc[0])
+    last_close = float(df["Close"].iloc[-1])
+
+    metrics = {
+        "start_date": str(df.index[0].date()),
+        "end_date": str(df.index[-1].date()),
+        "value_start": _sanitize(round(value_start, 2)),
+        "value_end": _sanitize(round(value_end, 2)),
+        "total_return_pct": _sanitize(round((value_end / value_start - 1.0) * 100.0, 2)),
+        "benchmark_return_pct": _sanitize(round((last_close / first_close - 1.0) * 100.0, 2)),
+        "sharpe": _sanitize(_safe_get(sharpe, "sharperatio")),
+        "sortino": _sanitize(_safe_get(sortino, "sortinoratio")),
+        "cagr_pct": None,  # computed in the parent from value + date span
+        "warnings": [],
+    }
+    metrics.update(_extract_trade_metrics(trades))
+    metrics.update(_extract_drawdown(drawdown))
+
+    if metrics["num_trades"] == 0:
+        metrics["warnings"].append("no_trades")
+
+    return metrics
