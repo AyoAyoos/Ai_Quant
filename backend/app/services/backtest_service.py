@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from app.services.strategy_runner import RESULT_MARKER, TIMEOUT_DEFAULT_SECONDS
@@ -36,6 +37,25 @@ def _popen_kwargs():
     if creationflags:
         kwargs["creationflags"] = creationflags
     return kwargs
+
+
+def _compute_cagr_pct(metrics: dict) -> float | None:
+    """Annualised return from the value span + date span the runner reported."""
+    value_start = metrics.get("value_start")
+    value_end = metrics.get("value_end")
+    start = metrics.get("start_date")
+    end = metrics.get("end_date")
+    if not value_start or not value_end or not start or not end:
+        return None
+    try:
+        start_dt = datetime.fromisoformat(str(start)).date()
+        end_dt = datetime.fromisoformat(str(end)).date()
+    except ValueError:
+        return None
+    days = (end_dt - start_dt).days
+    if days <= 0 or float(value_start) <= 0:
+        return None
+    return round((float(value_end) / float(value_start)) ** (365.0 / days) - 1.0, 4)
 
 
 def run_backtest_sandboxed(
@@ -86,7 +106,9 @@ def run_backtest_sandboxed(
         if line.startswith(RESULT_MARKER):
             payload = json.loads(line[len(RESULT_MARKER):].strip())
             if payload.get("ok"):
-                return payload["metrics"]
+                metrics = payload["metrics"]
+                metrics["cagr_pct"] = _compute_cagr_pct(metrics)
+                return metrics
             raise BacktestError(payload.get("error") or "worker reported an error")
 
     raise BacktestError("worker produced no result line")

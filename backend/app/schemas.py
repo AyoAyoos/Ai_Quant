@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ChatMessageIn(BaseModel):
@@ -15,9 +15,9 @@ class ChatMessageOut(BaseModel):
 
 class BacktestRequest(BaseModel):
     data_path: str | None = None
-    cash: float = 100000.0
-    commission_pct: float = 0.1
-    sizer_percents: float = 100.0
+    cash: float = Field(default=100000.0, gt=0)
+    commission_pct: float = Field(default=0.1, gt=0, lt=100)
+    sizer_percents: float = Field(default=100.0, gt=0)
 
 
 class BacktestResultOut(BaseModel):
@@ -28,6 +28,9 @@ class BacktestResultOut(BaseModel):
     win_rate_pct: float | None = None
     max_drawdown_pct: float | None = None
     num_trades: int | None = None
+    sharpe: float | None = None
+    sortino: float | None = None
+    cagr_pct: float | None = None
     start_date: str | None = None
     end_date: str | None = None
     warnings: list[str] = []
