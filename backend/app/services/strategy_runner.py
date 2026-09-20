@@ -343,3 +343,41 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
 
 def pct_to_fraction(pct: float) -> float:
     return float(pct) / 100.0
+
+
+# --------------------------------------------------------------------------- #
+# CLI entrypoint
+# --------------------------------------------------------------------------- #
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="Run an AI-generated bt strategy.")
+    parser.add_argument("--data", required=True, help="path to OHLCV CSV")
+    parser.add_argument("--cash", type=float, default=100000.0)
+    parser.add_argument("--commission", type=float, default=0.1, help="commission %%")
+    parser.add_argument("--sizer-percents", type=float, default=95.0)
+    args = parser.parse_args(argv)
+
+    code = sys.stdin.read()
+    try:
+        metrics = run_backtest(
+            code=code,
+            data_path=args.data,
+            cash=args.cash,
+            commission_pct=args.commission,
+            sizer_percents=args.sizer_percents,
+        )
+        print_result({"ok": True, "metrics": metrics})
+        return 0
+    except (GuardrailError, ValueError, SyntaxError) as exc:
+        print_result({"ok": False, "error": str(exc)})
+        return 1
+    except Exception as exc:  # noqa: BLE001 - worker must never die silently
+        print_result({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+        return 1
+
+
+def print_result(payload: dict) -> None:
+    print(f"{RESULT_MARKER} {json.dumps(payload, default=str)}", flush=True)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
