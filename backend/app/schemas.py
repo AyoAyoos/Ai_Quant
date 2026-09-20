@@ -11,3 +11,24 @@ class ChatMessageOut(BaseModel):
     reply: str
     strategy_id: str | None = None
     strategy_name: str | None = None
+
+
+class BacktestRequest(BaseModel):
+    data_path: str | None = None
+    cash: float = 100000.0
+    commission_pct: float = 0.1
+    sizer_percents: float = 100.0
+
+
+class BacktestResultOut(BaseModel):
+    strategy_id: str
+    status: str = "backtested"
+    total_return_pct: float | None = None
+    benchmark_return_pct: float | None = None
+    win_rate_pct: float | None = None
+    max_drawdown_pct: float | None = None
+    num_trades: int | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    warnings: list[str] = []
+    raw_metrics: dict | None = None
