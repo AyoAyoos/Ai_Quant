@@ -9,3 +9,5 @@ class ChatMessageIn(BaseModel):
 class ChatMessageOut(BaseModel):
     conversation_id: str
     reply: str
+    strategy_id: str | None = None
+    strategy_name: str | None = None
