@@ -143,3 +143,32 @@ def _safe_get(analysis: dict, *path, default=None, key=None):
     if key is not None:
         return _safe_get(node, key, default=default)
     return node
+
+
+def _extract_trade_metrics(analysis: dict) -> dict:
+    total_closed = _safe_get(analysis, "total", "closed", default=0)
+    won = _safe_get(analysis, "won", "total", default=0)
+    lost = _safe_get(analysis, "lost", "total", default=0)
+
+    closed_pnl = _safe_get(analysis, "pnl", "net", "total", default=0.0)
+    won_pnl_sum = _safe_get(analysis, "won", "pnl", "total", default=0.0)
+    lost_pnl_sum = _safe_get(analysis, "lost", "pnl", "total", default=0.0)
+
+    profit_factor = None
+    if lost_pnl_sum < 0:
+        profit_factor = _sanitize(round(abs(won_pnl_sum / lost_pnl_sum), 4))
+
+    return {
+        "num_trades": int(total_closed),
+        "win_rate_pct": _sanitize(
+            round(won / total_closed * 100.0, 2) if total_closed else None
+        ),
+        "profit_factor": profit_factor,
+        "avg_win": _sanitize(
+            round(_safe_get(analysis, "won", "pnl", "average", default=0.0), 2)
+        ),
+        "avg_loss": _sanitize(
+            round(_safe_get(analysis, "lost", "pnl", "average", default=0.0), 2)
+        ),
+        "closed_pnl": _sanitize(round(closed_pnl, 2)),
+    }
