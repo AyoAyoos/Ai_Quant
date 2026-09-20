@@ -339,3 +339,7 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
         metrics["warnings"].append("no_trades")
 
     return metrics
+
+
+def pct_to_fraction(pct: float) -> float:
+    return float(pct) / 100.0
