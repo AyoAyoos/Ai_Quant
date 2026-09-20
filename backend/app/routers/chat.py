@@ -35,7 +35,9 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
     # 3. Build history for LLM
     history = [
         {"role": m.role.value, "content": m.content}
-        for m in db.query(Message).filter(Message.conversation_id == conversation.id).order_by(Message.created_at)
+        for m in db.query(Message)
+        .filter(Message.conversation_id == conversation.id)
+        .order_by(Message.created_at)
     ]
 
     # 4. Call LLM
@@ -47,7 +49,7 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
     db.commit()
 
     # 6. If this reply looks like a finished strategy, run the constrained
-    #    finalize call to get clean structured JSON instead of parsing prose.
+    #    finalize call to extract clean structured JSON.
     if looks_like_final_strategy(reply):
         finalized = await finalize_strategy(history + [{"role": "assistant", "content": reply}])
 
