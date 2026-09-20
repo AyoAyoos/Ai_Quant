@@ -1,9 +1,3 @@
-from contextlib import contextmanager
-import io
-import uuid
-import sys
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -14,6 +8,7 @@ from app.models import (
     StrategyStatus,
 )
 from app.schemas import BacktestRequest, BacktestResultOut
+from app.services.market_data import MarketDataError, ensure_market_data
 from app.services.strategy_runner import run_backtest
 
 
@@ -83,29 +78,13 @@ def backtest_strategy(
 
 
 def _default_market_data_path(market: str) -> str:
-    backend_dir = Path(__file__).resolve().parents[2]
-    for candidate in (
-        backend_dir / "data" / f"{market}.csv",
-        backend_dir / "data" / f"{market}.CSV",
-    ):
-        if candidate.exists():
-            return str(candidate)
-
-    if market.upper() == "NIFTY50":
-        fixture = (
-            backend_dir / "tests" / "fixtures" / "nifty50.csv"
-        )
-        if fixture.exists():
-            return str(fixture)
-
-    raise HTTPException(
-        status_code=422,
-        detail=(
-            f"No market data for market={market!r}. Put "
-            f"{backend_dir}/data/{market}.csv in place or pass "
-            "`data_path` in the request body."
-        ),
-    )
+    try:
+        return str(ensure_market_data(market))
+    except MarketDataError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Could not load market data for {market!r}: {exc}",
+        ) from exc
 
 
 def _benchmark_of(metrics: dict):
