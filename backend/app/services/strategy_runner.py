@@ -55,3 +55,50 @@ BLOCKED_DUNDER_ATTRS = {
 BLOCKED_DUNDER_NAMES = BLOCKED_DUNDER_ATTRS
 
 TIMEOUT_DEFAULT_SECONDS = 120
+
+
+# --------------------------------------------------------------------------- #
+# Guardrail (ast static analysis)
+# --------------------------------------------------------------------------- #
+class GuardrailError(Exception):
+    pass
+
+
+class _Guardrails(ast.NodeVisitor):
+    def visit_Import(self, node):
+        for alias in node.names:
+            self._check_root(alias.name, node)
+            self.generic_visit(node)
+
+    def visit_ImportFrom(self, node):
+        self._check_root(node.module or "", node)
+        self.generic_visit(node)
+
+    def _check_root(self, name: str, node) -> None:
+        root = name.split(".")[0]
+        if root not in ALLOWED_IMPORTS:
+            raise GuardrailError(f"refused import: {name}")
+
+    def visit_Attribute(self, node):
+        if node.attr in BLOCKED_DUNDER_ATTRS:
+            raise GuardrailError(f"refused attribute access: .{node.attr}")
+        self.generic_visit(node)
+
+    def visit_Name(self, node):
+        if node.id in BLOCKED_DUNDER_NAMES:
+            raise GuardrailError(f"refused name reference: {node.id}")
+        self.generic_visit(node)
+
+    def _walk_call_names(self, node):
+        """Yield every name used in a call function position."""
+        func = node.func
+        if isinstance(func, ast.Name):
+            yield func.id
+        elif isinstance(func, ast.Attribute):
+            yield func.attr
+
+    def visit_Call(self, node):
+        for name in self._walk_call_names(node):
+            if name in BLOCKED_CALLS:
+                raise GuardrailError(f"refused call to: {name}()")
+        self.generic_visit(node)
