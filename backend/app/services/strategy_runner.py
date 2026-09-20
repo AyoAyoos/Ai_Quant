@@ -265,7 +265,15 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
 
     cerebro = bt.Cerebro(stdstats=False)
     cerebro.broker.setcash(cash)
-    cerebro.broker.setcommission(commission=pct_to_fraction(commission_pct))
+    # Equity-style percentage commission. `stocklike=True` keeps the position
+    # marked as a cash trade (not futures margin); COMM_PERC makes the
+    # commission a percentage of notional. Both must match or the broker's
+    # margin check can reject every order.
+    cerebro.broker.setcommission(
+        commission=pct_to_fraction(commission_pct),
+        stocklike=True,
+        commtype=bt.CommInfoBase.COMM_PERC,
+    )
 
     data = bt.feeds.PandasData(
         dataname=df,

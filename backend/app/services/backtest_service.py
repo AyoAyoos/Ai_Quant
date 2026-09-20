@@ -63,7 +63,7 @@ def run_backtest_sandboxed(
     data_path: str,
     cash: float = 100000.0,
     commission_pct: float = 0.1,
-    sizer_percents: float = 100.0,
+    sizer_percents: float = 95.0,
     timeout_seconds: int = TIMEOUT_DEFAULT_SECONDS,
     max_output_bytes: int = MAX_OUTPUT_BYTES,
 ) -> dict:

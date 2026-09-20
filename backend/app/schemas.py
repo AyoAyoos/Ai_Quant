@@ -17,7 +17,7 @@ class BacktestRequest(BaseModel):
     data_path: str | None = None
     cash: float = Field(default=100000.0, gt=0)
     commission_pct: float = Field(default=0.1, gt=0, lt=100)
-    sizer_percents: float = Field(default=100.0, gt=0)
+    sizer_percents: float = Field(default=95.0, gt=0, lt=100)
 
 
 class BacktestResultOut(BaseModel):
