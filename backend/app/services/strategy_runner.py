@@ -118,3 +118,28 @@ def check_guardrails(code: str) -> None:
         raise
     except Exception as exc:  # defensively treat any ast hiccup as a reject
         raise GuardrailError(f"guardrail analysis failed: {exc}")
+
+
+# --------------------------------------------------------------------------- #
+# Metrics helpers
+# --------------------------------------------------------------------------- #
+def _sanitize(value):
+    """Coerce NaN/inf floats to None so JSON/Postgres stay happy."""
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+    return value
+
+
+def _safe_get(analysis: dict, *path, default=None, key=None):
+    """Lazily walk a nested bt analyzer dict; return default on any miss."""
+    node = analysis
+    for part in path:
+        if not hasattr(node, "get"):
+            return default
+        node = node.get(part)
+    if node is None:
+        return default
+    if key is not None:
+        return _safe_get(node, key, default=default)
+    return node
