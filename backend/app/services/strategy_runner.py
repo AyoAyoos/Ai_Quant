@@ -183,3 +183,40 @@ def _extract_drawdown(analysis: dict) -> dict:
             _safe_get(analysis, "max", "len", default=None)
         ),
     }
+
+
+# --------------------------------------------------------------------------- #
+# Data loading (worker side; the parent normally pre-writes the CSV)
+# --------------------------------------------------------------------------- #
+def load_dataframe(path: str):
+    import pandas as pd
+
+    df = pd.read_csv(path)
+    if df.empty or len(df) < 2:
+        raise ValueError("insufficient data: empty or single-row dataset")
+
+    # Flatten any accidental MultiIndex columns into plain names.
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+
+    # Locate the datetime column / index and normalize to a naive UTC index.
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], utc=True)
+        df = df.set_index("Date")
+    elif not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("data must have a 'Date' column or a DatetimeIndex")
+    df = df.sort_index()
+    df.index = df.index.tz_localize(None)
+
+    required = {"Open", "High", "Low", "Close", "Volume"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"data missing columns: {sorted(missing)}")
+
+    for col in ("Open", "High", "Low", "Close", "Volume"):
+        if not df[col].notna().all():
+            raise ValueError(f"data column '{col}' contains nulls")
+    if (df["Volume"] == 0).all():
+        raise ValueError("data has zero volume throughout; refusing to run")
+
+    return df
