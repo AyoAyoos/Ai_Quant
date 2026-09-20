@@ -48,6 +48,9 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
     db.add(assistant_msg)
     db.commit()
 
+    strategy_id: str | None = None
+    strategy_name: str | None = None
+
     # 6. If this reply looks like a finished strategy, run the constrained
     #    finalize call to extract clean structured JSON.
     if looks_like_final_strategy(reply):
@@ -62,9 +65,12 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
             )
             db.add(strategy)
             db.commit()
+            db.refresh(strategy)
+            strategy_id = strategy.id
+            strategy_name = strategy.name
         else:
-            # finalize_strategy failed (bad JSON, unsupported model, network issue) —
-            # fall back to the regex extractor as a last resort rather than losing the strategy.
+            # Finalize failed (bad JSON / LLM error) — fall back to the regex
+            # extractor so the strategy is still persisted rather than lost.
             extracted = extract_strategy(reply)
             if extracted:
                 strategy = Strategy(
@@ -75,12 +81,16 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
                 )
                 db.add(strategy)
                 db.commit()
+                db.refresh(strategy)
+                strategy_id = strategy.id
+                strategy_name = strategy.name
 
-    # 7. Return the response model (Properly aligned with the outer scope)
-    # 7. Return the expected Pydantic schema format
+    # 7. Return the response model (thread the strategy back to the client)
     return {
         "reply": reply,
-        "conversation_id": conversation.id
+        "conversation_id": conversation.id,
+        "strategy_id": strategy_id,
+        "strategy_name": strategy_name,
     }
 
 
