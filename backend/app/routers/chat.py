@@ -8,7 +8,6 @@ from app.services.llm_service import chat_completion
 from app.services.finalize_service import finalize_strategy
 from app.services.strategy_extractor import extract_strategy, looks_like_final_strategy
 
-
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
@@ -19,8 +18,10 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
         conversation = db.query(Conversation).filter(
             Conversation.id == payload.conversation_id
         ).first()
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
     else:
-        # NOTE: for MVP, wire up real auth/user_id here. Placeholder user_id for now.
+        # NOTE: NO real auth yet — single dev user. Replace when auth lands.
         conversation = Conversation(user_id=_get_or_create_dev_user(db), title=payload.content[:50])
         db.add(conversation)
         db.commit()
