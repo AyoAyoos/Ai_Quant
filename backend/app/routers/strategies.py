@@ -8,8 +8,12 @@ from app.models import (
     StrategyStatus,
 )
 from app.schemas import BacktestRequest, BacktestResultOut
+from app.services.backtest_service import (
+    BacktestError,
+    BacktestTimeout,
+    run_backtest_sandboxed,
+)
 from app.services.market_data import MarketDataError, ensure_market_data
-from app.services.strategy_runner import run_backtest
 
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
@@ -34,13 +38,17 @@ def backtest_strategy(
     data_path = params.data_path or _default_market_data_path(strategy.market)
 
     try:
-        metrics = run_backtest(
+        metrics = run_backtest_sandboxed(
             code=strategy.generated_code,
             data_path=data_path,
             cash=params.cash,
             commission_pct=params.commission_pct,
             sizer_percents=params.sizer_percents,
         )
+    except BacktestTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except BacktestError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=400,
