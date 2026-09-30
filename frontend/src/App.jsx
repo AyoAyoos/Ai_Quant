@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import './App.css'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
 
 function fmt(value, suffix = '', digits = 2) {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
