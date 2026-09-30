@@ -9,6 +9,7 @@ __pycache__/
 # Environment variables
 .env
 .env.*
+!.env.example
 
 # Logs
 *.log
@@ -18,6 +19,9 @@ __pycache__/
 .mypy_cache/
 .coverage
 htmlcov/
+
+# Cached market data (regenerated on demand by app/services/market_data.py)
+backend/data/
 
 # Build artifacts
 build/

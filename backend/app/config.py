@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     # Market focus for MVP
     default_market: str = "NIFTY50"
 
+    # How many days a cached OHLCV CSV stays fresh before we re-download.
+    market_data_refresh_days: int = 1
+
     class Config:
         env_file = ".env"
 

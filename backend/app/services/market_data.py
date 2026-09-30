@@ -23,7 +23,7 @@ MARKET_TICKERS = {
 
 _DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 _DATA_PERIOD = "2y"
-_DATA_REFRESH_DAYS = getattr(settings, "market_data_refresh_days", 1)
+_DATA_REFRESH_DAYS = settings.market_data_refresh_days
 
 _OHLCV_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 
