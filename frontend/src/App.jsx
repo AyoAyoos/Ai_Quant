@@ -13,6 +13,60 @@ function StrategyCard({ strategy, result, error, running, onRun }) {
   const [showCode, setShowCode] = useState(false)
   const [code, setCode] = useState(null)
   const [codeError, setCodeError] = useState(null)
+  const [detail, setDetail] = useState(null)
+  const [gateError, setGateError] = useState(null)
+  const [gateBusy, setGateBusy] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+
+  const refreshDetail = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/strategies/${strategy.strategy_id}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || `Could not load strategy (${res.status})`)
+      setDetail(data)
+    } catch (err) {
+      setGateError(err.message)
+    }
+  }, [strategy.strategy_id])
+
+  useEffect(() => {
+    refreshDetail()
+  }, [refreshDetail])
+
+  // A completed backtest flips the status server-side (draft -> backtested),
+  // so re-fetch detail when the result lands.
+  useEffect(() => {
+    if (result) refreshDetail()
+  }, [result, refreshDetail])
+
+  function formatGateError(data, fallback) {
+    const d = data?.detail
+    if (d && typeof d === 'object' && Array.isArray(d.reasons)) return d.reasons.join('; ')
+    if (typeof d === 'string') return d
+    return fallback
+  }
+
+  async function gateAction(path, payload) {
+    setGateBusy(true)
+    setGateError(null)
+    try {
+      const res = await fetch(`${API_BASE}/strategies/${strategy.strategy_id}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload ?? {}),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(formatGateError(data, `Request failed (${res.status})`))
+      await refreshDetail()
+      setRejecting(false)
+      setRejectReason('')
+    } catch (err) {
+      setGateError(err.message)
+    } finally {
+      setGateBusy(false)
+    }
+  }
 
   async function toggleCode() {
     if (showCode) {
@@ -21,6 +75,11 @@ function StrategyCard({ strategy, result, error, running, onRun }) {
     }
     setShowCode(true)
     if (code !== null) return
+    // Reuse the already-fetched detail when available.
+    if (detail?.generated_code) {
+      setCode(detail.generated_code)
+      return
+    }
     try {
       const res = await fetch(`${API_BASE}/strategies/${strategy.strategy_id}`)
       const data = await res.json()
@@ -31,6 +90,8 @@ function StrategyCard({ strategy, result, error, running, onRun }) {
     }
   }
 
+  const status = detail?.status ?? null
+
   return (
     <div className="strategy-card">
       <div className="strategy-head">
@@ -38,6 +99,12 @@ function StrategyCard({ strategy, result, error, running, onRun }) {
         <span className="strategy-name">{strategy.strategy_name}</span>
         {strategy.strategy_description && (
           <p className="strategy-desc">{strategy.strategy_description}</p>
+        )}
+        {status && (
+          <div className="status-row">
+            <span className={`status-badge ${status}`}>{status.replace('_', ' ')}</span>
+            {detail?.status_note && <span className="status-note">{detail.status_note}</span>}
+          </div>
         )}
       </div>
 
@@ -59,6 +126,51 @@ function StrategyCard({ strategy, result, error, running, onRun }) {
       )}
 
       {error && <div className="backtest-error">{error}</div>}
+
+      {gateError && <div className="backtest-error">{gateError}</div>}
+
+      {status && (
+        <div className="strategy-actions">
+          {status === 'backtested' && (
+            <button className="approve-btn" onClick={() => gateAction('/approve')} disabled={gateBusy}>
+              Approve for paper trading
+            </button>
+          )}
+          {status === 'approved' && (
+            <button className="deploy-btn" onClick={() => gateAction('/deploy', {})} disabled={gateBusy}>
+              Deploy (paper)
+            </button>
+          )}
+          {status === 'paper_trading' && (
+            <button className="ghost-btn" onClick={() => gateAction('/stop', {})} disabled={gateBusy}>
+              Stop deployment
+            </button>
+          )}
+          {(status === 'draft' || status === 'backtested') && !rejecting && (
+            <button className="ghost-btn danger" onClick={() => setRejecting(true)} disabled={gateBusy}>
+              Reject
+            </button>
+          )}
+        </div>
+      )}
+
+      {rejecting && (
+        <div className="reject-form">
+          <input
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && rejectReason.trim().length >= 3 && gateAction('/reject', { reason: rejectReason.trim() })}
+            placeholder="Reason for rejection (min 3 chars)..."
+          />
+          <button
+            className="ghost-btn danger"
+            onClick={() => gateAction('/reject', { reason: rejectReason.trim() })}
+            disabled={gateBusy || rejectReason.trim().length < 3}
+          >
+            Confirm reject
+          </button>
+        </div>
+      )}
 
       {result && (
         <div className="metrics">
