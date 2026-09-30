@@ -14,7 +14,7 @@ Chat with an AI, get a NIFTY 50 trading strategy generated, backtested, and prep
 | 1 | Repo, Postgres schema, `/chat` → Groq, chat UI, Docker Compose | ✅ done |
 | 2 | Strategy detection + structured extraction pipeline | ✅ done |
 | 3 | Market data, sandboxed Backtrader execution, metrics | ✅ done |
-| 4 | Backtest results UI, trade dashboard, risk disclaimers | 🚧 in progress |
+| 4 | Results UI, trade dashboard, cleaned replies, risk disclaimers | ✅ done |
 | 5 | Paper-trading deployment gate, real sandboxing, Docker for frontend | ⬜ not started |
 
 ### What's built
@@ -33,14 +33,20 @@ Chat with an AI, get a NIFTY 50 trading strategy generated, backtested, and prep
   max drawdown, win rate, profit factor, avg win/loss, trade counts, warnings
 - ✅ **Backtest UI** — a strategy card appears under the reply that generated it,
   with a "Run backtest" button and a metrics grid beside the benchmark
-- ✅ **Test suite** — 48 tests covering the guardrails, the runner, the worker
-  CLI, the subprocess orchestrator, and the API endpoint
+- ✅ **Trade dashboard** — an SVG equity curve, a per-trade table (entry/exit,
+  side, size, prices, net P&L, bars held), and a lazy-loaded code viewer
+- ✅ **Clean chat rendering** — the client sees a short confirmation instead of
+  the raw `STRATEGY_READY` marker and code dumps; the stored history keeps the
+  original for the finalize call and conversation memory
+- ✅ **Test suite** — 60 tests covering the guardrails, the runner, the worker
+  CLI, the subprocess orchestrator, the API endpoints, and reply cleaning
 
-### Not built yet (next phases)
-- Phase 4 (remaining): per-trade dashboard, equity curve, friendlier chat rendering
-  of finalized strategies, risk disclaimers on every surface
+### Not built yet (Phase 5 and beyond)
 - Phase 5: paper-trading deployment gate, hard memory/process sandboxing, Docker
   packaging for the frontend
+- Multi-position sizing (the PercentSizer assumes a single position)
+- Migrations via Alembic (schema is currently created with `create_all` on startup)
+- CI for the test suite
 
 ## Getting started
 
@@ -135,13 +141,17 @@ are not reliable enough to build a data pipeline on top of.
    argv quoting/length limits), and reports one sentinel line `__BT_RESULT__ {json}` on stdout. The
    parent enforces a 120s timeout and kills the worker on expiry, and caps captured output.
 3. **Metrics** — analyzers are attached by name so the runner survives backtrader version drift.
-   Two metrics are computed rather than read off an analyzer:
+   Three outputs are computed rather than read off an analyzer:
    - **CAGR** — annualised in the parent from the value span and date span. It is a *percentage*,
      consistent with the other `*_pct` fields.
    - **Sortino** — backtrader 1.9.78.123 ships no `SortinoRatio_A`, so it is derived from the
      `TimeReturn` daily series: mean return over *downside* deviation, each annualised with a
      factor of 252 (the same factor backtrader uses for Sharpe). Upside volatility does not
      penalise it.
+   - **Trade list + equity curve** — a `ClosedTradeCollector` analyzer records one row per
+     closed trade, and the equity curve is reconstructed by compounding the `TimeReturn`
+     series from starting cash (it lands exactly on the broker value). Payloads are capped
+     at 500 trades / 400 points so a hyperactive strategy cannot blow the 256KB stdout cap.
 
 Error mapping: 404 unknown strategy, 422 no code / guardrail rejection / bad params,
 503 market data unavailable, 504 timeout.
@@ -155,5 +165,3 @@ Error mapping: 404 unknown strategy, 422 no code / guardrail rejection / bad par
 - **Alembic is installed but unused** — the schema is created via `Base.metadata.create_all` on
   startup. Migrations should be wired up before the schema is depended on in production.
 - **No CI** — the test suite runs locally only.
-- The chat bubble still shows the raw LLM reply (including any `STRATEGY_READY` marker the model
-  emits) rather than a clean confirmation.
