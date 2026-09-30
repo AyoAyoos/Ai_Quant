@@ -9,16 +9,54 @@ function fmt(value, suffix = '', digits = 2) {
 }
 
 function StrategyCard({ strategy, result, error, running, onRun }) {
+  const [showTrades, setShowTrades] = useState(false)
+  const [showCode, setShowCode] = useState(false)
+  const [code, setCode] = useState(null)
+  const [codeError, setCodeError] = useState(null)
+
+  async function toggleCode() {
+    if (showCode) {
+      setShowCode(false)
+      return
+    }
+    setShowCode(true)
+    if (code !== null) return
+    try {
+      const res = await fetch(`${API_BASE}/strategies/${strategy.strategy_id}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || `Could not load code (${res.status})`)
+      setCode(data.generated_code || '(no code stored)')
+    } catch (err) {
+      setCodeError(err.message)
+    }
+  }
+
   return (
     <div className="strategy-card">
       <div className="strategy-head">
         <span className="strategy-badge">✅ Strategy created</span>
         <span className="strategy-name">{strategy.strategy_name}</span>
+        {strategy.strategy_description && (
+          <p className="strategy-desc">{strategy.strategy_description}</p>
+        )}
       </div>
 
-      <button className="backtest-btn" onClick={onRun} disabled={running || !!result}>
-        {running ? 'Running backtest…' : result ? 'Backtest complete' : 'Run backtest on NIFTY 50'}
-      </button>
+      <div className="strategy-actions">
+        <button className="backtest-btn" onClick={onRun} disabled={running || !!result}>
+          {running ? 'Running backtest…' : result ? 'Backtest complete' : 'Run backtest on NIFTY 50'}
+        </button>
+        <button className="ghost-btn" onClick={toggleCode}>
+          {showCode ? 'Hide code' : 'View code'}
+        </button>
+      </div>
+
+      {showCode && (
+        <div className="code-viewer">
+          {codeError && <div className="backtest-error">{codeError}</div>}
+          {code !== null && !codeError && <pre className="code-block">{code}</pre>}
+          {code === null && !codeError && <span className="muted-text">Loading…</span>}
+        </div>
+      )}
 
       {error && <div className="backtest-error">{error}</div>}
 
@@ -57,6 +95,19 @@ function StrategyCard({ strategy, result, error, running, onRun }) {
             </ul>
           )}
 
+          {result.equity_curve?.length > 1 && (
+            <EquityChart curve={result.equity_curve} />
+          )}
+
+          {result.trades?.length > 0 && (
+            <div className="trades-section">
+              <button className="ghost-btn" onClick={() => setShowTrades((v) => !v)}>
+                {showTrades ? 'Hide trades' : `Show trades (${result.trades.length})`}
+              </button>
+              {showTrades && <TradeTable trades={result.trades} truncated={result.trades_truncated} />}
+            </div>
+          )}
+
           <p className="disclaimer">Past performance does not guarantee future results. Educational prototype — paper trading only.</p>
         </div>
       )}
@@ -70,6 +121,83 @@ function Metric({ label, value, good, bad, muted }) {
     <div className={`metric ${tone}`}>
       <span className="metric-value">{value}</span>
       <span className="metric-label">{label}</span>
+    </div>
+  )
+}
+
+function EquityChart({ curve }) {
+  const W = 560
+  const H = 150
+  const PAD = 8
+  const values = curve.map((p) => p[1])
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = max - min || 1
+  const up = values[values.length - 1] >= values[0]
+  const tone = up ? '#4ec9a5' : '#e57373'
+
+  const pts = curve.map((p, i) => {
+    const x = PAD + (i / (curve.length - 1)) * (W - PAD * 2)
+    const y = PAD + (1 - (p[1] - min) / span) * (H - PAD * 2)
+    return [x.toFixed(1), y.toFixed(1)]
+  })
+  const line = pts.map((p) => p.join(',')).join(' ')
+  const area = `${PAD},${H - PAD} ${line} ${W - PAD},${H - PAD}`
+
+  return (
+    <div className="equity">
+      <div className="equity-head">
+        <span className="equity-title">Portfolio value</span>
+        <span className="equity-range">
+          {fmt(min, '', 0)} → {fmt(max, '', 0)}
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="equity-svg" role="img" aria-label="Equity curve">
+        <polygon points={area} fill={tone} opacity="0.12" />
+        <polyline points={line} fill="none" stroke={tone} strokeWidth="1.8" strokeLinejoin="round" />
+      </svg>
+      <div className="equity-dates">
+        <span>{curve[0][0]}</span>
+        <span>{curve[curve.length - 1][0]}</span>
+      </div>
+    </div>
+  )
+}
+
+function TradeTable({ trades, truncated }) {
+  return (
+    <div className="trade-table-wrap">
+      <table className="trade-table">
+        <thead>
+          <tr>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>Side</th>
+            <th className="num">Size</th>
+            <th className="num">Entry</th>
+            <th className="num">Exit</th>
+            <th className="num">P&amp;L</th>
+            <th className="num">Bars</th>
+          </tr>
+        </thead>
+        <tbody>
+          {trades.map((t, i) => (
+            <tr key={i} className={t.won ? 'win' : 'loss'}>
+              <td>{t.entry_date}</td>
+              <td>{t.exit_date}</td>
+              <td>{t.direction}</td>
+              <td className="num">{t.size}</td>
+              <td className="num">{fmt(t.entry_price, '', 0)}</td>
+              <td className="num">{fmt(t.exit_price, '', 0)}</td>
+              <td className="num">{t.pnl_net > 0 ? '+' : ''}{fmt(t.pnl_net, '', 0)}</td>
+              <td className="num">{t.bars_held}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {truncated > 0 && (
+        <p className="muted-text">Showing first {trades.length} of {trades.length + truncated} trades.</p>
+      )}
     </div>
   )
 }
@@ -110,7 +238,13 @@ function App() {
         {
           role: 'assistant',
           content: data.reply,
-          strategy: data.strategy_id ? { strategy_id: data.strategy_id, strategy_name: data.strategy_name } : null,
+          strategy: data.strategy_id
+            ? {
+                strategy_id: data.strategy_id,
+                strategy_name: data.strategy_name,
+                strategy_description: data.strategy_description,
+              }
+            : null,
         },
       ])
     } catch (err) {

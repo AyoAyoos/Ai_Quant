@@ -132,6 +132,61 @@ body {
   color: #e6e6e6;
 }
 
+.strategy-desc {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #b9c0d1;
+  margin: 0;
+}
+
+.strategy-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ghost-btn {
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: 1px solid #2c3345;
+  background: transparent;
+  color: #b9c0d1;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.ghost-btn:hover {
+  border-color: #4f7cff;
+  color: #e6e6e6;
+}
+
+.code-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.code-block {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #10141f;
+  border: 1px solid #262a35;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: auto;
+  max-height: 280px;
+  color: #c9d1e3;
+}
+
+.muted-text {
+  font-size: 12px;
+  color: #8b93a7;
+}
+
 .backtest-btn {
   padding: 9px 14px;
   border-radius: 8px;
@@ -232,4 +287,102 @@ body {
   font-size: 11px;
   color: #8b93a7;
   margin: 0;
+}
+
+.equity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #10141f;
+  border: 1px solid #262a35;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.equity-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #8b93a7;
+}
+
+.equity-title {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.equity-range {
+  font-variant-numeric: tabular-nums;
+}
+
+.equity-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.equity-dates {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #8b93a7;
+  font-variant-numeric: tabular-nums;
+}
+
+.trades-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trade-table-wrap {
+  overflow: auto;
+  max-height: 260px;
+  border: 1px solid #262a35;
+  border-radius: 8px;
+}
+
+.trade-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.trade-table thead th {
+  position: sticky;
+  top: 0;
+  background: #1c2030;
+  color: #8b93a7;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 10px;
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #262a35;
+  white-space: nowrap;
+}
+
+.trade-table tbody td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #1c2030;
+  color: #c9d1e3;
+  white-space: nowrap;
+}
+
+.trade-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.trade-table .num {
+  text-align: right;
+}
+
+.trade-table tr.win td:nth-child(7) {
+  color: #4ec9a5;
+}
+
+.trade-table tr.loss td:nth-child(7) {
+  color: #e57373;
 }
