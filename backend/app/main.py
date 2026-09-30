@@ -1,11 +1,34 @@
+from contextlib import asynccontextmanager
+
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.database import Base, engine
 from app.routers import chat
 from app.routers import strategies
 
-app = FastAPI(title="AI Conversational Quant Trading App", version="0.1.0")
+from pathlib import Path
+
+
+def _run_migrations() -> None:
+    """Apply pending Alembic migrations. The schema is owned by migrations;
+    nothing here creates tables directly."""
+    cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    command.upgrade(cfg, "head")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _run_migrations()
+    yield
+
+
+app = FastAPI(
+    title="AI Conversational Quant Trading App",
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,12 +40,6 @@ app.add_middleware(
 
 app.include_router(chat.router)
 app.include_router(strategies.router)
-
-
-@app.on_event("startup")
-def on_startup():
-    # For MVP: auto-create tables. Switch to Alembic migrations once schema stabilizes.
-    Base.metadata.create_all(bind=engine)
 
 
 @app.get("/health")
