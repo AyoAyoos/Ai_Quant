@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     sandbox_memory_mb: int = 1024
     sandbox_cpu_seconds: int | None = None
 
+    # Paper-trading approval gate: a backtest must show at least this many
+    # closed trades and stay within this max-drawdown cap (percent).
+    approval_min_trades: int = 1
+    approval_max_drawdown_pct: float = 50.0
+
     class Config:
         env_file = ".env"
 

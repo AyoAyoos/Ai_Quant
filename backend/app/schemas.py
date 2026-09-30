@@ -20,7 +20,40 @@ class StrategyDetailOut(BaseModel):
     description: str | None = None
     market: str
     status: str
+    status_note: str | None = None
     generated_code: str | None = None
+
+
+class GateOut(BaseModel):
+    strategy_id: str
+    status: str
+    status_note: str | None = None
+
+
+class RejectIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class StopIn(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class DeployIn(BaseModel):
+    cash: float = Field(default=100000.0, gt=0)
+    commission_pct: float = Field(default=0.1, gt=0, lt=100)
+    sizer_percents: float = Field(default=95.0, gt=0, lt=100)
+
+
+class DeploymentOut(BaseModel):
+    id: str
+    strategy_id: str
+    status: str
+    cash: float
+    commission_pct: float
+    sizer_percents: float
+    deployed_at: str | None = None
+    stopped_at: str | None = None
+    stop_reason: str | None = None
 
 
 class BacktestRequest(BaseModel):
