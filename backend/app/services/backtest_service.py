@@ -55,7 +55,8 @@ def _compute_cagr_pct(metrics: dict) -> float | None:
     days = (end_dt - start_dt).days
     if days <= 0 or float(value_start) <= 0:
         return None
-    return round((float(value_end) / float(value_start)) ** (365.0 / days) - 1.0, 4)
+    # Return a percentage, consistent with the other ``*_pct`` metrics.
+    return round(((float(value_end) / float(value_start)) ** (365.0 / days) - 1.0) * 100.0, 4)
 
 
 def run_backtest_sandboxed(
