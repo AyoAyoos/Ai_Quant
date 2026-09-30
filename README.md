@@ -15,7 +15,7 @@ Chat with an AI, get a NIFTY 50 trading strategy generated, backtested, and prep
 | 2 | Strategy detection + structured extraction pipeline | ✅ done |
 | 3 | Market data, sandboxed Backtrader execution, metrics | ✅ done |
 | 4 | Results UI, trade dashboard, cleaned replies, risk disclaimers | ✅ done |
-| 5 | Paper-trading deployment gate, real sandboxing, Docker for frontend | ⬜ not started |
+| 5 | Migrations, CI, sandbox hardening, paper-trading gate, frontend Docker | ✅ done |
 
 ### What's built
 - ✅ Repo structure (backend + frontend)
@@ -41,12 +41,11 @@ Chat with an AI, get a NIFTY 50 trading strategy generated, backtested, and prep
 - ✅ **Test suite** — 60 tests covering the guardrails, the runner, the worker
   CLI, the subprocess orchestrator, the API endpoints, and reply cleaning
 
-### Not built yet (Phase 5 and beyond)
-- Phase 5: paper-trading deployment gate, hard memory/process sandboxing, Docker
-  packaging for the frontend
-- Multi-position sizing (the PercentSizer assumes a single position)
-- Migrations via Alembic (schema is currently created with `create_all` on startup)
-- CI for the test suite
+### Not built yet (beyond MVP)
+- **Live trading loop** — the gate records deployments; no scheduler or broker
+  feed executes them against live markets yet.
+- **Auth** — still a single auto-created dev user.
+- Multi-position sizing (the PercentSizer assumes a single position).
 
 ## Getting started
 
@@ -88,8 +87,35 @@ cd backend
 python -m pytest            # requires Postgres: docker compose up -d db
 cd ../frontend && npm run lint
 ```
-The `tests/test_backtest_api.py` module skips itself when Postgres is unreachable;
-everything else runs offline against a committed OHLCV fixture.
+The `tests/test_backtest_api.py` and `tests/test_deployment_gate.py` modules skip
+themselves when Postgres is unreachable; everything else runs offline against a
+committed OHLCV fixture. CI (`.github/workflows/ci.yml`) runs the same steps on
+every push/PR: Postgres service → `alembic upgrade head` → pytest, plus a clean
+`npm ci` + lint + build for the frontend.
+
+## Paper-trading gate (Phase 5)
+
+The strategy lifecycle, driven from the card in the chat UI or the API:
+
+```
+draft → backtested → approved → paper_trading
+  \         \                       ^
+   \-> rejected                      \-> approved (on stop)
+```
+
+- **Approve** (`POST /strategies/{id}/approve`) — requires a backtest with at
+  least `approval_min_trades` closed trades inside the `approval_max_drawdown_pct`
+  cap (both configurable). Failures return the blocking reasons.
+- **Reject** (`POST …/reject {reason}`) — from draft/backtested, reason mandatory.
+- **Deploy** (`POST …/deploy {cash, commission_pct, sizer_percents}`) — requires
+  approved status, re-runs the AST guardrails over the current code, and refuses
+  duplicate active deployments. Records a row in `paper_deployments`.
+- **Stop** (`POST …/stop {reason?}`) — closes the deployment, returns to approved.
+- **History** (`GET …/deployments`) — newest-first audit trail.
+
+This is the gate, not a live engine: it validates and records, but places no
+orders anywhere. A scheduler + broker feed executing active deployments against
+live markets is the next project, not the next commit.
 
 ## Architecture notes
 - The AI model is only the "brain" — the backend controller (`app/routers/chat.py`) owns the workflow:
@@ -156,10 +182,29 @@ are not reliable enough to build a data pipeline on top of.
 Error mapping: 404 unknown strategy, 422 no code / guardrail rejection / bad params,
 503 market data unavailable, 504 timeout.
 
-## Known gaps (flagged for Phase 5)
+## Sandbox hardening (Phase 5)
+
+Timeouts used to `proc.kill()` only the direct child, so a strategy that shelled
+out would leave orphans. Now the worker starts in its own process group on POSIX
+(`start_new_session`) and timeouts `killpg` the whole tree; on Windows
+`taskkill /T` walks the child tree. POSIX workers additionally get `rlimit`
+backstops (`sandbox_memory_mb`, default 1GB; optional `sandbox_cpu_seconds`).
+Windows has no equivalent, so there the wall-clock timeout plus tree kill is the
+documented boundary.
+
+## Database migrations (Phase 5)
+
+The schema is owned by Alembic (`backend/alembic/`); the app runs
+`upgrade head` on startup and nothing calls `create_all` outside tests.
+Two Postgres-specific lessons are baked into the revisions: autogenerate
+against an empty database (a populated dev DB yields an empty diff), and
+drop ENUM types explicitly on downgrade (they survive `DROP TABLE` and break
+re-upgrade otherwise).
+
+## Known gaps
 - **The AST check is a guardrail, not a sandbox.** It stops accidental and dumb malicious code, but
-  the real boundary is the isolated subprocess. Hard memory/process limits are still Phase 5 work,
-  and the worker is killed as a single process rather than as a tree.
+  the real boundary is the isolated subprocess with tree-kill, memory caps (POSIX), and timeouts.
+  True container/cgroup isolation is still future work.
 - **No auth yet** — a single dev user is auto-created per conversation.
 - **`PercentSizer` assumes a single position** — multi-position sizing is not handled.
 - **Alembic is installed but unused** — the schema is created via `Base.metadata.create_all` on
