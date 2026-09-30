@@ -41,6 +41,12 @@ RESULT_MARKER = "__BT_RESULT__"
 # same factor so the two ratios in a report are directly comparable.
 ANNUALISATION_FACTOR = 252
 
+# Caps on the per-trade / equity-curve payloads. The worker serialises metrics
+# to stdout and the parent caps captured bytes at 256KB, so a strategy that
+# trades every single bar would otherwise blow that budget.
+MAX_TRADE_RECORDS = 500
+MAX_EQUITY_POINTS = 400
+
 # Imports beyond these fail the guardrail.
 ALLOWED_IMPORTS = {"backtrader", "pandas", "numpy", "math", "datetime"}
 
@@ -219,6 +225,110 @@ def _compute_sortino(time_return_analysis: dict):
     return round(annualised_mean / annualised_deviation, 4)
 
 
+def _build_equity_curve(time_return_analysis: dict, value_start: float):
+    """Portfolio value per bar, reconstructed from ``TimeReturn``'s daily series.
+
+    ``TimeReturn`` reports simple per-period returns, so compounding them from
+    the starting cash reproduces the broker's value path exactly without
+    attaching a second value-tracking analyzer. Downsampled to
+    ``MAX_EQUITY_POINTS`` (keeping the first and last bar) so a multi-year run
+    does not produce an unwieldy payload.
+    """
+    items = sorted(
+        (dt, r)
+        for dt, r in (time_return_analysis or {}).items()
+        if isinstance(r, (int, float))
+    )
+    if not items:
+        return []
+
+    points = []
+    value = float(value_start)
+    for dt, ret in items:
+        if ret > -1.0:  # a -100% return would zero the account; skip past it
+            value *= 1.0 + float(ret)
+        points.append([_format_date(dt), round(value, 2)])
+
+    if len(points) > MAX_EQUITY_POINTS:
+        step = len(points) / MAX_EQUITY_POINTS
+        sampled = [points[min(len(points) - 1, int(i * step))] for i in range(MAX_EQUITY_POINTS)]
+        if sampled[-1] != points[-1]:
+            sampled[-1] = points[-1]
+        points = sampled
+    return points
+
+
+def _format_date(value) -> str:
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    return str(value)
+
+
+class ClosedTradeCollector(bt.analyzers.Analyzer):
+    """Records one dict per closed trade for the trade dashboard.
+
+    ``TradeAnalyzer`` only ever accumulates aggregates — it increments counters
+    and never keeps the individual trades — so anything wanting a per-trade
+    breakdown has to collect them separately. Entry details are captured when
+    the trade opens because ``Trade`` only exposes the exit price once closed.
+    """
+
+    params = (("max_records", MAX_TRADE_RECORDS),)
+
+    def start(self):
+        super(ClosedTradeCollector, self).start()
+        self.records = []
+        self._pending = {}
+        self.dropped = 0
+
+    def notify_trade(self, trade):
+        # Entries are paired by ``trade.ref``: backtrader delivers a *different*
+        # Trade object on open and on close, so object identity (id()) can
+        # never match them — verified empirically. ``ref`` is a global counter
+        # and is stable for the logical trade's whole lifetime.
+        if trade.justopened:
+            self._pending[trade.ref] = {
+                "date": self.strategy.datetime.datetime(0),
+                "price": float(trade.price),
+                "size": int(trade.size),
+            }
+            return
+
+        if trade.status != trade.Closed:
+            return
+
+        entry = self._pending.pop(trade.ref, None)
+        if entry is None:
+            return
+
+        if len(self.records) >= self.p.max_records:
+            self.dropped += 1
+            return
+
+        # ``trade.price`` and ``trade.size`` are stale once closed (price keeps
+        # the entry value, size is zeroed). The entry details were captured at
+        # open time; the exit price is the current bar's open, because market
+        # orders execute there — verified against implied pnl/size math.
+        exit_price = float(self.strategy.data.open[0])
+        self.records.append(
+            {
+                "entry_date": _format_date(entry["date"]),
+                "exit_date": _format_date(self.strategy.datetime.datetime(0)),
+                "entry_price": round(entry["price"], 2),
+                "exit_price": round(exit_price, 2),
+                "size": entry["size"],
+                "direction": "long" if trade.long else "short",
+                "bars_held": int(trade.barlen),
+                "pnl": _sanitize(round(float(trade.pnl), 2)),
+                "pnl_net": _sanitize(round(float(trade.pnlcomm), 2)),
+                "won": bool(trade.pnlcomm >= 0.0),
+            }
+        )
+
+    def get_analysis(self):
+        return self.records
+
+
 # --------------------------------------------------------------------------- #
 # Data loading (worker side; the parent normally pre-writes the CSV)
 # --------------------------------------------------------------------------- #
@@ -331,10 +441,11 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
         ("trades", "TradeAnalyzer", {}),
         ("returns", "Returns", {}),
         ("timereturn", "TimeReturn", dict(timeframe=bt.TimeFrame.Days)),
+        ("closedtrades", ClosedTradeCollector, {}),
     )
     available = {}
     for _name, _cls_name, _kwargs in _ANALYZERS:
-        cls = getattr(bt.analyzers, _cls_name, None)
+        cls = _cls_name if isinstance(_cls_name, type) else getattr(bt.analyzers, _cls_name, None)
         if cls is None:
             available[_name] = False
             continue
@@ -359,15 +470,20 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
     sortino = analysis("sortino", default={})
     drawdown = analysis("drawdown", default={})
     trades = analysis("trades", default={})
+    time_return = analysis("timereturn", default={})
+    closed_trades = analysis("closedtrades", default=[])
 
     # SortinoRatio_A does not exist in backtrader 1.9.78.123, so the analyzer
     # above is always skipped and we derive Sortino from the daily return series.
     sortino_value = _safe_get(sortino, "sortinoratio")
     if sortino_value is None:
-        sortino_value = _compute_sortino(analysis("timereturn", default={}))
+        sortino_value = _compute_sortino(time_return)
 
     first_close = float(df["Close"].iloc[0])
     last_close = float(df["Close"].iloc[-1])
+
+    trade_collector = getattr(strat.analyzers, "closedtrades", None)
+    dropped_trades = int(getattr(trade_collector, "dropped", 0) or 0)
 
     metrics = {
         "start_date": str(df.index[0].date()),
@@ -379,6 +495,9 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
         "sharpe": _sanitize(_safe_get(sharpe, "sharperatio")),
         "sortino": _sanitize(sortino_value),
         "cagr_pct": None,  # computed in the parent from value + date span
+        "trades": closed_trades if isinstance(closed_trades, list) else [],
+        "trades_truncated": dropped_trades,
+        "equity_curve": _build_equity_curve(time_return, value_start),
         "warnings": [],
     }
     metrics.update(_extract_trade_metrics(trades))
@@ -386,6 +505,8 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
 
     if metrics["num_trades"] == 0:
         metrics["warnings"].append("no_trades")
+    elif dropped_trades:
+        metrics["warnings"].append(f"trades_truncated:{dropped_trades}")
 
     return metrics
 
