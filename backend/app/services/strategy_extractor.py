@@ -104,3 +104,30 @@ def looks_like_final_strategy(llm_reply: str) -> bool:
     if "```python" in stripped and _HAS_STRATEGY_CLASS.search(stripped):
         return True
     return False
+
+
+def clean_reply_for_display(llm_reply: str, strategy_name: str) -> str:
+    """Replace raw code dumps with a short confirmation for the chat UI.
+
+    The original reply stays untouched in message history (the finalize call
+    and the LLM's own memory need it). Only the copy returned to the client
+    is cleaned:
+    - strict format: drop the marker, Name/Description headers, and code
+      block, keeping any surrounding prose; if nothing readable remains, use
+      a default confirmation.
+    - free-form: collapse each python fence to a placeholder so the strategy
+      card below the bubble — not a wall of code — becomes the call to action.
+    """
+    stripped = llm_reply.strip()
+
+    # Machine-format lines are noise in the chat UI wherever they appear.
+    body = re.sub(r"(?m)^STRATEGY_READY\s*$", "", stripped)
+    body = re.sub(r"(?m)^Name:.*$", "", body)
+    body = re.sub(r"(?m)^Description:.*$", "", body)
+    body = _CODE_BLOCK_PATTERN.sub(
+        f"[strategy code saved as \u2018{strategy_name}\u2019 \u2014 see below]", body
+    )
+    body = "\n".join(line for line in body.splitlines() if line.strip()).strip()
+    if body:
+        return body
+    return f"Strategy \u2018{strategy_name}\u2019 is ready \u2014 run a backtest below."

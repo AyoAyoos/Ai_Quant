@@ -6,7 +6,11 @@ from app.models import Conversation, Message, MessageRole, Strategy
 from app.schemas import ChatMessageIn, ChatMessageOut
 from app.services.llm_service import chat_completion
 from app.services.finalize_service import finalize_strategy
-from app.services.strategy_extractor import extract_strategy, looks_like_final_strategy
+from app.services.strategy_extractor import (
+    clean_reply_for_display,
+    extract_strategy,
+    looks_like_final_strategy,
+)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -50,6 +54,8 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
 
     strategy_id: str | None = None
     strategy_name: str | None = None
+    strategy_description: str | None = None
+    display_reply = reply
 
     # 6. If this reply looks like a finished strategy, run the constrained
     #    finalize call to extract clean structured JSON.
@@ -68,6 +74,7 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
             db.refresh(strategy)
             strategy_id = strategy.id
             strategy_name = strategy.name
+            strategy_description = strategy.description
         else:
             # Finalize failed (bad JSON / LLM error) — fall back to the regex
             # extractor so the strategy is still persisted rather than lost.
@@ -84,13 +91,20 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
                 db.refresh(strategy)
                 strategy_id = strategy.id
                 strategy_name = strategy.name
+                strategy_description = strategy.description
+
+        if strategy_id and strategy_name:
+            # The stored message keeps the raw reply (finalize + LLM memory
+            # need it); the client sees a cleaned version instead.
+            display_reply = clean_reply_for_display(reply, strategy_name)
 
     # 7. Return the response model (thread the strategy back to the client)
     return {
-        "reply": reply,
+        "reply": display_reply,
         "conversation_id": conversation.id,
         "strategy_id": strategy_id,
         "strategy_name": strategy_name,
+        "strategy_description": strategy_description,
     }
 
 

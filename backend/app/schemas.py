@@ -11,6 +11,16 @@ class ChatMessageOut(BaseModel):
     reply: str
     strategy_id: str | None = None
     strategy_name: str | None = None
+    strategy_description: str | None = None
+
+
+class StrategyDetailOut(BaseModel):
+    strategy_id: str
+    name: str
+    description: str | None = None
+    market: str
+    status: str
+    generated_code: str | None = None
 
 
 class BacktestRequest(BaseModel):
@@ -33,5 +43,11 @@ class BacktestResultOut(BaseModel):
     cagr_pct: float | None = None
     start_date: str | None = None
     end_date: str | None = None
+    # Per-trade breakdown and portfolio value path for the trade dashboard.
+    # Each trade: entry/exit date+price, size, direction, bars_held, pnl,
+    # pnl_net, won. Each equity point: [date, value].
+    trades: list[dict] = []
+    trades_truncated: int = 0
+    equity_curve: list[list] = []
     warnings: list[str] = []
     raw_metrics: dict | None = None

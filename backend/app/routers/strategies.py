@@ -7,7 +7,7 @@ from app.models import (
     Strategy,
     StrategyStatus,
 )
-from app.schemas import BacktestRequest, BacktestResultOut
+from app.schemas import BacktestRequest, BacktestResultOut, StrategyDetailOut
 from app.services.backtest_service import (
     BacktestError,
     BacktestTimeout,
@@ -17,6 +17,22 @@ from app.services.market_data import MarketDataError, ensure_market_data
 
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
+
+
+@router.get("/{strategy_id}", response_model=StrategyDetailOut)
+def get_strategy(strategy_id: str, db: Session = Depends(get_db)):
+    """Strategy detail for the UI's code viewer — no LLM round-trip needed."""
+    strategy = db.query(Strategy).filter(Strategy.id == strategy_id).first()
+    if strategy is None:
+        raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+    return StrategyDetailOut(
+        strategy_id=strategy.id,
+        name=strategy.name,
+        description=strategy.description,
+        market=strategy.market,
+        status=strategy.status.value,
+        generated_code=strategy.generated_code,
+    )
 
 
 @router.post("/{strategy_id}/backtest", response_model=BacktestResultOut)
@@ -83,6 +99,9 @@ def backtest_strategy(
         cagr_pct=metrics.get("cagr_pct"),
         start_date=_date_str(metrics.get("start_date")),
         end_date=_date_str(metrics.get("end_date")),
+        trades=list(metrics.get("trades") or []),
+        trades_truncated=int(metrics.get("trades_truncated") or 0),
+        equity_curve=list(metrics.get("equity_curve") or []),
         warnings=list(metrics.get("warnings", []) or []),
         raw_metrics=metrics,
     )

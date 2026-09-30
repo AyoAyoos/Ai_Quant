@@ -110,6 +110,55 @@ def test_pct_to_fraction():
     assert pct_to_fraction(0.1) == 0.001
 
 
+class TestTradeListAndEquityCurve:
+    def test_swing_churn_reports_every_trade(self, data_path):
+        code = (FIXTURES / "swing_churn.py").read_text()
+        metrics = run_backtest(code, data_path, CASH, COMMISSION, SIZER)
+
+        assert len(metrics["trades"]) == metrics["num_trades"] == 123
+        assert metrics["trades_truncated"] == 0
+
+        first = metrics["trades"][0]
+        assert first["entry_date"] < first["exit_date"]
+        assert first["bars_held"] > 0
+        assert first["direction"] == "long"
+        assert isinstance(first["size"], int) and first["size"] > 0
+        # pnl_net sums back to the aggregate within rounding.
+        assert sum(t["pnl_net"] for t in metrics["trades"]) == pytest.approx(
+            metrics["closed_pnl"], abs=1.0
+        )
+        wins = sum(1 for t in metrics["trades"] if t["won"])
+        assert wins / len(metrics["trades"]) * 100 == pytest.approx(
+            metrics["win_rate_pct"], abs=0.6
+        )
+
+    def test_buy_hold_has_no_trades_but_has_equity(self, data_path):
+        code = (FIXTURES / "buy_hold.py").read_text()
+        metrics = run_backtest(code, data_path, CASH, COMMISSION, SIZER)
+
+        assert metrics["trades"] == []
+        assert metrics["trades_truncated"] == 0
+        assert len(metrics["equity_curve"]) > 0
+
+    def test_equity_curve_ends_on_broker_value(self, data_path):
+        code = (FIXTURES / "swing_churn.py").read_text()
+        metrics = run_backtest(code, data_path, CASH, COMMISSION, SIZER)
+
+        curve = metrics["equity_curve"]
+        assert curve[0][0] == metrics["start_date"]
+        assert curve[-1][0] == metrics["end_date"]
+        assert curve[0][1] == pytest.approx(CASH, abs=1.0)
+        assert curve[-1][1] == pytest.approx(metrics["value_end"], abs=0.01)
+        assert len(curve) <= 400
+        # Monotonic in time.
+        assert [p[0] for p in curve] == sorted(p[0] for p in curve)
+
+    def test_metrics_stay_json_serializable(self, data_path):
+        code = (FIXTURES / "swing_churn.py").read_text()
+        metrics = run_backtest(code, data_path, CASH, COMMISSION, SIZER)
+        json.dumps(metrics)
+
+
 class TestSortino:
     """Sortino is derived locally because backtrader 1.9.78.123 ships no
     Sortino analyzer — the ``SortinoRatio_A`` lookup always misses."""

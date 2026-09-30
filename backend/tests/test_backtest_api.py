@@ -116,3 +116,33 @@ class TestBacktestEndpoint:
         body = resp.json()
         assert body["num_trades"] > 0
         assert "no_trades" not in body["warnings"]
+
+
+class TestStrategyDetail:
+    def test_detail_returns_code_for_viewer(self, client, db):
+        strategy_id = _seed_strategy()
+        resp = client.get(f"/strategies/{strategy_id}")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["strategy_id"] == strategy_id
+        assert body["name"] == "Buy & Hold"
+        assert "class GeneratedStrategy" in body["generated_code"]
+
+    def test_detail_unknown_strategy_returns_404(self, client, db):
+        resp = client.get("/strategies/00000000-0000-0000-0000-000000000000")
+        assert resp.status_code == 404
+
+
+class TestBacktestDashboardPayload:
+    def test_trades_and_equity_curve_present(self, client, db):
+        strategy_id = _seed_strategy(
+            generated_code=(FIXTURES / "swing_churn.py").read_text()
+        )
+        resp = client.post(f"/strategies/{strategy_id}/backtest", json={"data_path": NIFTY_CSV})
+        assert resp.status_code == 200
+        body = resp.json()
+
+        assert len(body["trades"]) == body["num_trades"]
+        assert body["trades_truncated"] == 0
+        assert len(body["equity_curve"]) > 0
+        assert body["equity_curve"][-1][0] == body["end_date"]
