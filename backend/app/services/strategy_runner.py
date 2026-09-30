@@ -36,6 +36,11 @@ import backtrader as bt
 
 RESULT_MARKER = "__BT_RESULT__"
 
+# backtrader annualises daily Sharpe with 252 periods (see
+# ``backtrader.analyzers.sharpe.RATEFACTORS``). Sortino is annualised with the
+# same factor so the two ratios in a report are directly comparable.
+ANNUALISATION_FACTOR = 252
+
 # Imports beyond these fail the guardrail.
 ALLOWED_IMPORTS = {"backtrader", "pandas", "numpy", "math", "datetime"}
 
@@ -185,6 +190,35 @@ def _extract_drawdown(analysis: dict) -> dict:
     }
 
 
+def _compute_sortino(time_return_analysis: dict):
+    """Sortino ratio from backtrader's ``TimeReturn`` analyzer output.
+
+    ``TimeReturn.get_analysis()`` maps each bar's date to that period's simple
+    return. Only *negative* returns feed the downside deviation, so upside
+    volatility is not punished the way it is in Sharpe.
+
+    The per-period mean and downside deviation are annualised separately
+    (mean x 252, deviation x sqrt(252)) — the usual definition for daily data.
+    Compounding each period instead would let a single good day dominate the
+    ratio and produce absurd values like 69 for a 0.38 Sharpe.
+
+    Returns ``None`` when there is not enough data to form a ratio.
+    """
+    values = list((time_return_analysis or {}).values())
+    returns = [float(v) for v in values if isinstance(v, (int, float))]
+    if len(returns) < 2:
+        return None
+
+    mean = sum(returns) / len(returns)
+    downside = [min(0.0, r) for r in returns]
+    deviation = math.sqrt(sum(d * d for d in downside) / len(downside))
+    if deviation <= 0:
+        return None
+    annualised_mean = mean * ANNUALISATION_FACTOR
+    annualised_deviation = deviation * math.sqrt(ANNUALISATION_FACTOR)
+    return round(annualised_mean / annualised_deviation, 4)
+
+
 # --------------------------------------------------------------------------- #
 # Data loading (worker side; the parent normally pre-writes the CSV)
 # --------------------------------------------------------------------------- #
@@ -296,6 +330,7 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
         ("drawdown", "DrawDown", {}),
         ("trades", "TradeAnalyzer", {}),
         ("returns", "Returns", {}),
+        ("timereturn", "TimeReturn", dict(timeframe=bt.TimeFrame.Days)),
     )
     available = {}
     for _name, _cls_name, _kwargs in _ANALYZERS:
@@ -325,6 +360,12 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
     drawdown = analysis("drawdown", default={})
     trades = analysis("trades", default={})
 
+    # SortinoRatio_A does not exist in backtrader 1.9.78.123, so the analyzer
+    # above is always skipped and we derive Sortino from the daily return series.
+    sortino_value = _safe_get(sortino, "sortinoratio")
+    if sortino_value is None:
+        sortino_value = _compute_sortino(analysis("timereturn", default={}))
+
     first_close = float(df["Close"].iloc[0])
     last_close = float(df["Close"].iloc[-1])
 
@@ -336,7 +377,7 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
         "total_return_pct": _sanitize(round((value_end / value_start - 1.0) * 100.0, 2)),
         "benchmark_return_pct": _sanitize(round((last_close / first_close - 1.0) * 100.0, 2)),
         "sharpe": _sanitize(_safe_get(sharpe, "sharperatio")),
-        "sortino": _sanitize(_safe_get(sortino, "sortinoratio")),
+        "sortino": _sanitize(sortino_value),
         "cagr_pct": None,  # computed in the parent from value + date span
         "warnings": [],
     }
