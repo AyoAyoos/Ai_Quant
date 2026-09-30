@@ -28,6 +28,11 @@ class StrategyStatus(str, enum.Enum):
     rejected = "rejected"
 
 
+class DeploymentStatus(str, enum.Enum):
+    active = "active"
+    stopped = "stopped"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -73,10 +78,13 @@ class Strategy(Base):
     market = Column(String, default="NIFTY50")
     generated_code = Column(Text, nullable=False)  # AI-generated Python strategy code
     status = Column(Enum(StrategyStatus), default=StrategyStatus.draft)
+    # Human reason for the last reject/stop transition; null otherwise.
+    status_note = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="strategies")
     backtest_results = relationship("BacktestResult", back_populates="strategy", cascade="all, delete-orphan")
+    deployments = relationship("PaperDeployment", back_populates="strategy", cascade="all, delete-orphan")
 
 
 class BacktestResult(Base):
@@ -94,3 +102,29 @@ class BacktestResult(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     strategy = relationship("Strategy", back_populates="backtest_results")
+
+
+class PaperDeployment(Base):
+    """A paper-trading deployment record.
+
+    This is the *gate*, not a live trading engine: a row exists only after
+    the strategy passed approval (backtested, quality thresholds, guardrails)
+    and was explicitly deployed. Stopping flips the strategy back to
+    approved and closes the record — the history is preserved for audit.
+    Only one active deployment per strategy is allowed.
+    """
+
+    __tablename__ = "paper_deployments"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    strategy_id = Column(UUID(as_uuid=False), ForeignKey("strategies.id"), nullable=False)
+    status = Column(Enum(DeploymentStatus), default=DeploymentStatus.active, nullable=False)
+    # Config snapshot at deploy time (mirrors BacktestRequest knobs).
+    cash = Column(Float, nullable=False)
+    commission_pct = Column(Float, nullable=False)
+    sizer_percents = Column(Float, nullable=False)
+    deployed_at = Column(DateTime, default=datetime.utcnow)
+    stopped_at = Column(DateTime)
+    stop_reason = Column(Text)
+
+    strategy = relationship("Strategy", back_populates="deployments")
