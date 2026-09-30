@@ -1,6 +1,8 @@
 import json
+import os
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -9,6 +11,7 @@ import pytest
 from app.services.backtest_service import (
     BacktestError,
     BacktestTimeout,
+    _kill_tree,
     run_backtest_sandboxed,
 )
 from app.services.strategy_runner import RESULT_MARKER
@@ -115,3 +118,90 @@ class TestOrchestrator:
         code = "import backtrader as bt\nopen('x')\nclass GeneratedStrategy(bt.Strategy):\n    def next(self):\n        self.buy()"
         with pytest.raises(BacktestError, match="refused"):
             run_backtest_sandboxed(code, str(DATA.resolve()))
+
+
+def _spawn_sleeper_tree():
+    """Spawn a parent python that spawns a child sleeper, mirroring how a
+    strategy could shell out. Returns (parent_proc, child_pid_file)."""
+    marker = BACKEND_DIR / f"_child_{os.getpid()}.pid"
+    # as_posix: the path is interpolated into a nested `-c` script, where a
+    # Windows backslash would become an escape (e.g. \b -> backspace).
+    posix_marker = marker.as_posix()
+    parent_code = (
+        "import subprocess, sys, time; "
+        f"p = subprocess.Popen([sys.executable, '-c', "
+        f"\"import time; open('{posix_marker}', 'w').write(str(__import__('os').getpid())); "
+        "time.sleep(120)\"]); "
+        "time.sleep(120)"
+    )
+    kwargs = {}
+    if os.name == "posix":
+        # Own process group, like production: killpg must not touch pytest.
+        kwargs["start_new_session"] = True
+    else:
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    proc = subprocess.Popen([sys.executable, "-c", parent_code], **kwargs)
+    return proc, marker
+
+
+def _wait_for_file(path, timeout=15):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if path.exists():
+            return True
+        time.sleep(0.2)
+    return False
+
+
+def _pid_alive(pid: int) -> bool:
+    if os.name == "posix":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+    out = subprocess.run(
+        ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+        capture_output=True, text=True,
+    )
+    return str(pid) in out.stdout
+
+
+class TestKillTree:
+    def test_kills_lone_process(self):
+        proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+        _kill_tree(proc)
+        assert proc.poll() is not None
+
+    def test_kills_whole_tree_not_just_parent(self):
+        proc, marker = _spawn_sleeper_tree()
+        try:
+            assert _wait_for_file(marker), "child sleeper never started"
+            child_pid = int(marker.read_text().strip())
+            assert _pid_alive(child_pid)
+
+            _kill_tree(proc)
+
+            assert proc.poll() is not None
+            deadline = time.time() + 10
+            while _pid_alive(child_pid) and time.time() < deadline:
+                time.sleep(0.2)
+            assert not _pid_alive(child_pid), "orphaned child survived the tree kill"
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            if marker.exists():
+                marker.unlink()
+
+    @pytest.mark.skipif(os.name != "posix", reason="rlimit sandbox is POSIX-only")
+    def test_tiny_memory_cap_kills_worker(self, monkeypatch):
+        import app.services.backtest_service as svc
+
+        monkeypatch.setattr(svc.settings, "sandbox_memory_mb", 64)
+        code = (FIXTURES / "buy_hold.py").read_text()
+        # 64MB of address space cannot fit the interpreter + pandas/numpy/
+        # backtrader imports, so the worker must die, not succeed.
+        with pytest.raises(BacktestError):
+            run_backtest_sandboxed(code, str(DATA.resolve()), timeout_seconds=60)

@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     # How many days a cached OHLCV CSV stays fresh before we re-download.
     market_data_refresh_days: int = 1
 
+    # Sandbox backstops for the backtest worker subprocess. The memory cap
+    # applies on POSIX only (Windows has no rlimit equivalent); the wall-clock
+    # timeout in run_backtest_sandboxed applies everywhere.
+    sandbox_memory_mb: int = 1024
+    sandbox_cpu_seconds: int | None = None
+
     class Config:
         env_file = ".env"
 

@@ -11,11 +11,13 @@ the server.
 """
 import json
 import os
+import signal
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
+from app.config import settings
 from app.services.strategy_runner import RESULT_MARKER, TIMEOUT_DEFAULT_SECONDS
 
 MAX_OUTPUT_BYTES = 256 * 1024
@@ -33,10 +35,61 @@ class BacktestTimeout(BacktestError):
 
 def _popen_kwargs():
     kwargs = {"text": False}
-    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    if creationflags:
-        kwargs["creationflags"] = creationflags
+    if os.name == "posix":
+        # New session => the worker is a process-group leader, so a timeout
+        # can signal the whole tree (killpg), not just the direct child.
+        kwargs["start_new_session"] = True
+        memory_mb = settings.sandbox_memory_mb
+        cpu_seconds = settings.sandbox_cpu_seconds
+        if memory_mb or cpu_seconds:
+            kwargs["preexec_fn"] = lambda: _apply_posix_limits(memory_mb, cpu_seconds)
+    else:
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        if creationflags:
+            kwargs["creationflags"] = creationflags
     return kwargs
+
+
+def _apply_posix_limits(memory_mb: int | None, cpu_seconds: int | None) -> None:
+    """Runs in the forked child before exec. Import is local because the
+    ``resource`` module does not exist on Windows (this never runs there)."""
+    import resource
+
+    if memory_mb:
+        limit = int(memory_mb * 1024 * 1024)
+        resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+    if cpu_seconds:
+        resource.setrlimit(resource.RLIMIT_CPU, (int(cpu_seconds), int(cpu_seconds)))
+
+
+def _kill_tree(proc: subprocess.Popen) -> None:
+    """Kill the worker and anything it spawned.
+
+    ``proc.kill()`` alone only kills the direct child — a strategy that
+    shells out would leave orphans behind. On POSIX the worker is a process
+    group leader (see _popen_kwargs), so killpg takes the whole tree. On
+    Windows taskkill /T walks and kills the child tree.
+    """
+    try:
+        if os.name == "posix":
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        else:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True,
+                timeout=10,
+            )
+    except Exception:
+        pass
+    finally:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        try:
+            proc.wait(timeout=10)
+        except Exception:
+            pass
 
 
 def _compute_cagr_pct(metrics: dict) -> float | None:
@@ -90,8 +143,7 @@ def run_backtest_sandboxed(
     try:
         out, _ = proc.communicate(input=code.encode("utf-8"), timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
+        _kill_tree(proc)
         raise BacktestTimeout(f"backtest exceeded {timeout_seconds}s and was killed") from None
 
     if proc.returncode != 0:
