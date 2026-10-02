@@ -1,0 +1,228 @@
+/* =============================================================================
+   tokens.css — reset, design tokens, base typography, layout primitives.
+   Dark financial-terminal palette, organised as CSS variables.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* surfaces */
+  --bg: #0f1117;
+  --surface: #161b26;
+  --surface-2: #1c2030;
+  --surface-3: #10141f;
+  --surface-hover: #212737;
+
+  /* lines */
+  --border: #262a35;
+  --border-strong: #2c3345;
+
+  /* text */
+  --text: #e6e6e6;
+  --text-soft: #b9c0d1;
+  --muted: #8b93a7;
+  --faint: #6b7285;
+
+  /* semantics */
+  --accent: #4f7cff;
+  --accent-soft: #1d2a4d;
+  --accent-text: #9db8ff;
+  --positive: #4ec9a5;
+  --positive-soft: #123029;
+  --negative: #e57373;
+  --negative-soft: #2c1a1d;
+  --warning: #f0a94a;
+  --warning-soft: #2e2415;
+
+  /* status badge colours — one source of truth, reused on every page */
+  --status-draft-fg: #8b93a7;
+  --status-draft-bg: #1b1f2b;
+  --status-draft-bd: #2c3345;
+  --status-backtested-fg: #7fb3ff;
+  --status-backtested-bg: #16233a;
+  --status-backtested-bd: #2c4a75;
+  --status-approved-fg: #4ec9a5;
+  --status-approved-bg: #123029;
+  --status-approved-bd: #1f5c4b;
+  --status-paper-fg: #f0a94a;
+  --status-paper-bg: #2e2415;
+  --status-paper-bd: #6b4a1f;
+  --status-rejected-fg: #e57373;
+  --status-rejected-bg: #2c1a1d;
+  --status-rejected-bd: #5c2a2a;
+
+  /* type scale */
+  --fs-xs: 0.6875rem;   /* 11px */
+  --fs-sm: 0.78125rem;  /* 12.5px */
+  --fs-base: 0.875rem;  /* 14px */
+  --fs-md: 0.9375rem;   /* 15px */
+  --fs-lg: 1.125rem;    /* 18px */
+  --fs-xl: 1.375rem;    /* 22px */
+  --fs-2xl: 1.75rem;    /* 28px */
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* spacing */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  /* radii */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-pill: 999px;
+
+  /* elevation */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 14px 40px rgba(0, 0, 0, 0.55);
+
+  /* motion */
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+
+  --maxw: 1120px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+ul,
+ol {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* Figures always align in columns. */
+.tabular,
+.data-table td,
+.data-table th,
+.equity-chart__readout,
+.kv__value,
+.criteria-row__mark,
+.running-state,
+code {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* Scrollbars that match the theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 2px solid var(--bg);
+  border-radius: var(--r-pill);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #3a4358;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
