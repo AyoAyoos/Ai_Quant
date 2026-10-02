@@ -1,69 +1,161 @@
 /* =============================================================================
    tokens.css — reset, design tokens, base typography, layout primitives.
-   Dark financial-terminal palette, organised as CSS variables.
+
+   Material 3 light scheme, crimson primary. Surface ramp is blue-tinted,
+   dividers are the dusty-rose `outline-variant`, and the crimson primary is
+   reserved for brand, focus and destructive emphasis.
+
+   Every token name that existed before the redesign is preserved, so all
+   pre-existing class rules keep working against the new palette.
    ========================================================================== */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* surfaces */
-  --bg: #0f1117;
-  --surface: #161b26;
-  --surface-2: #1c2030;
-  --surface-3: #10141f;
-  --surface-hover: #212737;
+  /* ---------------------------------------------------------- surface ramp */
+  --bg: #f8f9ff;
+  --surface: #f8f9ff;
+  --surface-2: #e6eeff;
+  --surface-3: #eff3ff;
+  --surface-hover: #dee9fe;
 
-  /* lines */
-  --border: #262a35;
-  --border-strong: #2c3345;
+  /* longhand M3 container names, used by the landing page */
+  --surface-lowest: #ffffff;
+  --surface-low: #eff3ff;
+  --surface-container: #e6eeff;
+  --surface-high: #dee9fe;
+  --surface-highest: #d8e3f8;
+  --surface-variant: #d8e3f8;
 
-  /* text */
-  --text: #e6e6e6;
-  --text-soft: #b9c0d1;
-  --muted: #8b93a7;
-  --faint: #6b7285;
+  /* inverse — terminal panels, code blocks */
+  --inverse-surface: #263141;
+  --inverse-on-surface: #ebf1ff;
+  --surface-dim: #cfdbef;
 
-  /* semantics */
-  --accent: #4f7cff;
-  --accent-soft: #1d2a4d;
-  --accent-text: #9db8ff;
-  --positive: #4ec9a5;
-  --positive-soft: #123029;
-  --negative: #e57373;
-  --negative-soft: #2c1a1d;
-  --warning: #f0a94a;
-  --warning-soft: #2e2415;
+  /* code surfaces are darker than `inverse-surface` so syntax sits forward */
+  --code-bg: #1b2331;
+  --code-bg-2: #141b27;
+  --code-text: #e6ecf7;
+  --code-muted: #8d99b2;
+
+  /* ------------------------------------------------------------------ lines */
+  --border: #e3d9e6;
+  --border-strong: #cfc0d4;
+
+  /* ------------------------------------------------------------------- text */
+  --text: #111c2b;
+  --text-soft: #3d4757;
+  --muted: #5c6472;
+  --faint: #7d8593;
+
+  /* on-surface role aliases, kept for the landing page */
+  --on-surface: #111c2b;
+  --on-surface-variant: #5d6472;
+  --on-background: #111c2b;
+
+  /* ------------------------------------------------------------------ brand */
+  --primary: #bb0028;
+  --on-primary: #ffffff;
+  --primary-container: #e61337;
+  --on-primary-container: #fffbff;
+  --primary-fixed: #ffdad8;
+  --primary-fixed-dim: #ffb3b1;
+  --on-primary-fixed: #410007;
+  --on-primary-fixed-variant: #92001d;
+  --surface-tint: #bf0029;
+
+  /* the pre-redesign accent names now point at the crimson brand */
+  --accent: var(--primary);
+  --accent-soft: var(--surface-high);
+  --accent-text: var(--primary);
+
+  /* --------------------------------------------------------------- secondary */
+  --secondary: #585f6b;
+  --on-secondary: #ffffff;
+  --secondary-container: #d9e0ef;
+  --on-secondary-container: #4a5260;
+  --secondary-fixed: #dce3f2;
+  --secondary-fixed-dim: #c0c7d5;
+
+  /* --------------------------------------------------------------- tertiary */
+  --tertiary: #6b593c;
+  --on-tertiary: #ffffff;
+  --tertiary-container: #857252;
+  --on-tertiary-container: #fffbff;
+  --tertiary-fixed: #f9dfb9;
+  --tertiary-fixed-dim: #dbc39f;
+  --on-tertiary-fixed: #261903;
+
+  /* ------------------------------------------------------------- outline/err */
+  --outline: #7d6a6b;
+  --outline-variant: #e7bcbb;
+  --error: #ba1a1a;
+  --on-error: #ffffff;
+  --error-container: #ffdad6;
+  --on-error-container: #93000a;
+
+  /* ------------------------------------------------------------- semantics */
+  /* Trading semantics live outside the M3 roles: a loss must never read as the
+     same crimson the brand uses for buttons, so gains/losses are keyed to a
+     distinct green and a deeper red. */
+  --positive: #1b6b4a;
+  --positive-soft: #d7f0e2;
+  --positive-bd: #8fc9ad;
+  --negative: #a01028;
+  --negative-soft: #ffdad6;
+  --negative-bd: #f0b3b0;
+  --warning: #7a5200;
+  --warning-soft: #f9dfb9;
+  --warning-bd: #dbc39f;
+  --severe: #8c3d00;
+  --info: #1a4d8f;
+  --info-soft: #dbe7fb;
+  --info-bd: #a8c4ec;
 
   /* status badge colours — one source of truth, reused on every page */
-  --status-draft-fg: #8b93a7;
-  --status-draft-bg: #1b1f2b;
-  --status-draft-bd: #2c3345;
-  --status-backtested-fg: #7fb3ff;
-  --status-backtested-bg: #16233a;
-  --status-backtested-bd: #2c4a75;
-  --status-approved-fg: #4ec9a5;
-  --status-approved-bg: #123029;
-  --status-approved-bd: #1f5c4b;
-  --status-paper-fg: #f0a94a;
-  --status-paper-bg: #2e2415;
-  --status-paper-bd: #6b4a1f;
-  --status-rejected-fg: #e57373;
-  --status-rejected-bg: #2c1a1d;
-  --status-rejected-bd: #5c2a2a;
+  --status-draft-fg: #4a5260;
+  --status-draft-bg: #d9e0ef;
+  --status-draft-bd: #c0c7d5;
+  --status-backtested-fg: #1a4d8f;
+  --status-backtested-bg: #dbe7fb;
+  --status-backtested-bd: #a8c4ec;
+  --status-approved-fg: #1b6b4a;
+  --status-approved-bg: #d7f0e2;
+  --status-approved-bd: #8fc9ad;
+  --status-paper-fg: #7a5200;
+  --status-paper-bg: #f9dfb9;
+  --status-paper-bd: #dbc39f;
+  --status-rejected-fg: #a01028;
+  --status-rejected-bg: #ffdad6;
+  --status-rejected-bd: #f0b3b0;
 
-  /* type scale */
-  --fs-xs: 0.6875rem;   /* 11px */
-  --fs-sm: 0.78125rem;  /* 12.5px */
-  --fs-base: 0.875rem;  /* 14px */
-  --fs-md: 0.9375rem;   /* 15px */
-  --fs-lg: 1.125rem;    /* 18px */
-  --fs-xl: 1.375rem;    /* 22px */
-  --fs-2xl: 1.75rem;    /* 28px */
+  /* --------------------------------------------------------- typography */
+  /* M3 roles, named so page CSS reads like the spec. */
+  --fs-caption: 0.6875rem;   /* 11px */
+  --fs-label: 0.78125rem;     /* 12.5px */
+  --fs-body-sm: 0.875rem;     /* 14px */
+  --fs-body-md: 0.9375rem;    /* 15px */
+  --fs-body-lg: 1.0625rem;    /* 17px */
+  --fs-headline-sm: 1.375rem; /* 22px */
+  --fs-headline-md: 1.75rem;  /* 28px */
+  --fs-headline-lg: 2rem;     /* 32px */
+  --fs-headline-xl: 2.75rem;  /* 44px */
 
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  /* aliases the pre-redesign class rules use */
+  --fs-xs: var(--fs-caption);
+  --fs-sm: var(--fs-label);
+  --fs-base: var(--fs-body-sm);
+  --fs-md: var(--fs-body-md);
+  --fs-lg: var(--fs-body-lg);
+  --fs-xl: var(--fs-headline-sm);
+  --fs-2xl: var(--fs-headline-md);
 
-  /* spacing */
+  --font-sans: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-display: 'Space Grotesk', 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ------------------------------------------------------------- spacing */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
@@ -72,26 +164,30 @@
   --sp-6: 24px;
   --sp-8: 32px;
   --sp-10: 40px;
+  --sp-12: 56px;
 
-  /* radii */
-  --r-sm: 6px;
-  --r-md: 8px;
-  --r-lg: 12px;
-  --r-xl: 16px;
+  /* -------------------------------------------------------------- radii */
+  --r-sm: 2px;
+  --r-md: 4px;
+  --r-lg: 8px;
+  --r-xl: 12px;
   --r-pill: 999px;
 
-  /* elevation */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.45);
-  --shadow-3: 0 14px 40px rgba(0, 0, 0, 0.55);
+  /* ----------------------------------------------------------- elevation */
+  --shadow-1: 0 1px 2px rgba(17, 28, 43, 0.06), 0 1px 3px 1px rgba(17, 28, 43, 0.05);
+  --shadow-2: 0 1px 3px rgba(17, 28, 43, 0.08), 0 6px 16px rgba(17, 28, 43, 0.07);
+  --shadow-3: 0 4px 8px rgba(17, 28, 43, 0.07), 0 14px 32px rgba(17, 28, 43, 0.1);
+  --focus-ring: 0 0 0 3px rgba(187, 0, 40, 0.16);
 
-  /* motion */
+  /* -------------------------------------------------------------- motion */
   --dur-fast: 120ms;
   --dur: 200ms;
   --ease: cubic-bezier(0.2, 0, 0.2, 1);
 
   --maxw: 1120px;
 }
+
+/* ================================================================== reset = */
 
 *,
 *::before,
@@ -105,8 +201,14 @@ body,
   height: 100%;
 }
 
+html {
+  /* the landing sub-nav anchors need to clear the sticky app bar */
+  scroll-padding-top: 96px;
+}
+
 body {
   margin: 0;
+  overscroll-behavior: none;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
@@ -140,7 +242,7 @@ ol {
 }
 
 a {
-  color: var(--accent-text);
+  color: var(--primary);
   text-decoration: none;
 }
 
@@ -157,29 +259,17 @@ select {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
 
-/* Figures always align in columns. */
-.tabular,
-.data-table td,
-.data-table th,
-.equity-chart__readout,
-.kv__value,
-.criteria-row__mark,
-.running-state,
-code {
-  font-variant-numeric: tabular-nums;
-}
-
 ::selection {
-  background: var(--accent-soft);
-  color: var(--text);
+  background: var(--primary-fixed);
+  color: var(--on-primary-fixed);
 }
 
-/* Scrollbars that match the theme. */
+/* Scrollbars that match the light theme. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
@@ -201,7 +291,7 @@ code {
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #3a4358;
+  background: var(--outline);
 }
 
 .visually-hidden {
@@ -214,6 +304,75 @@ code {
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ======================================================== type utilities = */
+
+/* All figures align in columns. */
+.tabular,
+.data-table td,
+.data-table th,
+.equity-chart__readout,
+.kv__value,
+.criteria-row__mark,
+.running-state,
+code {
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* Uppercase, letter-spaced eyebrow used above every landing section title. */
+.eyebrow {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ==================================================== material symbols ==== */
+
+/*
+ * Google Fonts serves Material Symbols as a ligature font: the JSX child text
+ * ("chat", "terminal") is swapped for a glyph. If the font fails to load the
+ * literal word shows instead, so every <Icon> must be given an explicit size
+ * and aria-hidden by its caller.
+ */
+.ms {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  flex: none;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
