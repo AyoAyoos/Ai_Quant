@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.ids import canonical_uuid_or_404, strategy_not_found
 from app.models import (
     BacktestResult,
     DeploymentStatus,
@@ -40,9 +41,7 @@ router = APIRouter(prefix="/strategies", tags=["strategies"])
 @router.get("/{strategy_id}", response_model=StrategyDetailOut)
 def get_strategy(strategy_id: str, db: Session = Depends(get_db)):
     """Strategy detail for the UI's code viewer — no LLM round-trip needed."""
-    strategy = db.query(Strategy).filter(Strategy.id == strategy_id).first()
-    if strategy is None:
-        raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+    strategy = _get_strategy_or_404(db, strategy_id)
     return StrategyDetailOut(
         strategy_id=strategy.id,
         name=strategy.name,
@@ -55,9 +54,17 @@ def get_strategy(strategy_id: str, db: Session = Depends(get_db)):
 
 
 def _get_strategy_or_404(db: Session, strategy_id: str) -> Strategy:
-    strategy = db.query(Strategy).filter(Strategy.id == strategy_id).first()
+    """Load a strategy by id, 404-ing before the query when the id is malformed.
+
+    Validation comes first on purpose: a non-UUID id cast to `::UUID` by
+    Postgres raises a DataError inside the query, which would escape as an
+    opaque 500 instead of the 404 below.
+    """
+    detail = strategy_not_found(strategy_id)
+    canonical = canonical_uuid_or_404(strategy_id, detail)
+    strategy = db.query(Strategy).filter(Strategy.id == canonical).first()
     if strategy is None:
-        raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+        raise HTTPException(status_code=404, detail=detail)
     return strategy
 
 
@@ -174,9 +181,7 @@ def backtest_strategy(
     params: BacktestRequest,
     db: Session = Depends(get_db),
 ):
-    strategy = db.query(Strategy).filter(Strategy.id == strategy_id).first()
-    if strategy is None:
-        raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+    strategy = _get_strategy_or_404(db, strategy_id)
 
     if not strategy.generated_code:
         raise HTTPException(

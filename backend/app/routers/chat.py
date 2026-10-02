@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.ids import canonical_uuid_or_404
 from app.models import Conversation, Message, MessageRole, Strategy
 from app.schemas import ChatMessageIn, ChatMessageOut
 from app.services.llm_service import chat_completion
@@ -18,9 +19,14 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 @router.post("", response_model=ChatMessageOut)
 async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
     # 1. Get or create conversation
-    if payload.conversation_id:
+    if payload.conversation_id is not None:
+        # Validate before querying: a malformed id cast to `::UUID` by Postgres
+        # would raise a DataError here instead of the 404 below.
+        conversation_id = canonical_uuid_or_404(
+            payload.conversation_id, "Conversation not found"
+        )
         conversation = db.query(Conversation).filter(
-            Conversation.id == payload.conversation_id
+            Conversation.id == conversation_id
         ).first()
         if conversation is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
