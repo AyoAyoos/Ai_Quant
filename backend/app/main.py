@@ -5,6 +5,7 @@ from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.middleware import CORS_ALLOW_ORIGINS, JsonErrorMiddleware
 from app.routers import chat
 from app.routers import strategies
 
@@ -30,12 +31,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Middleware runs outside-in in reverse order of addition: the last one added is
+# the outermost. CORS is therefore added last, so that it wraps JsonErrorMiddleware
+# and decorates the JSON 500 it builds for an unhandled exception with
+# Access-Control-Allow-Origin. Adding them the other way round leaves the 500
+# outside CORS and the browser reports the API as offline.
+app.add_middleware(JsonErrorMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # React dev server
-        "http://localhost:3000",  # dockerized nginx frontend
-    ],
+    allow_origins=CORS_ALLOW_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
