@@ -177,15 +177,3 @@ export function isNotFound(err) {
 export function isNetworkError(err) {
   return err instanceof ApiError && err.status === 0
 }
-
-/**
- * POST /strategies/generate — structured strategy builder endpoint.
- * Sends a complete strategy specification and receives a generated strategy.
- */
-export function generateStrategy(spec, { signal } = {}) {
-  return request('/strategies/generate', {
-    method: 'POST',
-    body: spec,
-    signal,
-  })
-}
