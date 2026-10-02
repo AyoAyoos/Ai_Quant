@@ -437,21 +437,34 @@ database, and drop ENUM types explicitly on downgrade (they survive
 
 ## Frontend guide
 
-Single-component React app (`frontend/src/App.jsx`): chat window, input, and a
-`StrategyCard` rendered under any reply that produced a strategy. The card shows
-the description, a status badge (`draft → backtested → approved → paper_trading /
-rejected`), and context actions — backtest button, approve/deploy/stop/reject
-(with inline reason form) — driven by live `GET /strategies/{id}` detail so it
-never goes stale after a transition.
+Multi-page React app routed from `frontend/src/App.jsx`:
+
+| Route | Screen |
+| --- | --- |
+| `/` | Landing page — capabilities, lifecycle, sample metrics, sandbox table, quickstart |
+| `/chat` | Strategy Studio: chat window, input, and a `StrategyCard` rendered under any reply that produced a strategy |
+| `/strategies`, `/strategies/:id` | Local strategy registry and per-strategy overview |
+| `/strategies/:id/backtest`, `/approval`, `/deployment` | Backtest runner, approval gate, deployment log |
+
+The `StrategyCard` shows the description, a status badge (`draft → backtested →
+approved → paper_trading / rejected`), and context actions — backtest button,
+approve/deploy/stop/reject (with inline reason form) — driven by live
+`GET /strategies/{id}` detail so it never goes stale after a transition.
 
 Results render a metrics grid beside the buy & hold benchmark with a beat/lagged
 verdict, an SVG equity curve (no chart dependency), a collapsible per-trade table
 with win/loss tinting, and a lazy-loaded code viewer. Risk disclaimers sit in the
-header and on every results card.
+persistent header, on every results card, and across the landing page.
 
-Hand-written dark-theme CSS (`App.css`, minimal `index.css` reset). Scripts:
-`npm run dev` (Vite :5173), `npm run build`, `npm run preview`, `npm run lint`
-(oxlint). No test runner is configured for the frontend.
+Light Material 3 theme, layered CSS: `styles/tokens.css` (design tokens, reset,
+typography, Material Symbols ligature setup), `styles/components.css`,
+`styles/pages.css` and `styles/landing.css` (landing page only, scoped under
+`.landing`). Scripts: `npm run dev` (Vite :5173), `npm run build`, `npm run
+preview`, `npm run lint` (oxlint). No test runner is configured for the frontend.
+
+`frontend/nginx.conf` adds the SPA fallback (`try_files $uri /index.html`) so
+direct loads and refreshes on `/chat` and `/strategies/:id` resolve in React
+Router instead of returning an nginx 404.
 
 ## Testing
 
