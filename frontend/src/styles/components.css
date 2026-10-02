@@ -1,6 +1,10 @@
 /* =============================================================================
    components.css — buttons, fields, cards, badges, notes, tables, skeletons,
    the SVG equity chart, the lifecycle stepper and the deployment timeline.
+
+   Material 3 shape language: small radii, hairline dividers, elevation only on
+   things that float. Fills are tonal (surface-container) rather than outlined in
+   a loud accent colour.
    ========================================================================== */
 
 /* ------------------------------------------------------------------ buttons */
@@ -10,64 +14,65 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  padding: 9px 14px;
+  padding: 9px 16px;
   border-radius: var(--r-md);
-  border: 1px solid var(--border-strong);
-  background: var(--surface-2);
-  color: var(--text-soft);
+  border: 1px solid transparent;
+  background: var(--surface-container);
+  color: var(--text);
+  font-family: var(--font-sans);
   font-size: var(--fs-base);
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+    color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .btn:hover:not(:disabled) {
-  background: var(--surface-hover);
-  border-color: #3a4358;
-  color: var(--text);
+  background: var(--surface-high);
   text-decoration: none;
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(1px);
+  background: var(--surface-highest);
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #ffffff;
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: var(--shadow-1);
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: #5f88ff;
-  border-color: #5f88ff;
-  color: #ffffff;
+  background: var(--primary-container);
+  color: var(--on-primary);
+  box-shadow: var(--shadow-2);
 }
 
 .btn--positive {
-  background: #2f8f6b;
-  border-color: #2f8f6b;
+  background: var(--positive);
+  border-color: var(--positive);
   color: #ffffff;
+  box-shadow: var(--shadow-1);
 }
 
 .btn--positive:hover:not(:disabled) {
-  background: #37a67d;
-  border-color: #37a67d;
+  background: #155840;
   color: #ffffff;
 }
 
 .btn--danger {
   color: var(--negative);
-  border-color: #4a2a2a;
-  background: transparent;
+  background: var(--surface-container-lowest);
+  border-color: var(--negative-bd);
 }
 
 .btn--danger:hover:not(:disabled) {
@@ -78,19 +83,25 @@
 
 .btn--ghost {
   background: transparent;
+  color: var(--primary);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--surface-high);
 }
 
 .btn--sm {
-  padding: 6px 10px;
+  padding: 6px 12px;
   font-size: var(--fs-sm);
 }
 
 .btn__spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: currentcolor;
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentcolor;
+  border-top-color: transparent;
   border-radius: 50%;
+  opacity: 0.85;
   animation: btn-spin 700ms linear infinite;
 }
 
@@ -105,24 +116,24 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: 6px;
 }
 
 .field__label {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-caption);
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--on-surface-variant);
 }
 
 .field__hint {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-caption);
   color: var(--faint);
 }
 
 .field__error {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-caption);
   color: var(--negative);
   font-weight: 600;
 }
@@ -135,17 +146,17 @@
   padding: 0 var(--sp-3);
   border-radius: var(--r-md);
   border: 1px solid var(--border-strong);
-  background: var(--surface-3);
+  background: var(--surface-lowest);
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .field__control:hover:not(:has(.field__input:disabled)) {
-  border-color: #3a4358;
+  border-color: var(--outline);
 }
 
 .field__control:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79, 124, 255, 0.18);
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
 }
 
 .field__control--error {
@@ -153,7 +164,7 @@
 }
 
 .field__control--error:focus-within {
-  box-shadow: 0 0 0 3px rgba(229, 115, 115, 0.18);
+  box-shadow: 0 0 0 3px rgba(160, 16, 40, 0.16);
 }
 
 .field__input {
@@ -164,6 +175,7 @@
   border: 0;
   background: transparent;
   color: var(--text);
+  font-family: var(--font-sans);
   font-size: var(--fs-base);
   font-variant-numeric: tabular-nums;
 }
@@ -195,9 +207,10 @@
 
 .field__suffix {
   flex: none;
+  font-family: var(--font-mono);
   font-size: var(--fs-sm);
   font-weight: 700;
-  color: var(--muted);
+  color: var(--on-surface-variant);
 }
 
 .form-grid {
@@ -211,7 +224,7 @@
 .disclosure {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  background: var(--surface);
+  background: var(--surface-lowest);
   overflow: hidden;
 }
 
@@ -228,17 +241,16 @@
   text-align: left;
   font-size: var(--fs-base);
   font-weight: 600;
-  color: var(--text-soft);
-}
-
-.disclosure__trigger:hover {
-  background: var(--surface-2);
   color: var(--text);
 }
 
+.disclosure__trigger:hover {
+  background: var(--surface-container);
+}
+
 .disclosure__chevron {
-  color: var(--muted);
-  font-size: var(--fs-xs);
+  color: var(--on-surface-variant);
+  font-size: var(--fs-sm);
   transition: transform var(--dur) var(--ease);
 }
 
@@ -257,19 +269,20 @@
 /* ------------------------------------------------------------------- panels */
 
 .panel {
-  background: var(--surface);
+  background: var(--surface-lowest);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   padding: var(--sp-5);
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
+  box-shadow: var(--shadow-1);
 }
 
 /* Marks the one panel a user should act on next. */
 .panel--accent {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent-soft), var(--shadow-1);
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring), var(--shadow-1);
 }
 
 .panel__head {
@@ -282,15 +295,15 @@
 
 .panel__subtitle {
   font-size: var(--fs-sm);
-  color: var(--muted);
+  color: var(--on-surface-variant);
 }
 
 .section-title {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-caption);
   font-weight: 700;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--on-surface-variant);
 }
 
 /* ------------------------------------------------------------------- badges */
@@ -302,9 +315,10 @@
   padding: 3px 10px;
   border-radius: var(--r-pill);
   border: 1px solid var(--border-strong);
-  background: var(--surface-2);
+  background: var(--surface-container);
   color: var(--status-draft-fg);
-  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -336,7 +350,7 @@
 }
 
 .status-badge--missing {
-  color: var(--muted);
+  color: var(--faint);
   background: var(--surface-3);
   border-style: dashed;
 }
@@ -353,14 +367,15 @@
 }
 
 .status-badge--stopped {
-  color: var(--muted);
-  background: var(--surface-2);
+  color: var(--on-surface-variant);
+  background: var(--surface-3);
 }
 
 /* A status this build does not recognise: shown verbatim, never guessed. */
 .status-badge--unknown {
   color: var(--warning);
   background: var(--warning-soft);
+  border-color: var(--warning-bd);
   border-style: dashed;
 }
 
@@ -380,11 +395,11 @@
   0%,
   100% {
     opacity: 1;
-    box-shadow: 0 0 0 0 rgba(240, 169, 74, 0.5);
+    box-shadow: 0 0 0 0 rgba(187, 0, 40, 0.22);
   }
   50% {
-    opacity: 0.6;
-    box-shadow: 0 0 0 4px rgba(240, 169, 74, 0);
+    opacity: 0.55;
+    box-shadow: 0 0 0 4px rgba(187, 0, 40, 0);
   }
 }
 
@@ -394,10 +409,11 @@
   gap: 5px;
   padding: 2px 8px;
   border-radius: var(--r-sm);
-  background: var(--surface-2);
+  background: var(--surface-container);
   border: 1px solid var(--border);
-  color: var(--muted);
-  font-size: var(--fs-xs);
+  color: var(--on-surface-variant);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -409,16 +425,17 @@
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--r-md);
-  border: 1px solid var(--border-strong);
-  background: var(--surface-2);
+  border: 1px solid var(--border);
+  background: var(--surface-container);
+  color: var(--text);
   font-size: var(--fs-base);
   line-height: 1.5;
 }
 
 .note__icon {
   flex: none;
-  font-size: var(--fs-md);
-  line-height: 1.4;
+  font-size: 20px;
+  line-height: 1.35;
 }
 
 .note__body {
@@ -428,28 +445,32 @@
   min-width: 0;
 }
 
+.note strong {
+  font-weight: 700;
+}
+
 .note--info {
-  border-color: var(--status-backtested-bd);
-  background: var(--status-backtested-bg);
-  color: #cfe1ff;
+  border-color: var(--info-bd);
+  background: var(--info-soft);
+  color: var(--info);
 }
 
 .note--warning {
-  border-color: var(--warning);
+  border-color: var(--warning-bd);
   background: var(--warning-soft);
-  color: #ffd9a3;
+  color: var(--warning);
 }
 
 .note--danger {
-  border-color: var(--negative);
+  border-color: var(--negative-bd);
   background: var(--negative-soft);
-  color: #ffc7c7;
+  color: var(--negative);
 }
 
 .note--success {
-  border-color: var(--status-approved-bd);
+  border-color: var(--positive-bd);
   background: var(--positive-soft);
-  color: #b6f0dc;
+  color: var(--positive);
 }
 
 .note ul {
@@ -483,7 +504,7 @@
   position: relative;
   overflow: hidden;
   border-radius: var(--r-md);
-  background: var(--surface-2);
+  background: var(--surface-container);
   min-height: 12px;
 }
 
@@ -492,7 +513,7 @@
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
   animation: skeleton-sweep 1.4s var(--ease) infinite;
 }
 
@@ -536,7 +557,7 @@
 }
 
 .criteria-row:nth-child(odd) {
-  background: var(--surface-2);
+  background: var(--surface-container-low);
   border-color: var(--border);
 }
 
@@ -590,22 +611,24 @@
   padding: var(--sp-3);
   border-radius: var(--r-md);
   border: 1px solid var(--border);
-  background: var(--surface-2);
+  background: var(--surface-container);
 }
 
 .metric__value {
-  font-size: var(--fs-md);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
+  color: var(--text);
 }
 
 .metric__label {
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--on-surface-variant);
 }
 
 /* Tone classes are applied to the element the colour rules target. */
@@ -622,7 +645,7 @@
 }
 
 .metric__value--severe {
-  color: #ef8a5a;
+  color: var(--severe);
 }
 
 .metric__value--critical {
@@ -634,43 +657,45 @@
 }
 
 .metric--benchmark {
-  background: var(--surface-3);
+  background: var(--surface-lowest);
   border-style: dashed;
+  border-color: var(--border-strong);
 }
 
 .verdict {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: 5px 11px;
+  padding: 5px 12px;
   border-radius: var(--r-pill);
-  border: 1px solid var(--border-strong);
-  background: var(--surface-2);
+  border: 1px solid var(--border);
+  background: var(--surface-container);
   font-size: var(--fs-sm);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .verdict--positive {
   color: var(--positive);
-  border-color: var(--status-approved-bd);
+  border-color: var(--positive-bd);
   background: var(--positive-soft);
 }
 
 .verdict--negative {
   color: var(--negative);
-  border-color: var(--status-rejected-bd);
+  border-color: var(--negative-bd);
   background: var(--negative-soft);
 }
 
 .verdict--caution {
   color: var(--warning);
-  border-color: var(--status-paper-bd);
+  border-color: var(--warning-bd);
   background: var(--warning-soft);
 }
 
 .verdict--neutral {
-  color: var(--text-soft);
+  color: var(--on-surface-variant);
 }
 
 .verdict--none {
@@ -687,7 +712,7 @@
   padding: var(--sp-4);
   border-radius: var(--r-lg);
   border: 1px solid var(--border);
-  background: var(--surface-3);
+  background: var(--surface-lowest);
 }
 
 .equity-chart__head {
@@ -699,16 +724,17 @@
 }
 
 .equity-chart__title {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-caption);
   font-weight: 700;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--on-surface-variant);
 }
 
 .equity-chart__readout {
+  font-family: var(--font-mono);
   font-size: var(--fs-sm);
-  color: var(--text-soft);
+  color: var(--text);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -734,7 +760,7 @@
 
 .equity-chart__area--up {
   fill: var(--positive);
-  opacity: 0.1;
+  opacity: 0.12;
 }
 
 .equity-chart__area--down {
@@ -759,19 +785,20 @@
 }
 
 .equity-chart__crosshair {
-  stroke: var(--accent);
+  stroke: var(--primary);
   stroke-width: 1;
   stroke-dasharray: 3 3;
 }
 
 .equity-chart__marker {
-  stroke: var(--bg);
+  stroke: var(--surface-lowest);
   stroke-width: 1.5;
 }
 
 .equity-chart__dates {
   display: flex;
   justify-content: space-between;
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   color: var(--faint);
   font-variant-numeric: tabular-nums;
@@ -781,11 +808,12 @@
   position: absolute;
   z-index: 4;
   transform: translate(-50%, -100%);
-  padding: 5px 9px;
+  padding: 5px 10px;
   border-radius: var(--r-sm);
   border: 1px solid var(--border-strong);
-  background: var(--surface-2);
+  background: var(--surface-lowest);
   box-shadow: var(--shadow-2);
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   line-height: 1.45;
@@ -814,7 +842,7 @@
   max-height: 340px;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  background: var(--surface-3);
+  background: var(--surface-lowest);
 }
 
 .data-table {
@@ -822,17 +850,18 @@
   border-collapse: separate;
   border-spacing: 0;
   font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .data-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: var(--fs-xs);
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  font-size: var(--fs-caption);
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   text-align: left;
   padding: var(--sp-2) var(--sp-3);
@@ -842,7 +871,7 @@
 
 .data-table tbody td {
   padding: 7px var(--sp-3);
-  border-bottom: 1px solid var(--surface-2);
+  border-bottom: 1px solid var(--border);
   color: var(--text-soft);
   white-space: nowrap;
 }
@@ -852,7 +881,7 @@
 }
 
 .data-table tbody tr:hover td {
-  background: var(--surface-2);
+  background: var(--surface-container-low);
 }
 
 .data-table .num {
@@ -909,8 +938,9 @@
   flex: none;
   border-radius: 50%;
   border: 1px solid var(--border-strong);
-  background: var(--surface-2);
-  color: var(--muted);
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   font-weight: 700;
 }
@@ -923,9 +953,9 @@
 }
 
 .stepper__node--done .stepper__dot {
-  background: var(--accent-soft);
-  border-color: var(--status-backtested-bd);
-  color: var(--accent-text);
+  background: var(--positive-soft);
+  border-color: var(--positive-bd);
+  color: var(--positive);
 }
 
 .stepper__node--done .stepper__label {
@@ -933,10 +963,10 @@
 }
 
 .stepper__node--current .stepper__dot {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(79, 124, 255, 0.2);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 0 0 3px rgba(187, 0, 40, 0.18);
 }
 
 .stepper__node--current .stepper__label {
@@ -946,7 +976,7 @@
 
 .stepper__node--rejected .stepper__dot {
   background: var(--negative-soft);
-  border-color: var(--status-rejected-bd);
+  border-color: var(--negative-bd);
   color: var(--negative);
 }
 
@@ -962,15 +992,15 @@
 }
 
 .stepper__link--done {
-  background: var(--status-backtested-bd);
+  background: var(--positive-bd);
 }
 
 .stepper__branch {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding-top: var(--sp-1);
-  border-top: 1px dashed var(--border);
+  padding-top: var(--sp-3);
+  border-top: 1px dashed var(--border-strong);
   margin-top: var(--sp-1);
 }
 
@@ -997,9 +1027,9 @@
 .kv__key {
   font-size: var(--fs-xs);
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--on-surface-variant);
 }
 
 .kv__value {
@@ -1015,10 +1045,15 @@
 
 /* --------------------------------------------------------------- code block */
 
+/*
+ * Code keeps a dark "inverse surface" fill. Generated Python is read far more
+ * comfortably as light-on-dark, and it matches the terminal panels on the
+ * landing page.
+ */
 .code-viewer {
-  border: 1px solid var(--border);
+  border: 1px solid var(--code-bg);
   border-radius: var(--r-md);
-  background: var(--surface-3);
+  background: var(--code-bg);
   overflow: hidden;
 }
 
@@ -1028,27 +1063,31 @@
   justify-content: space-between;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  background: var(--code-bg-2);
 }
 
 .code-viewer__name {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  color: var(--muted);
+  color: var(--code-muted);
 }
 
 .code-viewer__pre {
   margin: 0;
-  padding: var(--sp-3);
+  padding: var(--sp-4);
   overflow-x: auto;
   max-height: 420px;
   overflow-y: auto;
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
-  line-height: 1.6;
-  color: #c9d1e3;
+  line-height: 1.65;
+  color: var(--code-text);
   tab-size: 4;
+}
+
+.code-viewer__pre code {
+  font-family: inherit;
 }
 
 /* ------------------------------------------------------------ inline prose */
@@ -1086,7 +1125,7 @@
   content: '•';
   position: absolute;
   left: 2px;
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .prose ol {
@@ -1103,7 +1142,7 @@
   content: counter(prose-ol) '.';
   position: absolute;
   left: 0;
-  color: var(--accent);
+  color: var(--primary);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1111,6 +1150,7 @@
 .prose h3,
 .prose h4 {
   margin: var(--sp-2) 0 0;
+  font-family: var(--font-display);
   font-size: var(--fs-base);
   font-weight: 700;
   color: var(--text);
@@ -1124,21 +1164,22 @@
 .prose code {
   padding: 1px 5px;
   border-radius: var(--r-sm);
-  background: var(--surface-3);
+  background: var(--surface-high);
   border: 1px solid var(--border);
   font-family: var(--font-mono);
   font-size: 0.92em;
-  color: var(--accent-text);
+  color: var(--primary);
 }
 
 .spinner-inline {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   flex: none;
   margin-top: 3px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: currentcolor;
+  border: 2px solid currentcolor;
+  border-top-color: transparent;
   border-radius: 50%;
+  opacity: 0.6;
   animation: btn-spin 700ms linear infinite;
 }
 
@@ -1153,18 +1194,20 @@
   padding: var(--sp-8) var(--sp-5);
   border: 1px dashed var(--border-strong);
   border-radius: var(--r-lg);
-  background: var(--surface);
+  background: var(--surface-lowest);
 }
 
 .empty-state__icon {
   font-size: 26px;
   line-height: 1;
-  opacity: 0.85;
+  color: var(--primary);
 }
 
 .empty-state__title {
-  font-size: var(--fs-lg);
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
   font-weight: 700;
+  letter-spacing: -0.015em;
 }
 
 .empty-state__text {
