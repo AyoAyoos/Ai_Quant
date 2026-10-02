@@ -99,7 +99,7 @@ export default function StrategiesPage() {
             page loads — it is never cached, because the approval gate moves it.
           </p>
         </div>
-        <Link className="btn btn--primary" to="/">
+        <Link className="btn btn--primary" to="/chat">
           New strategy in chat
         </Link>
       </div>
@@ -143,7 +143,7 @@ export default function StrategiesPage() {
             follow-up questions, and the finalized strategy is registered here automatically.
           </p>
           <div className="empty-state__actions">
-            <Link className="btn btn--primary" to="/">
+            <Link className="btn btn--primary" to="/chat">
               Go to chat
             </Link>
           </div>

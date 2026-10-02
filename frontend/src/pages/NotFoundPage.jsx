@@ -14,7 +14,7 @@ export default function NotFoundPage() {
           browse the library, or open a strategy&apos;s overview.
         </p>
         <div className="empty-state__actions">
-          <Link className="btn btn--primary" to="/">
+          <Link className="btn btn--primary" to="/chat">
             Go to chat
           </Link>
           <Link className="btn" to="/strategies">

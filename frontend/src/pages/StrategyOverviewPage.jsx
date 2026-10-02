@@ -27,7 +27,7 @@ function MissingPage({ strategyId }) {
           <Link className="btn btn--primary" to="/strategies">
             Back to library
           </Link>
-          <Link className="btn" to="/">
+          <Link className="btn" to="/chat">
             Create a new strategy
           </Link>
         </div>
