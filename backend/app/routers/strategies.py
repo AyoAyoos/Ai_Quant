@@ -48,7 +48,7 @@ from app.services.strategy_builder import (
 router = APIRouter(prefix="/strategies", tags=["strategies"])
 
 
-@router.post("/generate", response_model=StrategyGenerateResponse)
+@router.post("/builder", response_model=StrategyGenerateResponse)
 async def generate_strategy(payload: StrategyBuilderRequest, db: Session = Depends(get_db)):
     """
     Generate a trading strategy from structured specification.

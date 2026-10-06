@@ -67,7 +67,7 @@ VALID_STRATEGY_REQUEST = {
 class TestStrategyGenerateEndpoint:
     def test_generate_strategy_valid_request(self, client, db):
         """Test that a valid strategy generation request succeeds."""
-        resp = client.post("/strategies/generate", json=VALID_STRATEGY_REQUEST)
+        resp = client.post("/strategies/builder", json=VALID_STRATEGY_REQUEST)
         # Note: This will fail without a valid Groq API key, but we can test the validation
         # The actual LLM call is tested in unit tests below
         # For integration test, we expect either 200 (if LLM works) or 502 (if LLM fails)
@@ -93,7 +93,7 @@ class TestStrategyGenerateEndpoint:
         """Test that invalid market returns 422."""
         invalid_request = VALID_STRATEGY_REQUEST.copy()
         invalid_request["market"] = "INVALID_MARKET"
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
         body = resp.json()
         assert "detail" in body
@@ -102,7 +102,7 @@ class TestStrategyGenerateEndpoint:
         """Test that unsupported market (no data) returns 422."""
         invalid_request = VALID_STRATEGY_REQUEST.copy()
         invalid_request["market"] = "BANKNIFTY"
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
         body = resp.json()
         assert "detail" in body
@@ -111,14 +111,14 @@ class TestStrategyGenerateEndpoint:
         """Test that invalid trading style returns 422."""
         invalid_request = VALID_STRATEGY_REQUEST.copy()
         invalid_request["trading_style"] = "invalid_style"
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
 
     def test_generate_strategy_invalid_timeframe(self, client, db):
         """Test that invalid timeframe returns 422."""
         invalid_request = VALID_STRATEGY_REQUEST.copy()
         invalid_request["timeframe"] = "invalid"
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
 
     def test_generate_strategy_incompatible_timeframe(self, client, db):
@@ -126,7 +126,7 @@ class TestStrategyGenerateEndpoint:
         invalid_request = VALID_STRATEGY_REQUEST.copy()
         invalid_request["trading_style"] = "scalping"
         invalid_request["timeframe"] = "1d"  # Not compatible with scalping
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
 
     def test_generate_strategy_invalid_indicator(self, client, db):
@@ -135,7 +135,7 @@ class TestStrategyGenerateEndpoint:
         invalid_request["indicators"] = [
             {"name": "INVALID_INDICATOR", "parameters": {}}
         ]
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
 
     def test_generate_strategy_invalid_indicator_parameters(self, client, db):
@@ -144,35 +144,35 @@ class TestStrategyGenerateEndpoint:
         invalid_request["indicators"] = [
             {"name": "EMA", "parameters": {"fast": -1, "slow": 50}}  # negative fast
         ]
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
 
     def test_generate_strategy_missing_entry_condition(self, client, db):
         """Test that missing entry condition returns 422."""
         invalid_request = VALID_STRATEGY_REQUEST.copy()
         invalid_request["entry_conditions"] = []
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
 
     def test_generate_strategy_missing_exit_condition(self, client, db):
         """Test that missing exit condition returns 422."""
         invalid_request = VALID_STRATEGY_REQUEST.copy()
         invalid_request["exit_conditions"] = []
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
 
     def test_generate_strategy_invalid_stop_loss(self, client, db):
         """Test that invalid stop loss returns 422."""
         invalid_request = VALID_STRATEGY_REQUEST.copy()
         invalid_request["risk_management"]["stop_loss_percent"] = -1
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
 
     def test_generate_strategy_invalid_take_profit(self, client, db):
         """Test that invalid take profit returns 422."""
         invalid_request = VALID_STRATEGY_REQUEST.copy()
         invalid_request["risk_management"]["take_profit_percent"] = 0
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
 
     def test_generate_strategy_duplicate_indicators(self, client, db):
@@ -182,7 +182,7 @@ class TestStrategyGenerateEndpoint:
             {"name": "EMA", "parameters": {"fast": 20, "slow": 50}},
             {"name": "EMA", "parameters": {"fast": 10, "slow": 30}},
         ]
-        resp = client.post("/strategies/generate", json=invalid_request)
+        resp = client.post("/strategies/builder", json=invalid_request)
         assert resp.status_code == 422
 
 
