@@ -146,6 +146,46 @@ class PaperAccountSnapshot(BaseModel):
     last_error: str | None = None
 
 
+class PaperTickIn(BaseModel):
+    """Optional controls for one paper-trading bar.
+
+    Both fields are deliberately optional so the common case — "advance to the
+    next unprocessed bar" — is a bodyless POST. `bar_date` pins an exact
+    trading day, which is what makes stepping through history reproducible; with
+    no `bar_date` the engine picks the first bar after the account's
+    `last_bar_date` watermark. `quantity` overrides the deployment's position
+    sizing, which lets a demo trade a known unit count instead of a
+    percentage of cash.
+    """
+
+    bar_date: str | None = None
+    quantity: int | None = Field(default=None, ge=1)
+
+
+class PaperTickResult(BaseModel):
+    """Outcome of processing one bar, plus the resulting account.
+
+    `duplicate=True` means the requested bar had already been consumed by an
+    earlier tick: nothing was executed, the watermark and balance are
+    unchanged, and `reason` explains why. That is a successful no-op rather
+    than an error, so a client that retries the same day is always safe.
+    """
+
+    strategy_id: str
+    deployment_id: str
+    symbol: str
+    bar_date: str
+    price: float
+    action: str
+    duplicate: bool = False
+    reason: str | None = None
+    order: PaperOrderOut | None = None
+    fill_price: float | None = None
+    quantity: int | None = None
+    marked_positions: int = 0
+    account: PaperAccountSnapshot
+
+
 class BacktestResultOut(BaseModel):
     strategy_id: str
     status: str = "backtested"

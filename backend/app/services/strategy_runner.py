@@ -33,6 +33,7 @@ import uuid
 from datetime import datetime
 
 import backtrader as bt
+import pandas as pd
 
 RESULT_MARKER = "__BT_RESULT__"
 
@@ -516,6 +517,190 @@ def pct_to_fraction(pct: float) -> float:
 
 
 # --------------------------------------------------------------------------- #
+# Phase 2: paper-trading signal replay
+# --------------------------------------------------------------------------- #
+class FinalBarOrderCollector(bt.analyzers.Analyzer):
+    """Records the orders a strategy *submitted* on the final bar of a replay.
+
+    Paper trading must not re-interpret the generated strategy: this analyzer
+    observes the real Backtrader broker and reports what the strategy's own
+    ``next()`` decided for the last bar. Only ``Submitted`` events on the final
+    bar count — those are the strategy's intent. Later ``Accepted``/``Completed``
+    events are deliberately ignored: a market order submitted in ``next()`` of
+    the final bar has no following bar to fill against, and paper trading fills
+    the order itself (see ``paper_engine``).
+
+    Submitting is also what distinguishes a signal from a no-op: a bar where the
+    strategy did nothing yields no event and therefore a HOLD.
+    """
+
+    def start(self):
+        super(FinalBarOrderCollector, self).start()
+        self.submissions = []
+
+    def notify_order(self, order):
+        self.submissions.append(
+            {
+                "bar_date": _format_date(self.strategy.datetime.datetime(0)),
+                "status": order.getstatusname(),
+                "isbuy": bool(order.isbuy()),
+                "ref": order.ref,
+            }
+        )
+
+    def get_analysis(self):
+        return self.submissions
+
+
+ACTION_BUY = "buy"
+ACTION_SELL = "sell"
+ACTION_HOLD = "hold"
+
+
+def run_signal(
+    code: str,
+    data_path: str,
+    cash: float,
+    commission_pct: float,
+    sizer_percents: float,
+    upto_date: str | None = None,
+) -> dict:
+    """Replay `code` over its own data and report the decision for one bar.
+
+    Deterministic replay, not incremental execution: Backtrader's Cerebro is
+    built to run a feed start-to-finish in one pass and cannot be fed a bar at a
+    time with its indicator state carried across ticks. Rather than bolt a
+    parallel indicator framework onto the paper account (a second RSI/SMA
+    interpretation that could silently disagree with the backtest), the same
+    strategy class is re-run over the real cached history up to and including
+    ``upto_date``. Indicators warm up exactly as they do in a backtest, so the
+    final bar's decision is the strategy's genuine output.
+
+    Cost: one extra full replay per tick. For a daily MVP series that is
+    seconds, and it is bounded by the same subprocess timeout as a backtest.
+
+    Returns ``{"action": buy|sell|hold, "bar_date": ..., "close": ...}``.
+    """
+    check_guardrails(code)
+
+    module_name = f"__strategy_{uuid.uuid4().hex}__"
+    module = types.ModuleType(module_name)
+    module.__file__ = "<generated>"
+    sys.modules[module_name] = module
+    try:
+        exec(compile(code, "<strategy>", "exec"), module.__dict__)
+
+        strategy_cls = None
+        for name, obj in module.__dict__.items():
+            if isinstance(obj, type) and issubclass(obj, bt.Strategy):
+                if name == "GeneratedStrategy":
+                    strategy_cls = obj
+                    break
+                strategy_cls = obj
+        if strategy_cls is None:
+            raise ValueError("no bt.Strategy subclass found in the generated code")
+
+        return _replay_for_signal(
+            strategy_cls, data_path, cash, commission_pct, sizer_percents, upto_date
+        )
+    finally:
+        # Must stay in sys.modules until Cerebro has *instantiated* the class
+        # (MetaParams.donew resolves sys.modules[cls.__module__]).
+        del sys.modules[module_name]
+
+
+def _replay_for_signal(
+    strategy_cls, data_path: str, cash: float, commission_pct: float,
+    sizer_percents: float, upto_date: str | None,
+) -> dict:
+    df = load_dataframe(data_path)
+
+    if not upto_date:
+        return _replay_window(strategy_cls, df, cash, commission_pct, sizer_percents)
+
+    cutoff = pd.Timestamp(upto_date)
+    # Compare on the naive date only: the CSV loader localises the index to
+    # naive UTC, and a tz-aware cutoff would silently select nothing.
+    eligible = df.index <= (cutoff.tz_localize(None) if cutoff.tzinfo else cutoff)
+    window = df[eligible]
+    if window.empty:
+        raise ValueError(f"no bars on or before {upto_date}")
+
+    if len(window) >= len(df):
+        return _replay_window(strategy_cls, window, cash, commission_pct, sizer_percents)
+
+    try:
+        return _replay_window(strategy_cls, window, cash, commission_pct, sizer_percents)
+    except Exception as window_error:
+        # The truncated window is shorter than the strategy's longest indicator
+        # period, so indexing that indicator underflows. That is a warmup
+        # condition, not a broken strategy — but the two are indistinguishable
+        # from the exception alone. Distinguish them by re-running the FULL
+        # history: a strategy that only fails on short windows is sound, and
+        # the right answer for a not-yet-warm bar is HOLD, not an error.
+        #
+        # This costs a second replay, but only during warmup (the first few
+        # bars of a deployment), so the common tick stays at one replay. A
+        # strategy that fails on the full history too is genuinely broken and
+        # its error surfaces to the caller.
+        _replay_window(strategy_cls, df, cash, commission_pct, sizer_percents)
+        return {
+            "action": ACTION_HOLD,
+            "bar_date": _format_date(window.index[-1]),
+            "close": float(window["Close"].iloc[-1]),
+            "warmup": True,
+            "reason": (
+                f"warming up: strategy needs more than {len(window)} bar(s) of "
+                f"history; no signal for {upto_date}"
+            ),
+        }
+
+
+def _replay_window(strategy_cls, df, cash: float, commission_pct: float,
+                   sizer_percents: float) -> dict:
+    """Run one Cerebro replay over ``df`` and report the final bar's decision."""
+    cerebro = bt.Cerebro(stdstats=False)
+    cerebro.broker.setcash(cash)
+    # Identical broker configuration to _run_cerebro, so sizing and margin
+    # behaviour match the backtest this strategy was approved on.
+    cerebro.broker.setcommission(
+        commission=pct_to_fraction(commission_pct),
+        stocklike=True,
+        commtype=bt.CommInfoBase.COMM_PERC,
+    )
+    data = bt.feeds.PandasData(
+        dataname=df,
+        open="Open", high="High", low="Low", close="Close",
+        volume="Volume", openinterest=None,
+    )
+    cerebro.adddata(data)
+    cerebro.addstrategy(strategy_cls)
+    cerebro.addsizer(bt.sizers.PercentSizer, percents=sizer_percents)
+    cerebro.addanalyzer(FinalBarOrderCollector, _name="signal")
+
+    results = cerebro.run()
+    strat = results[0]
+
+    last_date = _format_date(df.index[-1])
+    last_close = float(df["Close"].iloc[-1])
+
+    collector = getattr(strat.analyzers, "signal", None)
+    submissions = list(collector.get_analysis()) if collector is not None else []
+    final_bar = [
+        s for s in submissions
+        if s["status"] == "Submitted" and str(s["bar_date"]).startswith(last_date)
+    ]
+
+    action = ACTION_HOLD
+    if final_bar:
+        # Last submission wins; a strategy that both buys and sells on one bar
+        # is pathological, and the most recent decision is the relevant one.
+        action = ACTION_BUY if final_bar[-1]["isbuy"] else ACTION_SELL
+
+    return {"action": action, "bar_date": last_date, "close": last_close}
+
+
+# --------------------------------------------------------------------------- #
 # CLI entrypoint
 # --------------------------------------------------------------------------- #
 def main(argv=None) -> int:
@@ -524,10 +709,32 @@ def main(argv=None) -> int:
     parser.add_argument("--cash", type=float, default=100000.0)
     parser.add_argument("--commission", type=float, default=0.1, help="commission %%")
     parser.add_argument("--sizer-percents", type=float, default=95.0)
+    parser.add_argument(
+        "--signal",
+        action="store_true",
+        help="paper-trading mode: report the strategy's decision for one bar",
+    )
+    parser.add_argument(
+        "--upto-date",
+        default=None,
+        help="with --signal, replay only bars up to this YYYY-MM-DD",
+    )
     args = parser.parse_args(argv)
 
     code = sys.stdin.read()
     try:
+        if args.signal:
+            signal = run_signal(
+                code=code,
+                data_path=args.data,
+                cash=args.cash,
+                commission_pct=args.commission,
+                sizer_percents=args.sizer_percents,
+                upto_date=args.upto_date,
+            )
+            print_result({"ok": True, "signal": signal})
+            return 0
+
         metrics = run_backtest(
             code=code,
             data_path=args.data,

@@ -112,15 +112,24 @@ def _compute_cagr_pct(metrics: dict) -> float | None:
     return round(((float(value_end) / float(value_start)) ** (365.0 / days) - 1.0) * 100.0, 4)
 
 
-def run_backtest_sandboxed(
+def _run_worker(
     code: str,
     data_path: str,
-    cash: float = 100000.0,
-    commission_pct: float = 0.1,
-    sizer_percents: float = 95.0,
-    timeout_seconds: int = TIMEOUT_DEFAULT_SECONDS,
-    max_output_bytes: int = MAX_OUTPUT_BYTES,
+    cash: float,
+    commission_pct: float,
+    sizer_percents: float,
+    extra_args: list[str],
+    timeout_seconds: int,
+    max_output_bytes: int,
 ) -> dict:
+    """Spawn the strategy worker and return its sentinel payload.
+
+    Shared by the backtest and paper-signal paths so both get the identical
+    isolation story (fresh process, stdin-delivered code, output byte cap,
+    hard timeout, process-tree kill). The AI-generated code never runs inside
+    the API process either way — adding a second, weaker spawn helper for the
+    signal path would be the easy way to quietly erode that boundary.
+    """
     cmd = [
         sys.executable,
         "-m",
@@ -129,6 +138,7 @@ def run_backtest_sandboxed(
         "--cash", str(cash),
         "--commission", str(commission_pct),
         "--sizer-percents", str(sizer_percents),
+        *extra_args,
     ]
     proc = subprocess.Popen(
         cmd,
@@ -159,12 +169,67 @@ def run_backtest_sandboxed(
         if line.startswith(RESULT_MARKER):
             payload = json.loads(line[len(RESULT_MARKER):].strip())
             if payload.get("ok"):
-                metrics = payload["metrics"]
-                metrics["cagr_pct"] = _compute_cagr_pct(metrics)
-                return metrics
+                return payload
             raise BacktestError(payload.get("error") or "worker reported an error")
 
     raise BacktestError("worker produced no result line")
+
+
+def run_backtest_sandboxed(
+    code: str,
+    data_path: str,
+    cash: float = 100000.0,
+    commission_pct: float = 0.1,
+    sizer_percents: float = 95.0,
+    timeout_seconds: int = TIMEOUT_DEFAULT_SECONDS,
+    max_output_bytes: int = MAX_OUTPUT_BYTES,
+) -> dict:
+    payload = _run_worker(
+        code=code,
+        data_path=data_path,
+        cash=cash,
+        commission_pct=commission_pct,
+        sizer_percents=sizer_percents,
+        extra_args=[],
+        timeout_seconds=timeout_seconds,
+        max_output_bytes=max_output_bytes,
+    )
+    metrics = payload["metrics"]
+    metrics["cagr_pct"] = _compute_cagr_pct(metrics)
+    return metrics
+
+
+def run_signal_sandboxed(
+    code: str,
+    data_path: str,
+    cash: float = 100000.0,
+    commission_pct: float = 0.1,
+    sizer_percents: float = 95.0,
+    upto_date: str | None = None,
+    timeout_seconds: int = TIMEOUT_DEFAULT_SECONDS,
+    max_output_bytes: int = MAX_OUTPUT_BYTES,
+) -> dict:
+    """Ask the strategy what it wants to do on one bar.
+
+    Returns the worker's ``{"action", "bar_date", "close"}`` payload. Raises the
+    same :class:`BacktestError` / :class:`BacktestTimeout` as a backtest so the
+    router can map worker failures the same way.
+    """
+    extra_args = ["--signal"]
+    if upto_date:
+        extra_args += ["--upto-date", str(upto_date)]
+
+    payload = _run_worker(
+        code=code,
+        data_path=data_path,
+        cash=cash,
+        commission_pct=commission_pct,
+        sizer_percents=sizer_percents,
+        extra_args=extra_args,
+        timeout_seconds=timeout_seconds,
+        max_output_bytes=max_output_bytes,
+    )
+    return payload["signal"]
 
 
 def _parse_worker_error(out: bytes) -> str | None:

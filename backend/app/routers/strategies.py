@@ -24,6 +24,8 @@ from app.schemas import (
     PaperAccountSnapshot,
     PaperOrderOut,
     PaperPositionOut,
+    PaperTickIn,
+    PaperTickResult,
     PaperTradeOut,
     RejectIn,
     StopIn,
@@ -33,6 +35,7 @@ from app.services.backtest_service import (
     BacktestError,
     BacktestTimeout,
     run_backtest_sandboxed,
+    run_signal_sandboxed,
 )
 from app.services.deployment_gate import (
     active_deployment,
@@ -40,7 +43,14 @@ from app.services.deployment_gate import (
     check_deploy,
 )
 from app.services.market_data import MarketDataError, ensure_market_data
-from app.services.paper_engine import open_account, snapshot
+from app.services.paper_bars import PaperBarDuplicate, PaperBarError, next_bar
+from app.services.paper_engine import (
+    ORDER_FILLED,
+    PaperExecutionError,
+    open_account,
+    run_tick,
+    snapshot,
+)
 
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
@@ -294,6 +304,180 @@ def list_paper_orders(strategy_id: str, db: Session = Depends(get_db)):
         reverse=True,
     )
     return [_order_out(o) for o in ordered]
+
+
+def _duplicate_bar_close(market: str, data_path: str, bar_date) -> float:
+    """Best-effort close price of an already-processed bar, for reporting only.
+
+    The account is already correct, so a lookup failure must never turn an
+    idempotent retry into an error; it falls back to ``0.0``.
+    """
+    if not bar_date:
+        return 0.0
+    try:
+        return next_bar(
+            market, on=_parse_optional_date(bar_date), path=data_path
+        ).close
+    except (PaperBarError, ValueError):
+        return 0.0
+
+
+@router.post("/{strategy_id}/paper-tick", response_model=PaperTickResult)
+def paper_tick(
+    strategy_id: str,
+    payload: PaperTickIn | None = None,
+    db: Session = Depends(get_db),
+):
+    """Process exactly one market bar for the active paper deployment.
+
+    One request advances the virtual account by one trading day: pick the next
+    unprocessed bar, replay the strategy to learn its decision for that bar,
+    simulate the resulting order, re-mark open positions, and return the updated
+    snapshot. There is no loop and no scheduler — the caller drives the pace,
+    which is what makes the whole thing reproducible.
+
+    The strategy's decision comes from replaying its own generated code in the
+    same sandboxed subprocess a backtest uses, so paper trading executes the
+    real strategy rather than a second interpretation of it.
+    """
+    body = payload or PaperTickIn()
+    strategy = _get_strategy_or_404(db, strategy_id)
+
+    # Lifecycle: only a live paper_trading deployment with its account open may
+    # tick. A stopped or never-deployed strategy is refused here, before any
+    # market data or subprocess work happens.
+    if strategy.status != StrategyStatus.paper_trading:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reasons": [
+                    f"strategy status is {strategy.status.value!r}, "
+                    f"must be 'paper_trading'"
+                ]
+            },
+        )
+    dep = active_deployment(strategy)
+    if dep is None:
+        raise HTTPException(
+            status_code=422,
+            detail={"reasons": ["no active paper deployment — deploy the strategy first"]},
+        )
+    if not strategy.generated_code:
+        raise HTTPException(
+            status_code=422,
+            detail={"reasons": ["strategy has no generated code to execute"]},
+        )
+
+    # 1. Resolve the data source exactly once and reuse that same file for both
+    #    bar selection and the strategy replay. Reading it twice would let a
+    #    cache refresh land in between, so the bar chosen here might not exist
+    #    in the file the subprocess replays.
+    try:
+        data_path = str(ensure_market_data(strategy.market))
+    except MarketDataError as exc:
+        dep.last_error = f"market data unavailable: {exc}"
+        db.commit()
+        raise HTTPException(
+            status_code=503,
+            detail=f"Could not load market data for {strategy.market!r}: {exc}",
+        ) from exc
+
+    # 2. Choose the bar. A pinned date at or before the watermark is a repeat
+    #    of work already done, so it short-circuits to a no-op snapshot.
+    try:
+        bar = next_bar(
+            strategy.market,
+            after=dep.last_bar_date,
+            on=_parse_optional_date(body.bar_date),
+            path=data_path,
+        )
+    except PaperBarDuplicate as exc:
+        # Already consumed: a successful no-op, so a client that retries the same
+        # day is always safe and sees an unchanged account. Report the real
+        # price of the bar it re-requested rather than a placeholder, so the
+        # snapshot is directly comparable with the original response.
+        return PaperTickResult(
+            strategy_id=strategy.id,
+            deployment_id=dep.id,
+            symbol=strategy.market.strip().upper(),
+            bar_date=str(body.bar_date),
+            price=_duplicate_bar_close(strategy.market, data_path, body.bar_date),
+            action="HOLD",
+            duplicate=True,
+            reason=str(exc),
+            account=snapshot(dep),
+        )
+    except PaperBarError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"reasons": [f"no usable market bar: {exc}"]},
+        ) from exc
+
+    # 3. Ask the strategy what it wants to do on this bar.
+
+    try:
+        signal = run_signal_sandboxed(
+            code=strategy.generated_code,
+            data_path=data_path,
+            cash=dep.cash,
+            commission_pct=dep.commission_pct,
+            sizer_percents=dep.sizer_percents,
+            upto_date=bar.date_str,
+        )
+    except BacktestTimeout as exc:
+        dep.last_error = str(exc)
+        db.commit()
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except BacktestError as exc:
+        dep.last_error = str(exc)
+        db.commit()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    action = str(signal.get("action") or "hold").strip().lower()
+
+    # 4. Execute against the virtual account and 5. re-value it.
+    try:
+        result = run_tick(dep, bar, action, quantity=body.quantity)
+    except PaperExecutionError as exc:
+        # A bad bar must not corrupt the account: undo this transaction so the
+        # watermark never advances past a bar we failed to process.
+        db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail={"reasons": [f"could not process bar: {exc}"]},
+        ) from exc
+
+    order = result["order"]
+    if order is not None:
+        db.add(order)
+    db.commit()
+    db.refresh(dep)
+
+    return PaperTickResult(
+        strategy_id=strategy.id,
+        deployment_id=dep.id,
+        symbol=bar.symbol,
+        bar_date=bar.date_str,
+        price=bar.close,
+        action=result["action"].upper(),
+        duplicate=False,
+        reason=order.reason if order is not None and order.status != ORDER_FILLED else None,
+        order=_order_out(order) if order is not None else None,
+        fill_price=order.fill_price if order is not None else None,
+        quantity=order.quantity if order is not None else None,
+        marked_positions=result["marked_positions"],
+        account=snapshot(dep),
+    )
+
+
+def _parse_optional_date(raw: str | None):
+    """Parse a caller-supplied ``YYYY-MM-DD`` pin, or ``None``."""
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(str(raw).strip())
+    except ValueError:
+        return raw  # let paper_bars produce the canonical parse error
 
 
 @router.post("/{strategy_id}/backtest", response_model=BacktestResultOut)
