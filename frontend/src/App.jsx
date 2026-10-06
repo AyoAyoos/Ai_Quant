@@ -13,6 +13,7 @@ import PaperTradingHubPage from './pages/PaperTradingHubPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import StrategiesPage from './pages/StrategiesPage.jsx'
 import StrategyOverviewPage from './pages/StrategyOverviewPage.jsx'
+import StrategyBuilderPage from './pages/StrategyBuilderPage.jsx'
 
 /**
  * Route map for the 7-page split — UI ORGANIZATION ONLY.
@@ -35,6 +36,7 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route index element={<OverviewPage />} />
         <Route path="studio" element={<ChatPage />} />
+        <Route path="studio/builder" element={<StrategyBuilderPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="strategies" element={<StrategiesPage />} />
         <Route path="strategies/:id" element={<StrategyOverviewPage />} />
