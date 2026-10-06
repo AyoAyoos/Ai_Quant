@@ -40,10 +40,27 @@ class StopIn(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
 
 
-class DeployIn(BaseModel):
-    cash: float = Field(default=100000.0, gt=0)
-    commission_pct: float = Field(default=0.1, gt=0, lt=100)
-    sizer_percents: float = Field(default=95.0, gt=0, lt=100)
+class CapitalParams(BaseModel):
+    """Money knobs shared by the backtest and deployment endpoints.
+
+    ``commission_pct`` and ``sizer_percents`` are PERCENTAGES in the open
+    interval (0, 100) — NOT decimal ratios. 0.2 means 0.2% and 20 means 20%;
+    the worker divides by 100 before handing the rate to Backtrader
+    (``strategy_runner.pct_to_fraction``). Sending a ratio such as 0.002 would
+    silently be read as 0.002%, so the UI always posts the percentage.
+    """
+
+    cash: float = Field(default=100000.0, gt=0, description="Starting capital (> 0)")
+    commission_pct: float = Field(
+        default=0.1, gt=0, lt=100, description="Commission per order, percent in (0, 100)"
+    )
+    sizer_percents: float = Field(
+        default=95.0, gt=0, lt=100, description="Percent of available cash per entry, in (0, 100)"
+    )
+
+
+class DeployIn(CapitalParams):
+    pass
 
 
 class DeploymentOut(BaseModel):
@@ -58,11 +75,8 @@ class DeploymentOut(BaseModel):
     stop_reason: str | None = None
 
 
-class BacktestRequest(BaseModel):
+class BacktestRequest(CapitalParams):
     data_path: str | None = None
-    cash: float = Field(default=100000.0, gt=0)
-    commission_pct: float = Field(default=0.1, gt=0, lt=100)
-    sizer_percents: float = Field(default=95.0, gt=0, lt=100)
 
 
 class BacktestResultOut(BaseModel):

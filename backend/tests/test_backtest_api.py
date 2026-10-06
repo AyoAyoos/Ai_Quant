@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
 from app.main import app
 from app.models import Conversation, Strategy, User
 from conftest import db_reachable
@@ -20,15 +20,6 @@ NIFTY_CSV = str((FIXTURES / "nifty50.csv").resolve())
 @pytest.fixture()
 def client():
     return TestClient(app)
-
-
-@pytest.fixture()
-def db():
-    Base.metadata.create_all(bind=engine)
-    yield
-    with engine.begin() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            conn.execute(table.delete())
 
 
 def _seed_strategy(generated_code: str | None = None) -> str:

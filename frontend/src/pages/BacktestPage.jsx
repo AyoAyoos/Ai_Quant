@@ -18,15 +18,21 @@ import LoadingBlock, { SkeletonBlock, SkeletonMetrics, SkeletonTitle } from '../
 
 const DEFAULTS = { cash: 100000, commissionPct: 0.1, sizerPercent: 95 }
 
-/** Validates against the backend's Field constraints before spending a call. */
+/**
+ * Validates against the backend's Field constraints before spending a call.
+ * commission/sizer are percentages in the open range (0, 100) — the same
+ * units the backend's `Field(gt=0, lt=100)` expects — so 0.2 is 0.2% and 20
+ * is 20%. Rejecting `''` here (Number.isFinite('') is false) also keeps an
+ * emptied input from reaching the API as a string and 422-ing there.
+ */
 function validate(values) {
   const errors = {}
   if (!Number.isFinite(values.cash) || values.cash <= 0) errors.cash = 'Cash must be greater than 0.'
   if (!Number.isFinite(values.commissionPct) || values.commissionPct <= 0 || values.commissionPct >= 100) {
-    errors.commissionPct = 'Commission must be greater than 0 and less than 100.'
+    errors.commissionPct = 'Commission must be a percentage greater than 0 and less than 100.'
   }
   if (!Number.isFinite(values.sizerPercent) || values.sizerPercent <= 0 || values.sizerPercent >= 100) {
-    errors.sizerPercent = 'Position size must be greater than 0 and less than 100.'
+    errors.sizerPercent = 'Position size must be a percentage greater than 0 and less than 100.'
   }
   return errors
 }
@@ -210,7 +216,7 @@ export default function BacktestPage() {
           <NumberField
             id="commission"
             label="Commission"
-            hint="Charged on every order, matching the deployment default."
+            hint="Percent charged on every order: 0.2 means 0.2%, 20 means 20%. Must stay under 100."
             suffix="%"
             value={values.commissionPct}
             error={touched.commissionPct ? errors.commissionPct : undefined}
@@ -219,7 +225,7 @@ export default function BacktestPage() {
           <NumberField
             id="sizer"
             label="Position size"
-            hint="Share of available cash committed per entry."
+            hint="Percent of available cash committed per entry (1–99)."
             suffix="%"
             value={values.sizerPercent}
             error={touched.sizerPercent ? errors.sizerPercent : undefined}

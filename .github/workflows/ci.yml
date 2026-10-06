@@ -24,7 +24,8 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://quant_user:quant_pass@localhost:5432/quant_trading
-      SANDBOX_MEMORY_MB: 1024
+      # Address-space cap for the worker; pandas cannot import below ~1.5GB.
+      SANDBOX_MEMORY_MB: 2048
     defaults:
       run:
         working-directory: backend

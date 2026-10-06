@@ -115,6 +115,38 @@ export function fetchStrategy(strategyId, { signal } = {}) {
 }
 
 /**
+ * Build the JSON body for the two endpoints that take money knobs
+ * (POST /strategies/{id}/backtest and /deploy).
+ *
+ * `commission_pct` and `sizer_percents` are PERCENTAGES in (0, 100), not
+ * decimal ratios — 20 means 20% and 0.2 means 0.2% (the backend converts with
+ * `pct / 100`). The backend schema is `Field(gt=0, lt=100)`, so anything
+ * non-numeric, empty or out of range would come back as a 422; coerce and
+ * check here instead so the caller gets a readable message.
+ */
+function capitalBody(params) {
+  const cash = Number(params?.cash)
+  const commissionPct = Number(params?.commissionPct)
+  const sizerPercent = Number(params?.sizerPercent)
+
+  if (!Number.isFinite(cash) || cash <= 0) {
+    throw new ApiError('Starting cash must be a number greater than 0.', { status: 422 })
+  }
+  if (!Number.isFinite(commissionPct) || commissionPct <= 0 || commissionPct >= 100) {
+    throw new ApiError('Commission must be a percentage greater than 0 and less than 100.', {
+      status: 422,
+    })
+  }
+  if (!Number.isFinite(sizerPercent) || sizerPercent <= 0 || sizerPercent >= 100) {
+    throw new ApiError('Position size must be a percentage greater than 0 and less than 100.', {
+      status: 422,
+    })
+  }
+
+  return { cash, commission_pct: commissionPct, sizer_percents: sizerPercent }
+}
+
+/**
  * POST /strategies/{id}/backtest.
  * `data_path` is deliberately never sent: the UI has no use for it and the
  * backend auto-fetches + caches NIFTY 50 when it is omitted.
@@ -122,11 +154,7 @@ export function fetchStrategy(strategyId, { signal } = {}) {
 export function runBacktest(strategyId, params, { signal } = {}) {
   return request(`/strategies/${encodeURIComponent(strategyId)}/backtest`, {
     method: 'POST',
-    body: {
-      cash: params.cash,
-      commission_pct: params.commissionPct,
-      sizer_percents: params.sizerPercent,
-    },
+    body: capitalBody(params),
     signal,
   })
 }
@@ -150,11 +178,7 @@ export function rejectStrategy(strategyId, reason, { signal } = {}) {
 export function deployStrategy(strategyId, params, { signal } = {}) {
   return request(`/strategies/${encodeURIComponent(strategyId)}/deploy`, {
     method: 'POST',
-    body: {
-      cash: params.cash,
-      commission_pct: params.commissionPct,
-      sizer_percents: params.sizerPercent,
-    },
+    body: capitalBody(params),
     signal,
   })
 }

@@ -5,7 +5,13 @@ This is the ONLY place AI-generated strategy code executes. It is designed to
 be spawned as a subprocess by the orchestrator (``backtest_service``) and run
 standalone during development:
 
-    python -m app.services.strategy_runner --data data.csv [--cash 100000] [--commission 0.1] [--sizer-percents 95] < strategy.py
+    python app/services/strategy_runner.py --data data.csv [--cash 100000] [--commission 0.1] [--sizer-percents 95] < strategy.py
+
+It is launched as a file rather than ``-m app.services.strategy_runner``:
+``-m`` runs the ``app.services`` package initialiser first (pandas, yfinance,
+LLM client) which is both slow and outside this file's error handling, so a
+failure there would exit without a sentinel. This module therefore imports
+nothing from ``app``.
 
 Input protocol:
   * strategy code  -> stdin (avoids Windows argv length/quoting limits)
@@ -14,6 +20,8 @@ Input protocol:
 Output protocol:
   * one sentinel-prefixed JSON line on stdout: ``__BT_RESULT__ <json>``
     {"ok": true, "metrics": {...}}  or  {"ok": false, "error": "..."}
+    Unexpected exceptions also carry a "traceback" field (logged by the
+    parent, never sent to the browser).
   * anything the strategy prints goes to stdout/stderr BEFORE the sentinel
     (the parent caps captured bytes); the sentinel is the last line.
   * non-zero exit code on failure.
@@ -28,13 +36,35 @@ import ast
 import json
 import math
 import sys
+import traceback
 import types
 import uuid
 from datetime import datetime
 
-import backtrader as bt
-
 RESULT_MARKER = "__BT_RESULT__"
+
+
+def print_result(payload: dict) -> None:
+    print(f"{RESULT_MARKER} {json.dumps(payload, default=str)}", flush=True)
+
+
+def _fatal(message: str) -> None:
+    """Emit the sentinel *before* dying so the parent never sees a bare exit code."""
+    print_result({"ok": False, "error": message})
+    raise SystemExit(1)
+
+
+# Imported under a guard: a broken/missing backtrader or pandas would otherwise
+# traceback-and-exit before main() ever runs, leaving no sentinel behind. When
+# this module is imported by the parent (for RESULT_MARKER) the failure is
+# re-raised normally — only the standalone worker turns it into a sentinel.
+try:
+    import backtrader as bt
+except BaseException as exc:  # noqa: BLE001 - must never die silently
+    if __name__ == "__main__":
+        _fatal(f"failed to import backtrader: {type(exc).__name__}: {exc}")
+    raise
+
 
 # backtrader annualises daily Sharpe with 252 periods (see
 # ``backtrader.analyzers.sharpe.RATEFACTORS``). Sortino is annualised with the
@@ -524,9 +554,21 @@ def main(argv=None) -> int:
     parser.add_argument("--cash", type=float, default=100000.0)
     parser.add_argument("--commission", type=float, default=0.1, help="commission %%")
     parser.add_argument("--sizer-percents", type=float, default=95.0)
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        # argparse already printed usage to stderr; answer with a sentinel too
+        # so the parent reports "invalid arguments" instead of a bare exit code.
+        if exc.code not in (0, None):
+            print_result({"ok": False, "error": "invalid worker arguments"})
+        return int(exc.code) if isinstance(exc.code, int) else 1
 
-    code = sys.stdin.read()
+    try:
+        code = sys.stdin.read()
+    except BaseException as exc:  # noqa: BLE001 - stdin failures must not vanish
+        print_result({"ok": False, "error": f"could not read strategy code from stdin: {type(exc).__name__}: {exc}"})
+        return 1
+
     try:
         metrics = run_backtest(
             code=code,
@@ -540,13 +582,17 @@ def main(argv=None) -> int:
     except (GuardrailError, ValueError, SyntaxError) as exc:
         print_result({"ok": False, "error": str(exc)})
         return 1
-    except Exception as exc:  # noqa: BLE001 - worker must never die silently
-        print_result({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+    except BaseException as exc:  # noqa: BLE001 - worker must never die silently
+        # Full traceback rides along in the payload: the parent logs it, the
+        # browser only ever sees the one-line `error`.
+        print_result(
+            {
+                "ok": False,
+                "error": f"{type(exc).__name__}: {exc}",
+                "traceback": traceback.format_exc(),
+            }
+        )
         return 1
-
-
-def print_result(payload: dict) -> None:
-    print(f"{RESULT_MARKER} {json.dumps(payload, default=str)}", flush=True)
 
 
 if __name__ == "__main__":

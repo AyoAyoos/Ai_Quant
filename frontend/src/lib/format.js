@@ -184,6 +184,8 @@ const WARNING_TEXT = {
     'Only the first 500 closed trades are returned to the browser; the aggregate metrics cover every trade.',
   data_stale:
     'Market data could not be refreshed, so a cached CSV was reused. Check the reported period before drawing conclusions.',
+  extreme_commission:
+    'Commission was set to 5% or more per order, which dominates every trade result. Re-run with a realistic rate (0.05-0.5%) before trusting these numbers.',
 }
 
 export function humanizeWarning(warning) {

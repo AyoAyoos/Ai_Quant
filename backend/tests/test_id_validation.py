@@ -7,7 +7,7 @@ reachable database. The second half needs real rows and self-skips.
 import pytest
 from fastapi.testclient import TestClient
 
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
 from app.ids import MAX_ECHOED_ID
 from app.main import app
 from app.models import Conversation, Message, Strategy, User
@@ -91,14 +91,6 @@ def test_chat_malformed_conversation_id_returns_404(client, malformed_id, monkey
 )
 class TestAgainstPostgres:
     """Cases that need stored rows to be meaningful."""
-
-    @pytest.fixture()
-    def db(self):
-        Base.metadata.create_all(bind=engine)
-        yield
-        with engine.begin() as conn:
-            for table in reversed(Base.metadata.sorted_tables):
-                conn.execute(table.delete())
 
     def _seed_strategy(self) -> str:
         with SessionLocal() as session:

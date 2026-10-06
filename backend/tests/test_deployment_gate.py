@@ -8,7 +8,7 @@ minutes for no extra coverage.
 import pytest
 from fastapi.testclient import TestClient
 
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
 from app.main import app
 from app.models import BacktestResult, Conversation, Strategy, StrategyStatus, User
 from conftest import db_reachable
@@ -36,15 +36,6 @@ MALICIOUS_CODE = (
 @pytest.fixture()
 def client():
     return TestClient(app)
-
-
-@pytest.fixture()
-def db():
-    Base.metadata.create_all(bind=engine)
-    yield
-    with engine.begin() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            conn.execute(table.delete())
 
 
 def _seed(status=StrategyStatus.draft, code=CLEAN_CODE, backtest=None) -> str:

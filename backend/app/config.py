@@ -18,7 +18,12 @@ class Settings(BaseSettings):
     # Sandbox backstops for the backtest worker subprocess. The memory cap
     # applies on POSIX only (Windows has no rlimit equivalent); the wall-clock
     # timeout in run_backtest_sandboxed applies everywhere.
-    sandbox_memory_mb: int = 1024
+    #
+    # This is an address-space (RLIMIT_AS) cap, and importing pandas + numpy +
+    # backtrader alone needs ~1.5GB of it — below that the worker dies with
+    # "ImportError: ... failed to map segment from shared object" before the
+    # strategy code even runs. Keep comfortable headroom above the import cost.
+    sandbox_memory_mb: int = 2048
     sandbox_cpu_seconds: int | None = None
 
     # Paper-trading approval gate: a backtest must show at least this many
