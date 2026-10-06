@@ -34,7 +34,14 @@ def active_deployment(strategy):
 
 
 def check_approval(strategy) -> list[str]:
-    """Collectors of blocking reasons for backtested -> approved."""
+    """Collectors of blocking reasons for backtested -> approved.
+
+    Metrics that were never recorded (NULL columns, no backtest row) are read
+    as "no evidence" rather than as a crash or a silent pass: `num_trades` and
+    `max_drawdown_pct` may be None, and `latest_backtest` may be None entirely.
+    Every reason is written for the human reading it on the approval page,
+    since these strings are returned verbatim as `detail.reasons`.
+    """
     reasons = []
     if strategy.status.value != "backtested":
         reasons.append(
@@ -49,7 +56,9 @@ def check_approval(strategy) -> list[str]:
     num_trades = result.num_trades or 0
     if num_trades < settings.approval_min_trades:
         reasons.append(
-            f"only {num_trades} trade(s), need at least {settings.approval_min_trades}"
+            f"the backtest closed {num_trades} trade(s) and the gate needs at least "
+            f"{settings.approval_min_trades} — there is nothing to judge yet, so re-run "
+            "the backtest on a strategy that actually trades"
         )
 
     drawdown = result.max_drawdown_pct

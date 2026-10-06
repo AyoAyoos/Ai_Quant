@@ -11,9 +11,11 @@ import StrategyTabs from '../components/StrategyTabs.jsx'
 import LoadingBlock, { SkeletonBlock, SkeletonTitle } from '../components/Skeletons.jsx'
 
 /**
- * The gate thresholds below are the user's own decision criteria, not
- * something the backend reports. The backend itself accepts any backtested
- * strategy, so this page is the honest place to state what "good" means.
+ * The criteria below are this page's own decision thresholds — the backend
+ * does not know about them. The backend runs its own gate: it refuses when the
+ * latest backtest is missing, when it closed too few trades to judge, or when
+ * the drawdown breaches its cap, and those refusals come back as 422 with
+ * `detail.reasons` rendered under the Approve button.
  */
 const CRITERIA = [
   {
@@ -83,8 +85,8 @@ function CriteriaList({ metrics }) {
       <Note tone={passed === rows.length ? 'success' : 'warning'} title={passed === rows.length ? 'All criteria met' : 'Some criteria are not met'}>
         <span>
           {passed === rows.length
-            ? 'The backtest clears the gate. The backend will approve it; the choice to proceed is yours.'
-            : 'The backend does not enforce these thresholds, so it will still approve this strategy if you ask it to. Approving a strategy that fails its own gate is the main way a paper-trading prototype misleads you.'}
+            ? 'The backtest clears this list, and it clears the backend’s gate too — approving it will succeed.'
+            : 'These thresholds are yours, not the backend’s, so the backend will still approve if its own gate passes. That gate only blocks on a missing backtest, too few trades to judge, or a drawdown over its cap — those come back as a reason under the button.'}
         </span>
       </Note>
     </div>

@@ -106,6 +106,51 @@ class TestApprove:
         resp = client.post("/strategies/00000000-0000-0000-0000-000000000000/approve")
         assert resp.status_code == 404
 
+    def test_approve_reason_reads_as_a_sentence(self, client, db):
+        """The approval page prints `detail.reasons` verbatim, so they must tell the user what to do."""
+        sid = _seed(
+            status=StrategyStatus.backtested,
+            backtest={"num_trades": 0, "max_drawdown_pct": 0.0},
+        )
+        resp = client.post(f"/strategies/{sid}/approve")
+        assert resp.status_code == 422
+        reasons = resp.json()["detail"]["reasons"]
+        assert any("re-run" in reason for reason in reasons)
+
+    @pytest.mark.parametrize(
+        "body",
+        [{}, {"status": "approved", "notes": "looks fine"}, {"unknown_field": [1, 2]}],
+        ids=["empty", "made-up-model", "unknown-field"],
+    )
+    def test_approve_declares_no_body_so_any_body_is_ignored(self, client, db, body):
+        """The route takes no request model: a stray body must never become a FastAPI validation error."""
+        sid = _seed(status=StrategyStatus.backtested, backtest=dict(GOOD_BACKTEST))
+        resp = client.post(f"/strategies/{sid}/approve", json=body)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "approved"
+
+    def test_approve_with_null_metrics_gives_a_reason_not_a_crash(self, client, db):
+        """A backtest row whose metrics were never recorded must still answer with reasons."""
+        sid = _seed(
+            status=StrategyStatus.backtested,
+            backtest={
+                "num_trades": None,
+                "max_drawdown_pct": None,
+                "total_return_pct": None,
+            },
+        )
+        resp = client.post(f"/strategies/{sid}/approve")
+        assert resp.status_code == 422
+        reasons = resp.json()["detail"]["reasons"]
+        assert reasons and all(isinstance(reason, str) for reason in reasons)
+        assert any("0 trade" in reason for reason in reasons)
+
+    def test_approve_updates_the_status(self, client, db):
+        sid = _seed(status=StrategyStatus.backtested, backtest=dict(GOOD_BACKTEST))
+        assert client.post(f"/strategies/{sid}/approve").status_code == 200
+        assert client.get(f"/strategies/{sid}").json()["status"] == "approved"
+        assert client.post(f"/strategies/{sid}/approve").status_code == 422
+
 
 class TestReject:
     def test_reject_draft_with_reason(self, client, db):

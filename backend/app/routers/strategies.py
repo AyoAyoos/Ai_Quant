@@ -194,7 +194,13 @@ def _deployment_out(dep: PaperDeployment) -> DeploymentOut:
 
 @router.post("/{strategy_id}/approve", response_model=GateOut)
 def approve_strategy(strategy_id: str, db: Session = Depends(get_db)):
-    """backtested -> approved, when the quality gate passes."""
+    """backtested -> approved, when the quality gate passes.
+
+    Takes no request body: the decision is derived entirely from the stored
+    backtest, so a JSON body (the UI used to send `{}`) carries nothing to
+    validate and FastAPI ignores it. Failures here are gate refusals, not
+    request-validation errors — 422 with `{"reasons": [...]}`.
+    """
     strategy = _get_strategy_or_404(db, strategy_id)
     reasons = check_approval(strategy)
     if reasons:

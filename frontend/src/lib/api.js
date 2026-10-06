@@ -159,10 +159,15 @@ export function runBacktest(strategyId, params, { signal } = {}) {
   })
 }
 
+/**
+ * POST /strategies/{id}/approve. The backend derives the decision from the
+ * stored backtest and declares no body parameter, so we send none — no
+ * Content-Type either, which is correct for a bodyless POST. A refusal comes
+ * back as 422 { detail: { reasons: [...] } } and is rendered by describeError.
+ */
 export function approveStrategy(strategyId, { signal } = {}) {
   return request(`/strategies/${encodeURIComponent(strategyId)}/approve`, {
     method: 'POST',
-    body: {},
     signal,
   })
 }
