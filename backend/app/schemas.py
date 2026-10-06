@@ -1,4 +1,5 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional
 
 
 class ChatMessageIn(BaseModel):
@@ -22,6 +23,7 @@ class StrategyDetailOut(BaseModel):
     status: str
     status_note: str | None = None
     generated_code: str | None = None
+    strategy_spec: dict | None = None
 
 
 class GateOut(BaseModel):
@@ -76,11 +78,151 @@ class BacktestResultOut(BaseModel):
     cagr_pct: float | None = None
     start_date: str | None = None
     end_date: str | None = None
-    # Per-trade breakdown and portfolio value path for the trade dashboard.
-    # Each trade: entry/exit date+price, size, direction, bars_held, pnl,
-    # pnl_net, won. Each equity point: [date, value].
     trades: list[dict] = []
     trades_truncated: int = 0
     equity_curve: list[list] = []
     warnings: list[str] = []
     raw_metrics: dict | None = None
+
+
+# ============================================================
+# Structured Strategy Builder Schemas
+# ============================================================
+
+SUPPORTED_MARKETS = ["NIFTY50", "BANKNIFTY", "SENSEX", "OTHER"]
+SUPPORTED_TRADING_STYLES = ["scalping", "intraday", "swing", "positional"]
+SUPPORTED_TIMEFRAMES = ["5m", "15m", "30m", "1h", "1d"]
+SUPPORTED_INDICATORS = ["EMA", "SMA", "RSI", "MACD", "Bollinger Bands", "Volume"]
+
+# Trading style to compatible timeframes mapping
+STYLE_TIMEFRAME_COMPATIBILITY = {
+    "scalping": ["5m", "15m"],
+    "intraday": ["5m", "15m", "30m", "1h"],
+    "swing": ["1h", "1d"],
+    "positional": ["1d"],
+}
+
+
+class IndicatorSpec(BaseModel):
+    name: str
+    parameters: dict = Field(default_factory=dict)
+
+    @field_validator("name")
+    @classmethod
+    def validate_indicator_name(cls, v: str) -> str:
+        if v not in SUPPORTED_INDICATORS:
+            raise ValueError(
+                f"Unsupported indicator: {v}. Supported: {SUPPORTED_INDICATORS}"
+            )
+        return v
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_indicator_parameters(cls, v: dict, info) -> dict:
+        # Parameters are validated per-indicator in the service layer
+        return v
+
+
+class RiskManagementSpec(BaseModel):
+    stop_loss_percent: float = Field(gt=0, le=100, description="Stop loss percentage (0-100)")
+    take_profit_percent: float = Field(gt=0, le=100, description="Take profit percentage (0-100)")
+    trailing_stop_percent: float | None = Field(default=None, ge=0, le=100, description="Trailing stop percentage (0-100)")
+    max_trades_per_day: int | None = Field(default=None, ge=1, le=100, description="Maximum trades per day (1-100)")
+
+
+class StrategyBuilderRequest(BaseModel):
+    market: str = Field(default="NIFTY50", description="Trading market")
+    trading_style: str = Field(description="Trading style")
+    timeframe: str = Field(description="Chart timeframe")
+    indicators: list[IndicatorSpec] = Field(min_length=1, description="Technical indicators with parameters")
+    entry_conditions: list[str] = Field(min_length=1, description="Entry condition descriptions")
+    exit_conditions: list[str] = Field(min_length=1, description="Exit condition descriptions")
+    risk_management: RiskManagementSpec
+
+    @field_validator("market")
+    @classmethod
+    def validate_market(cls, v: str) -> str:
+        if v not in SUPPORTED_MARKETS:
+            raise ValueError(f"Unsupported market: {v}. Supported: {SUPPORTED_MARKETS}")
+        # For MVP, only NIFTY50 has market data
+        if v != "NIFTY50":
+            raise ValueError(f"Market {v} is not yet supported for backtesting (only NIFTY50 has data)")
+        return v
+
+    @field_validator("trading_style")
+    @classmethod
+    def validate_trading_style(cls, v: str) -> str:
+        if v not in SUPPORTED_TRADING_STYLES:
+            raise ValueError(f"Unsupported trading style: {v}. Supported: {SUPPORTED_TRADING_STYLES}")
+        return v
+
+    @field_validator("timeframe")
+    @classmethod
+    def validate_timeframe(cls, v: str) -> str:
+        if v not in SUPPORTED_TIMEFRAMES:
+            raise ValueError(f"Unsupported timeframe: {v}. Supported: {SUPPORTED_TIMEFRAMES}")
+        return v
+
+    @field_validator("timeframe")
+    @classmethod
+    def validate_style_timeframe_compatibility(cls, v: str, info) -> str:
+        trading_style = info.data.get("trading_style")
+        if trading_style and v not in STYLE_TIMEFRAME_COMPATIBILITY.get(trading_style, []):
+            raise ValueError(
+                f"Timeframe {v} is not compatible with trading style {trading_style}. "
+                f"Compatible: {STYLE_TIMEFRAME_COMPATIBILITY.get(trading_style, [])}"
+            )
+        return v
+
+    @field_validator("indicators")
+    @classmethod
+    def validate_indicators(cls, v: list[IndicatorSpec]) -> list[IndicatorSpec]:
+        if not v:
+            raise ValueError("At least one indicator is required")
+        # Check for duplicate indicator names
+        names = [ind.name for ind in v]
+        if len(names) != len(set(names)):
+            raise ValueError("Duplicate indicator names are not allowed")
+        return v
+
+    @field_validator("entry_conditions")
+    @classmethod
+    def validate_entry_conditions(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("At least one entry condition is required")
+        for condition in v:
+            if not condition.strip():
+                raise ValueError("Entry conditions cannot be empty strings")
+        return v
+
+    @field_validator("exit_conditions")
+    @classmethod
+    def validate_exit_conditions(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("At least one exit condition is required")
+        for condition in v:
+            if not condition.strip():
+                raise ValueError("Exit conditions cannot be empty strings")
+        return v
+
+
+class StrategySpecOut(BaseModel):
+    """Echo of the validated strategy specification for the response."""
+    market: str
+    trading_style: str
+    timeframe: str
+    indicators: list[IndicatorSpec]
+    entry_conditions: list[str]
+    exit_conditions: list[str]
+    risk_management: RiskManagementSpec
+
+
+class StrategyGenerateResponse(BaseModel):
+    strategy_id: str
+    name: str
+    description: str
+    market: str
+    timeframe: str
+    status: str
+    generated_code: str
+    strategy_specification: StrategySpecOut

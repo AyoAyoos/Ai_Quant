@@ -80,6 +80,8 @@ class Strategy(Base):
     status = Column(Enum(StrategyStatus), default=StrategyStatus.draft)
     # Human reason for the last reject/stop transition; null otherwise.
     status_note = Column(Text)
+    # Structured strategy specification (for strategy builder workflow)
+    strategy_spec = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="strategies")

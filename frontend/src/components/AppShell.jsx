@@ -22,6 +22,7 @@ function useStrategyCount() {
 const NAV = [
   { to: '/', label: 'Overview', icon: 'grid_view', end: true },
   { to: '/studio', label: 'Studio', icon: 'forum', end: false },
+  { to: '/studio/builder', label: 'Builder', icon: 'build', end: false },
   { to: '/strategies', label: 'Strategies', icon: 'dashboard', end: false, count: true },
   { to: '/backtests', label: 'Backtesting', icon: 'timeline', end: false },
   { to: '/analytics', label: 'Analytics', icon: 'calculate', end: false },

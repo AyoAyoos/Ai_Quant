@@ -1,6 +1,8 @@
 from datetime import datetime
+import json
 
 from fastapi import APIRouter, Depends, HTTPException
+import httpx
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -21,6 +23,9 @@ from app.schemas import (
     RejectIn,
     StopIn,
     StrategyDetailOut,
+    StrategyBuilderRequest,
+    StrategyGenerateResponse,
+    StrategySpecOut,
 )
 from app.services.backtest_service import (
     BacktestError,
@@ -33,9 +38,113 @@ from app.services.deployment_gate import (
     check_deploy,
 )
 from app.services.market_data import MarketDataError, ensure_market_data
+from app.services.strategy_builder import (
+    generate_structured_strategy,
+    validate_indicator_parameters,
+    convert_spec_to_output,
+)
 
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
+
+
+@router.post("/builder", response_model=StrategyGenerateResponse)
+async def generate_strategy(payload: StrategyBuilderRequest, db: Session = Depends(get_db)):
+    """
+    Generate a trading strategy from structured specification.
+    
+    This endpoint accepts a fully structured strategy specification and uses
+    the LLM to generate executable Backtrader-compatible Python code.
+    
+    The generated strategy is saved as a draft and can be backtested,
+    approved, and deployed via the existing workflow.
+    """
+    # Validate indicator parameters
+    param_errors = validate_indicator_parameters(payload)
+    if param_errors:
+        raise HTTPException(status_code=422, detail={"errors": param_errors})
+    
+    # Get or create a dev conversation (same as chat endpoint)
+    conversation = _get_or_create_dev_conversation(db)
+    
+    try:
+        # Generate strategy using LLM
+        generated = await generate_structured_strategy(payload)
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"LLM service error: {exc}",
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"LLM returned invalid JSON: {exc}",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"LLM response validation failed: {exc}",
+        ) from exc
+    
+    # Extract and clean the generated code
+    name = generated.get("name", "Generated Strategy")
+    description = generated.get("description", "")
+    code = generated.get("code", "")
+    
+    if not code or "GeneratedStrategy" not in code:
+        raise HTTPException(
+            status_code=502,
+            detail="LLM failed to generate valid strategy code",
+        )
+    
+    # Convert spec to output format
+    spec_out = convert_spec_to_output(payload)
+    
+    # Create strategy record
+    strategy = Strategy(
+        conversation_id=conversation.id,
+        name=name,
+        description=description,
+        market=payload.market,
+        generated_code=code,
+        strategy_spec=spec_out.model_dump(),
+    )
+    db.add(strategy)
+    db.commit()
+    db.refresh(strategy)
+    
+    return StrategyGenerateResponse(
+        strategy_id=strategy.id,
+        name=strategy.name,
+        description=strategy.description,
+        market=strategy.market,
+        timeframe=payload.timeframe,
+        status=strategy.status.value,
+        generated_code=strategy.generated_code,
+        strategy_specification=spec_out,
+    )
+
+
+def _get_or_create_dev_conversation(db: Session):
+    """Get or create a dev conversation for strategy builder (no chat history needed)."""
+    from app.models import Conversation, User
+    # Try to find existing dev conversation
+    conv = db.query(Conversation).filter(Conversation.title == "Strategy Builder").first()
+    if conv:
+        return conv
+    # Create dev user if needed
+    user = db.query(User).filter(User.email == "dev@local").first()
+    if not user:
+        user = User(email="dev@local")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    # Create conversation
+    conv = Conversation(user_id=user.id, title="Strategy Builder")
+    db.add(conv)
+    db.commit()
+    db.refresh(conv)
+    return conv
 
 
 @router.get("/{strategy_id}", response_model=StrategyDetailOut)
@@ -50,6 +159,7 @@ def get_strategy(strategy_id: str, db: Session = Depends(get_db)):
         status=strategy.status.value,
         status_note=strategy.status_note,
         generated_code=strategy.generated_code,
+        strategy_spec=strategy.strategy_spec,
     )
 
 

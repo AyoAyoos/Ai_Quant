@@ -59,6 +59,11 @@ class TestWorkerCli:
         assert payload["metrics"]["value_start"] == 100000.0
         assert payload["metrics"]["num_trades"] == 0
 
+        # Sentinel must be the very last line (strategy prints come before it).
+        lines = result.stdout.decode().splitlines()
+        sentinel_pos = next(i for i, l in enumerate(lines) if l.startswith(RESULT_MARKER))
+        assert sentinel_pos == len(lines) - 1
+
     def test_rejects_malicious_code_with_nonzero_exit(self):
         code = "import backtrader as bt\nexec('import os')\n"
         result = _run_worker(code + "class GeneratedStrategy(bt.Strategy):\n    def next(self):\n        self.buy()")
@@ -67,26 +72,13 @@ class TestWorkerCli:
         assert not ok
         assert "refused" in payload["error"].lower()
 
-    def test_strategy_output_precedes_sentinel(self):
-        code = (FIXTURES / "buy_hold.py").read_text()
-        result = _run_worker(code)
-        lines = result.stdout.decode().splitlines()
-        sentinel_pos = next(i for i, l in enumerate(lines) if l.startswith(RESULT_MARKER))
-        assert sentinel_pos == len(lines) - 1  # sentinel is the last line
-
 
 class TestOrchestrator:
-    def test_metrics_come_back_with_cagr(self):
-        code = (FIXTURES / "alternating.py").read_text()
-        metrics = run_backtest_sandboxed(code, str(DATA.resolve()), timeout_seconds=60)
-        assert "cagr_pct" in metrics
-        assert isinstance(metrics["total_return_pct"], float)
-
     def test_cagr_is_a_percentage_consistent_with_total_return(self):
         """cagr_pct must be on the same scale as the other *_pct metrics.
 
-        A raw ratio (-0.134) is easy to mistake for a percent and mislabels
-        results as ~100x smaller than reality, so pin the scale explicitly.
+        Runs the real sandboxed pipeline (one subprocess) because the value
+        under test is computed by the orchestrator from worker-reported dates.
         """
         code = (FIXTURES / "alternating.py").read_text()
         metrics = run_backtest_sandboxed(code, str(DATA.resolve()), timeout_seconds=60)
@@ -124,8 +116,6 @@ def _spawn_sleeper_tree():
     """Spawn a parent python that spawns a child sleeper, mirroring how a
     strategy could shell out. Returns (parent_proc, child_pid_file)."""
     marker = BACKEND_DIR / f"_child_{os.getpid()}.pid"
-    # as_posix: the path is interpolated into a nested `-c` script, where a
-    # Windows backslash would become an escape (e.g. \b -> backspace).
     posix_marker = marker.as_posix()
     parent_code = (
         "import subprocess, sys, time; "
@@ -136,7 +126,6 @@ def _spawn_sleeper_tree():
     )
     kwargs = {}
     if os.name == "posix":
-        # Own process group, like production: killpg must not touch pytest.
         kwargs["start_new_session"] = True
     else:
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -201,7 +190,5 @@ class TestKillTree:
 
         monkeypatch.setattr(svc.settings, "sandbox_memory_mb", 64)
         code = (FIXTURES / "buy_hold.py").read_text()
-        # 64MB of address space cannot fit the interpreter + pandas/numpy/
-        # backtrader imports, so the worker must die, not succeed.
         with pytest.raises(BacktestError):
             run_backtest_sandboxed(code, str(DATA.resolve()), timeout_seconds=60)

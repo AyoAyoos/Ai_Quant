@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { CHAT_TIMEOUT_MS, postChat } from '../lib/api.js'
 import { clearThread, readThread, registerStrategy, writeThread } from '../lib/storage.js'
 import { formatElapsed } from '../lib/format.js'
@@ -188,6 +189,15 @@ export default function ChatPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="chat-empty__builder">
+              <Link to="/studio/builder" className="btn btn--primary" disabled={loading}>
+                ✨ Open Strategy Builder
+              </Link>
+              <p className="chat-empty__builder-text">
+                Prefer a structured form? Build your strategy visually with the Strategy Builder.
+              </p>
             </div>
           </div>
         ) : (

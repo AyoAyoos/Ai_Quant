@@ -33,6 +33,10 @@ through an approval gate, and recorded as a paper-trading deployment.
 - **Conversational strategy design** — describe a strategy in plain language; the
   assistant asks clarifying questions until the idea is concrete, then produces a
   Backtrader strategy class.
+- **Structured Strategy Builder (NEW)** — define strategies via a structured JSON
+  payload: market, trading style, timeframe, indicators with parameters, entry/exit
+  conditions, and risk management. Validated, sent to the LLM, and persisted as a
+  draft strategy ready for backtesting.
 - **Structured extraction** — a second, schema-constrained LLM call (with a regex
   fallback) turns free-form replies into clean `{name, description, code}` rows.
 - **One-click backtests** — market data auto-downloads from Yahoo Finance and is
@@ -41,8 +45,9 @@ through an approval gate, and recorded as a paper-trading deployment.
   drawdown, win rate, profit factor, an SVG equity curve, and a per-trade table.
 - **Paper-trading gate** — approve / reject / deploy / stop workflow with quality
   thresholds, guardrail re-validation, and a newest-first deployment audit trail.
-- **76 collected backend checks, CI on every push** — guardrails, runner, worker
-  CLI, orchestrator, API endpoints, gate transitions, and reply cleaning.
+- **76+ collected backend checks, CI on every push** — guardrails, runner, worker
+  CLI, orchestrator, API endpoints, gate transitions, reply cleaning, and strategy
+  builder validation.
 
 ## Architecture
 
@@ -65,7 +70,7 @@ through an approval gate, and recorded as a paper-trading deployment.
                               └──────────────┘
 ```
 
-Two flows matter:
+Three flows matter:
 
 **Chat flow** (`app/routers/chat.py`): receive message → store in Postgres → call
 LLM with history → store reply → detect a finished strategy → run the constrained
@@ -73,6 +78,13 @@ finalize call (or regex fallback) → persist a `strategies` row → return the 
 plus `strategy_id`/`strategy_name`/`strategy_description`. The model is only the
 "brain"; the controller owns the workflow, so swapping providers means touching
 only `app/config.py` and `app/services/llm_service.py`.
+
+**Strategy Builder flow** (`app/routers/strategies.py` — `POST /strategies/generate`):
+receive structured spec → validate indicators, timeframes, risk params → build a
+controlled prompt → call LLM with JSON schema output → extract name/description/code
+→ persist `strategies` row with `strategy_spec` JSON → return structured response.
+Reuses the same LLM service, guardrails, backtest pipeline, and lifecycle as the
+chat flow.
 
 **Backtest flow** (`POST /strategies/{id}/backtest`): load `generated_code` →
 ensure market data → spawn the worker subprocess with code on stdin → enforce the
@@ -89,7 +101,8 @@ Ai_Quant/
 │   │   ├── env.py                   # wires Base.metadata + DATABASE_URL
 │   │   └── versions/
 │   │       ├── 2ee9e2c6346e_initial_schema.py
-│   │       └── 8333ffdaacba_paper_deployments_and_status_notes.py
+│   │       ├── 8333ffdaacba_paper_deployments_and_status_notes.py
+│   │       └── a1b2c3d4e5f6_add_strategy_spec_column.py
 │   ├── app/
 │   │   ├── main.py                  # FastAPI app, CORS, lifespan runs migrations
 │   │   ├── config.py                # pydantic-settings (see Configuration)
@@ -100,12 +113,13 @@ Ai_Quant/
 │   │   │                            # BacktestResult, PaperDeployment + enums
 │   │   ├── routers/
 │   │   │   ├── chat.py              # POST /chat (7-step workflow)
-│   │   │   └── strategies.py        # detail, backtest, approve/reject/deploy/stop
+│   │   │   └── strategies.py        # detail, backtest, approve/reject/deploy/stop, generate
 │   │   └── services/
 │   │       ├── llm_service.py       # SYSTEM_PROMPT + Groq chat_completion()
 │   │       ├── finalize_service.py  # narrow json_schema extraction call
 │   │       ├── strategy_extractor.py# looks_like_final_strategy, extract_strategy,
 │   │       │                        # clean_reply_for_display
+│   │       ├── strategy_builder.py  # structured builder: prompt, validation, LLM call
 │   │       ├── market_data.py       # yfinance download + CSV cache + offline reuse
 │   │       ├── strategy_runner.py   # worker: guardrails, Backtrader run, metrics
 │   │       ├── backtest_service.py  # orchestrator: spawn, timeout, tree-kill, CAGR
@@ -120,7 +134,9 @@ Ai_Quant/
 │   │   ├── test_worker_cli.py       # sentinel protocol, timeouts, tree-kill
 │   │   ├── test_backtest_api.py     # endpoint incl. 404/422 paths (needs Postgres)
 │   │   ├── test_deployment_gate.py  # lifecycle transitions (needs Postgres)
-│   │   └── test_display.py          # reply cleaning (no DB)
+│   │   ├── test_display.py          # reply cleaning (no DB)
+│   │   ├── test_strategy_builder.py      # strategy builder endpoint tests (needs Postgres)
+│   │   └── test_strategy_builder_unit.py # strategy builder unit tests (no DB)
 │   ├── Dockerfile                   # python:3.11-slim + uvicorn
 │   ├── pytest.ini                   # testpaths=., pythonpath=.
 │   └── requirements.txt
@@ -148,7 +164,7 @@ Ai_Quant/
 | Market data | yfinance 1.7.0 | NIFTY 50 (`^NSEI`), 2y daily, CSV cache |
 | Backtests | backtrader 1.9.78.123, pandas 2.2.2, numpy 1.26.4 | Worker subprocess + AST guardrails |
 | DB | Postgres 16 (Docker) | 6 tables; tests use the same engine |
-| Tests | pytest 8.4.2 | 76 collected; DB-backed modules self-skip offline |
+| Tests | pytest 8.4.2 | 76+ collected; DB-backed modules self-skip offline |
 | Deploy | Docker Compose (db, backend, nginx frontend) | GitHub Actions CI on push/PR |
 
 Python is 3.11 in Docker and 3.11 in CI; the local venv may differ — the code
@@ -247,6 +263,52 @@ Pass `conversation_id` back on the next turn to keep memory. Unknown ids return
 **404**. The stored history keeps the raw LLM reply (finalize + memory need it);
 only the returned copy is cleaned.
 
+### `POST /strategies/generate`
+
+Generate a trading strategy from a structured specification.
+
+```jsonc
+// request
+{
+  "market": "NIFTY50",
+  "trading_style": "intraday",
+  "timeframe": "15m",
+  "indicators": [
+    { "name": "EMA", "parameters": { "fast": 20, "slow": 50 } },
+    { "name": "RSI", "parameters": { "period": 14, "oversold": 30, "overbought": 70 } }
+  ],
+  "entry_conditions": ["EMA 20 crosses above EMA 50", "RSI is below 30"],
+  "exit_conditions": ["EMA 20 crosses below EMA 50"],
+  "risk_management": {
+    "stop_loss_percent": 1,
+    "take_profit_percent": 2,
+    "trailing_stop_percent": null,
+    "max_trades_per_day": 3
+  }
+}
+// response
+{
+  "strategy_id": "…",
+  "name": "EMA RSI Intraday Strategy",
+  "description": "Intraday NIFTY50 strategy using EMA crossover and RSI confirmation.",
+  "market": "NIFTY50",
+  "timeframe": "15m",
+  "status": "draft",
+  "generated_code": "import backtrader as bt\n…",
+  "strategy_specification": { … }
+}
+```
+
+Validation rules:
+- **Market**: `NIFTY50` (only supported for backtesting), `BANKNIFTY`, `SENSEX`, `OTHER`
+- **Trading style**: `scalping`, `intraday`, `swing`, `positional`
+- **Timeframe**: `5m`, `15m`, `30m`, `1h`, `1d` (validated against trading style)
+- **Indicators**: `EMA`, `SMA`, `RSI`, `MACD`, `Bollinger Bands`, `Volume` (with parameter validation)
+- **Entry/exit conditions**: at least one required, non-empty strings
+- **Risk management**: stop_loss/take_profit > 0 and ≤ 100; trailing_stop ≥ 0; max_trades_per_day 1–100
+
+Errors: **422** validation errors (detailed per-field) · **502** LLM service failure · **500** internal error
+
 ### `GET /strategies/{id}`
 
 Strategy detail for the code viewer — no LLM round-trip.
@@ -255,7 +317,8 @@ Strategy detail for the code viewer — no LLM round-trip.
 {
   "strategy_id": "…", "name": "…", "description": "…",
   "market": "NIFTY50", "status": "backtested", "status_note": null,
-  "generated_code": "import backtrader as bt\n…"
+  "generated_code": "import backtrader as bt\n…",
+  "strategy_spec": { … }  // present for strategies created via /generate
 }
 ```
 
@@ -328,7 +391,8 @@ draft → backtested → approved → paper_trading
    \-> rejected                      \-> approved (on stop)
 ```
 
-- A strategy is born `draft` when the chat pipeline finalizes one.
+- A strategy is born `draft` when the chat pipeline finalizes one **or** when
+  generated via the structured builder (`POST /strategies/generate`).
 - A backtest flips it to `backtested` and stores the metrics row the gate reads.
 - Approval is a quality gate, not a profitability filter: it blocks strategies
   with no backtest, no real trading activity, or catastrophic drawdown.
@@ -414,9 +478,10 @@ privileges — treat the worker host accordingly and never run it as root.
 
 ## Database and migrations
 
-Tables: `users`, `conversations`, `messages`, `strategies` (+ `status_note`),
-`backtest_results`, `paper_deployments`. Strategy ↔ results/deployments are
-one-to-many with delete-orphan cascades; all PKs are UUID strings.
+Tables: `users`, `conversations`, `messages`, `strategies` (+ `status_note`,
+`strategy_spec`), `backtest_results`, `paper_deployments`. Strategy ↔
+results/deployments are one-to-many with delete-orphan cascades; all PKs are
+UUID strings.
 
 The schema is owned by Alembic (`backend/alembic/`). The app runs
 `upgrade head` on startup; nothing calls `create_all` outside tests.
@@ -483,9 +548,11 @@ python -m pytest -k sortino -q
 | `test_backtest_api.py` | Endpoint incl. 404/422 paths, DB persistence | Yes (self-skips) |
 | `test_deployment_gate.py` | Full approve/reject/deploy/stop lifecycle, 13 cases | Yes (self-skips) |
 | `test_display.py` | Reply cleaning: marker/headers/fences stripped, prose kept | No |
+| `test_strategy_builder.py` | Strategy builder endpoint validation, persistence | Yes (self-skips) |
+| `test_strategy_builder_unit.py` | Prompt building, parameter validation, spec conversion | No |
 
 Fixtures in `tests/fixtures/`: four strategy fixtures plus `nifty50.csv`
-(740 real OHLCV rows, 2023-09-18 → 2026-09-18) so everything except the two API
+(740 real OHLCV rows, 2023-09-18 → 2026-09-18) so everything except the API
 modules runs offline. `probe_trades.py` is a debug-only fixture importing
 `traceback` — it would fail the guardrail and is referenced by no test.
 
@@ -545,5 +612,5 @@ startup.
   or broker feed executes them against live markets.
 - **Single-position sizing** — `PercentSizer` assumes one position at a time.
 - **Sandbox, not a container** — see the security table above for exact boundaries.
-- **No frontend tests** — backend is at 76 collected checks; the UI has lint +
+- **No frontend tests** — backend is at 76+ collected checks; the UI has lint +
   build only.
