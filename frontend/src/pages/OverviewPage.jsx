@@ -116,7 +116,7 @@ export default function OverviewPage() {
         <div className="page-head__text">
           <h1 className="page-title">Overview</h1>
           <p className="page-lede">
-            Quick overview of the current system — strategies, paper-trading status, key metrics and
+            Quick overview of the current system: strategies, paper-trading status, key metrics and
             engine health. Create in the Studio, manage under Strategies, run under Backtesting.
           </p>
         </div>

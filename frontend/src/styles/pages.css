@@ -47,8 +47,8 @@
 
 .app-shell__header {
   flex: none;
-  background: #ffffff;
-  border-bottom: 1px solid #e3d9e5;
+  background: linear-gradient(120deg, #4d499e 0%, #5d4b96 55%, #70488b 100%);
+  border-bottom: 1px solid rgba(58, 35, 93, 0.55);
 }
 
 .app-shell__bar {
@@ -76,7 +76,8 @@
   height: 34px;
   flex: none;
   border-radius: var(--r-md);
-  background: #403d88;
+  background: #3a235d;
+  border: 1px solid rgba(255, 255, 255, 0.22);
   color: #f8b2b2;
   font-size: 20px;
   box-shadow: var(--shadow-1);
@@ -94,12 +95,12 @@
   font-weight: 700;
   letter-spacing: -0.015em;
   white-space: nowrap;
-  color: #403d88;
+  color: #ffffff;
 }
 
 .brand__disclaimer {
   font-size: var(--fs-xs);
-  color: #8b639b;
+  color: #e3d9e5;
   font-weight: 600;
 }
 
@@ -170,31 +171,31 @@
   gap: 6px;
   padding: 6px 14px;
   border-radius: var(--r-pill);
-  border: 1px solid #e3d9e5;
-  background: #ffffff;
+  border: 1px solid rgba(234, 229, 247, 0.55);
+  background: rgba(255, 255, 255, 0.06);
   font-size: var(--fs-sm);
   font-weight: 600;
-  color: #8b639b;
+  color: #eae5f7;
   text-decoration: none;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .main-nav__link:hover {
-  color: #403d88;
-  border-color: #af719d;
-  background: #f3edf5;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.14);
   text-decoration: none;
 }
 
 .main-nav__link--active {
-  background: linear-gradient(135deg, #403d88 0%, #554f96 62%, #8b639b 130%);
-  border-color: #403d88;
+  background: #3a235d;
+  border-color: #3a235d;
   color: #ffffff;
 }
 
 .main-nav__link--active:hover {
-  background: linear-gradient(135deg, #373472 0%, #4a4686 62%, #7a557f 130%);
-  border-color: #373472;
+  background: #3a235d;
+  border-color: #3a235d;
   color: #ffffff;
 }
 
@@ -202,8 +203,8 @@
   min-width: 18px;
   padding: 0 5px;
   border-radius: var(--r-pill);
-  background: #ede7f3;
-  color: #403d88;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 700;
@@ -212,7 +213,7 @@
 
 .main-nav__link--active .main-nav__count {
   background: rgba(255, 255, 255, 0.24);
-  color: var(--on-primary);
+  color: #ffffff;
 }
 
 .app-shell__main {
