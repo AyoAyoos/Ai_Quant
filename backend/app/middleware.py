@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 
 # Single source of truth for browser origins allowed to call this API.
 CORS_ALLOW_ORIGINS = [
-    "http://localhost:5173",  # React dev server
+    "http://localhost:5173",  # React dev server (default port)
+    "http://localhost:5174",  # Vite fallback when 5173 is already in use
+    "http://localhost:5175",  # next Vite fallback
     "http://localhost:3000",  # dockerized nginx frontend
 ]
 

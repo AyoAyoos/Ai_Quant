@@ -5,6 +5,7 @@ import MarketSection from './MarketSection.jsx'
 import TradingStyleSection from './TradingStyleSection.jsx'
 import TimeframeSection from './TimeframeSection.jsx'
 import IndicatorsSection from './IndicatorsSection.jsx'
+import { INDICATORS as INDICATOR_CATALOG } from './indicatorCatalog.js'
 import EntryConditionsSection from './EntryConditionsSection.jsx'
 import ExitRiskSection from './ExitRiskSection.jsx'
 import StrategyPreview from './StrategyPreview.jsx'
@@ -39,7 +40,7 @@ export default function StrategyBuilder() {
   const navigate = useNavigate()
   const [config, setConfig] = useState(DEFAULT_CONFIG)
   const [generationStatus, setGenerationStatus] = useState('idle')
-  const [_generationError, _setGenerationError] = useState(null)
+  const [generationError, setGenerationError] = useState(null)
   const [generatedStrategy, setGeneratedStrategy] = useState(null)
   const [aiSuggestions, setAiSuggestions] = useState(null)
 
@@ -83,31 +84,37 @@ export default function StrategyBuilder() {
     setGenerationError(null)
     setAiSuggestions(null)
 
-    // Build the spec for the backend
-    const spec = {
-      market: config.market,
-      trading_style: config.tradingStyle,
-      timeframe: config.timeframe,
-      indicators: config.indicators.map((name) => ({
-        name,
-        parameters: config.indicatorParams[name] || {},
-      })),
-      entry_conditions: config.entryConditions.map((c) =>
-        `${c.left} ${c.operator} ${c.right}`
-      ),
-      exit_conditions: [
-        ...(config.exitConditions.exitOnOpposite ? ['Exit on opposite signal'] : []),
-        ...(config.exitConditions.customExits || []).map((c) => `${c.left} ${c.operator} ${c.right}`),
-      ],
-      risk_management: {
-        stop_loss_percent: config.riskManagement.stopLoss.enabled ? config.riskManagement.stopLoss.value : null,
-        take_profit_percent: config.riskManagement.takeProfit.enabled ? config.riskManagement.takeProfit.value : null,
-        trailing_stop_percent: config.riskManagement.trailingStop.enabled ? config.riskManagement.trailingStop.value : null,
-        max_trades_per_day: config.riskManagement.maxTradesPerDay,
-      },
-    }
-
     try {
+      // Build the spec for the backend — inside try so ANY failure (bad
+      // config shape, request error) lands in catch and clears the spinner
+      // instead of leaving status stuck on 'loading'.
+      const spec = {
+        market: config.market,
+        trading_style: config.tradingStyle,
+        timeframe: config.timeframe,
+        indicators: config.indicators.map((indicatorId) => ({
+          // State stores ids ('BOLLINGER_BANDS'); the backend schema accepts
+          // display names ('Bollinger Bands'). Map id -> name, fall back to
+          // the raw value so unknown ids still surface a backend 422.
+          name:
+            INDICATOR_CATALOG.find((i) => i.id === indicatorId)?.name ?? indicatorId,
+          parameters: config.indicatorParams[indicatorId] || {},
+        })),
+        entry_conditions: config.entryConditions.map((c) =>
+          `${c.left} ${c.operator} ${c.right}`
+        ),
+        exit_conditions: [
+          ...(config.exitConditions.exitOnOpposite ? ['Exit on opposite signal'] : []),
+          ...(config.exitConditions.customExits || []).map((c) => `${c.left} ${c.operator} ${c.right}`),
+        ],
+        risk_management: {
+          stop_loss_percent: config.riskManagement.stopLoss.enabled ? config.riskManagement.stopLoss.value : null,
+          take_profit_percent: config.riskManagement.takeProfit.enabled ? config.riskManagement.takeProfit.value : null,
+          trailing_stop_percent: config.riskManagement.trailingStop.enabled ? config.riskManagement.trailingStop.value : null,
+          max_trades_per_day: config.riskManagement.maxTradesPerDay,
+        },
+      }
+
       const result = await generateStrategy(spec)
       setGeneratedStrategy(result)
       setGenerationStatus('success')
@@ -220,8 +227,16 @@ export default function StrategyBuilder() {
         />
 
         <ExitRiskSection
-          value={config.exitConditions}
-          onChange={(v) => updateConfig({ exitConditions: v })}
+          value={{ ...config?.exitConditions, ...config?.riskManagement }}
+          onChange={(v) => {
+            // The section edits one combined object; split it back into the
+            // two config keys handleGenerate/validation read from.
+            const { exitOnOpposite, customExits, ...riskManagement } = v
+            updateConfig({
+              exitConditions: { exitOnOpposite, customExits },
+              riskManagement,
+            })
+          }}
           error={errors.riskManagement}
         />
 
@@ -230,6 +245,7 @@ export default function StrategyBuilder() {
         <div className="strategy-builder__actions">
           <GenerationState
             status={generationStatus}
+            error={generationError}
             onRetry={handleRetry}
             onViewStrategy={handleViewStrategy}
             onRunBacktest={handleRunBacktest}

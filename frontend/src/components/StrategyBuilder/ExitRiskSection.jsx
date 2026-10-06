@@ -1,5 +1,17 @@
-export default function ExitRiskSection({ value, onChange, error }) {
+export default function ExitRiskSection({ value: rawValue, onChange, error }) {
   // value: { exitOnOpposite: boolean, customExits: [], stopLoss: { enabled: boolean, value: number }, takeProfit: { enabled: boolean, value: number }, trailingStop: { enabled: boolean, value: number }, maxTradesPerDay: number }
+  //
+  // Defensive normalization: every render reads `value.stopLoss.enabled` etc,
+  // so a missing/partial object (fresh state, API payload) must not crash the
+  // tree — default the whole shape instead.
+  const value = {
+    exitOnOpposite: rawValue?.exitOnOpposite ?? false,
+    customExits: Array.isArray(rawValue?.customExits) ? rawValue.customExits : [],
+    stopLoss: { enabled: false, value: 1, ...rawValue?.stopLoss },
+    takeProfit: { enabled: false, value: 2, ...rawValue?.takeProfit },
+    trailingStop: { enabled: false, value: 0.5, ...rawValue?.trailingStop },
+    maxTradesPerDay: rawValue?.maxTradesPerDay ?? 3,
+  }
 
   const updateField = (section, field, newValue) => {
     onChange({ ...value, [section]: { ...value[section], [field]: newValue } })

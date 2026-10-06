@@ -94,6 +94,29 @@ SUPPORTED_TRADING_STYLES = ["scalping", "intraday", "swing", "positional"]
 SUPPORTED_TIMEFRAMES = ["5m", "15m", "30m", "1h", "1d"]
 SUPPORTED_INDICATORS = ["EMA", "SMA", "RSI", "MACD", "Bollinger Bands", "Volume"]
 
+
+def _indicator_lookup_key(name: str) -> str:
+    """Fold a name to a comparison key: lowercase, separators collapsed away.
+
+    'BOLLINGER_BANDS', 'bollinger-bands', 'Bollinger  Bands' and
+    'BOLLINGERBANDS' all fold to the same key as the canonical name.
+    """
+    return "".join(ch for ch in name.strip().lower() if ch.isalnum())
+
+
+# canonical name keyed by every reasonable spelling of it
+_INDICATOR_LOOKUP = {_indicator_lookup_key(name): name for name in SUPPORTED_INDICATORS}
+_INDICATOR_LOOKUP.update({
+    _indicator_lookup_key("bb"): "Bollinger Bands",
+    _indicator_lookup_key("bollinger"): "Bollinger Bands",
+    _indicator_lookup_key("volume indicator"): "Volume",
+})
+
+
+def canonical_indicator_name(value: str) -> str | None:
+    """Return the canonical supported name for any common spelling, else None."""
+    return _INDICATOR_LOOKUP.get(_indicator_lookup_key(value))
+
 # Trading style to compatible timeframes mapping
 STYLE_TIMEFRAME_COMPATIBILITY = {
     "scalping": ["5m", "15m"],
@@ -110,11 +133,15 @@ class IndicatorSpec(BaseModel):
     @field_validator("name")
     @classmethod
     def validate_indicator_name(cls, v: str) -> str:
-        if v not in SUPPORTED_INDICATORS:
+        # Normalize first: enum-style (BOLLINGER_BANDS), lower (rsi) and
+        # compact (bollingerbands) spellings all collapse to the canonical
+        # display name the rest of the pipeline expects.
+        canonical = canonical_indicator_name(v)
+        if canonical is None:
             raise ValueError(
                 f"Unsupported indicator: {v}. Supported: {SUPPORTED_INDICATORS}"
             )
-        return v
+        return canonical
 
     @field_validator("parameters")
     @classmethod

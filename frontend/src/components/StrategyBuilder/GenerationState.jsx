@@ -1,4 +1,4 @@
-export default function GenerationState({ status, onRetry, onViewStrategy, onRunBacktest, strategy }) {
+export default function GenerationState({ status, error, onRetry, onViewStrategy, onRunBacktest, strategy }) {
   // status: 'idle' | 'loading' | 'success' | 'error'
   // loading states: 'validating' | 'building' | 'generating' | 'preparing'
 
@@ -76,7 +76,9 @@ export default function GenerationState({ status, onRetry, onViewStrategy, onRun
       <div className="generation-state generation-state--error" role="alert">
         <div className="generation-state__error-icon" aria-hidden="true">✕</div>
         <h3 className="generation-state__title">Generation Failed</h3>
-        <p className="generation-state__message">Unable to generate the strategy. Please check your configuration and try again.</p>
+        <p className="generation-state__message">
+          {error || 'Unable to generate the strategy. Please check your configuration and try again.'}
+        </p>
         <button type="button" className="btn btn--primary" onClick={onRetry}>
           Try Again
         </button>
