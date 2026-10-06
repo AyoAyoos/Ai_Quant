@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { readStrategies } from '../lib/storage.js'
+import { useAuth } from '../context/AuthContext.jsx'
 import Icon from './Icon.jsx'
 
 function useStrategyCount() {
@@ -42,10 +43,14 @@ const NAV_SECONDARY = [
 export default function AppShell() {
   const strategyCount = useStrategyCount()
   const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const { isAuthenticated, logout } = useAuth()
   // Studio owns its own scroll container so the composer stays pinned to the
   // viewport; every other page scrolls as one document. /chat is the legacy
   // alias of /studio and behaves the same.
   const fixedMain = pathname === '/studio' || pathname === '/chat'
+  // The login view keeps the chrome but steps it back so the card owns focus.
+  const isLogin = pathname === '/login'
 
   return (
     <div className="app-shell">
@@ -55,21 +60,38 @@ export default function AppShell() {
 
       <header className="app-shell__header">
         <div className="app-shell__bar">
-          <div className="brand">
-            <span className="brand__mark" aria-hidden="true">
-              <Icon name="ssid_chart" size={20} />
+          <span className="brand__text brand__text--center">
+            <span className="brand__name">Quant Strategy Assistant</span>
+            <span className="brand__disclaimer">
+              Educational prototype. Paper trading only. No guaranteed returns.
             </span>
-            <span className="brand__text">
-              <span className="brand__name">Quant Strategy Assistant</span>
-              <span className="brand__disclaimer">
-                Educational prototype. Paper trading only. No guaranteed returns.
-              </span>
-            </span>
-          </div>
-
-          <div className="header-right">
-            <nav className="main-nav" aria-label="Main">
-              {NAV.map((item) => (
+          </span>
+          {isAuthenticated ? (
+            <button
+              className="login-btn"
+              type="button"
+              onClick={() => {
+                logout()
+                navigate('/welcome', { replace: true })
+              }}
+            >
+              Logout
+            </button>
+          ) : (
+            !isLogin && (
+              <NavLink
+                to="/login"
+                className={({ isActive }) => `login-btn${isActive ? ' login-btn--active' : ''}`}
+              >
+                Login
+              </NavLink>
+            )
+          )}
+        </div>
+        {!isLogin && (
+          <div className="app-shell__navwrap">
+            <nav className="main-nav main-nav--bar" aria-label="Main">
+              {[...NAV, ...NAV_SECONDARY].map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
@@ -86,23 +108,8 @@ export default function AppShell() {
                 </NavLink>
               ))}
             </nav>
-            <nav className="main-nav" aria-label="Secondary">
-              {NAV_SECONDARY.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    `main-nav__link${isActive ? ' main-nav__link--active' : ''}`
-                  }
-                >
-                  <Icon name={item.icon} size={17} />
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
           </div>
-        </div>
+        )}
       </header>
 
       <main

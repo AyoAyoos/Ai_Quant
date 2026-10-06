@@ -1,0 +1,279 @@
+/* =============================================================================
+   landing-page.css — public dark-mode entry page (LandingPage at /welcome).
+
+   Scoped entirely under `.lp` so nothing leaks into the app pages.
+   Palette only: #403D88 · #8B639B · #AF719D · #F8B2B2 (+ white/lavender text).
+   ========================================================================== */
+
+.lp {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: #403d88;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 80px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 80px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1400' height='420' viewBox='0 0 1400 420'%3E%3Cg fill='none'%3E%3Cpath d='M-20,340 C250,320 450,260 700,220 S1150,140 1420,90' stroke='%23AF719D' stroke-opacity='0.11' stroke-width='2'/%3E%3Cpath d='M-20,300 C300,290 600,230 900,190 S1250,120 1420,100' stroke='%23F8B2B2' stroke-opacity='0.08' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='600' viewBox='0 0 1200 600'%3E%3Cg stroke='%23F8B2B2' stroke-opacity='0.06' stroke-width='1.4'%3E%3Cline x1='60' y1='400' x2='60' y2='436'/%3E%3Cline x1='82' y1='392' x2='82' y2='430'/%3E%3Cline x1='104' y1='398' x2='104' y2='440'/%3E%3Cline x1='126' y1='390' x2='126' y2='426'/%3E%3Cline x1='148' y1='396' x2='148' y2='434'/%3E%3Cline x1='170' y1='388' x2='170' y2='424'/%3E%3Cline x1='192' y1='394' x2='192' y2='432'/%3E%3Cline x1='214' y1='390' x2='214' y2='428'/%3E%3Cline x1='1000' y1='190' x2='1000' y2='226'/%3E%3Cline x1='1022' y1='182' x2='1022' y2='220'/%3E%3Cline x1='1044' y1='188' x2='1044' y2='230'/%3E%3Cline x1='1066' y1='180' x2='1066' y2='216'/%3E%3Cline x1='1088' y1='186' x2='1088' y2='224'/%3E%3Cline x1='1110' y1='178' x2='1110' y2='214'/%3E%3Cline x1='1132' y1='184' x2='1132' y2='222'/%3E%3Cline x1='1154' y1='180' x2='1154' y2='218'/%3E%3C/g%3E%3Cg fill='%23AF719D' fill-opacity='0.06'%3E%3Crect x='55' y='406' width='10' height='16'/%3E%3Crect x='77' y='398' width='10' height='18'/%3E%3Crect x='99' y='404' width='10' height='15'/%3E%3Crect x='121' y='396' width='10' height='18'/%3E%3Crect x='143' y='402' width='10' height='16'/%3E%3Crect x='165' y='394' width='10' height='18'/%3E%3Crect x='187' y='400' width='10' height='16'/%3E%3Crect x='209' y='396' width='10' height='17'/%3E%3Crect x='995' y='196' width='10' height='16'/%3E%3Crect x='1017' y='188' width='10' height='18'/%3E%3Crect x='1039' y='194' width='10' height='15'/%3E%3Crect x='1061' y='186' width='10' height='18'/%3E%3Crect x='1083' y='192' width='10' height='16'/%3E%3Crect x='1105' y='184' width='10' height='18'/%3E%3Crect x='1127' y='190' width='10' height='16'/%3E%3Crect x='1149' y='186' width='10' height='17'/%3E%3C/g%3E%3Cg fill='%23F8B2B2' fill-opacity='0.05'%3E%3Crect x='52' y='462' width='7' height='12'/%3E%3Crect x='64' y='454' width='7' height='20'/%3E%3Crect x='76' y='464' width='7' height='10'/%3E%3Crect x='88' y='452' width='7' height='22'/%3E%3Crect x='100' y='460' width='7' height='14'/%3E%3Crect x='112' y='456' width='7' height='18'/%3E%3Crect x='124' y='462' width='7' height='12'/%3E%3Crect x='136' y='454' width='7' height='20'/%3E%3Crect x='148' y='460' width='7' height='14'/%3E%3Crect x='160' y='456' width='7' height='18'/%3E%3Crect x='172' y='462' width='7' height='12'/%3E%3Crect x='184' y='454' width='7' height='20'/%3E%3Crect x='196' y='460' width='7' height='14'/%3E%3Crect x='208' y='456' width='7' height='18'/%3E%3Crect x='992' y='252' width='7' height='12'/%3E%3Crect x='1004' y='244' width='7' height='20'/%3E%3Crect x='1016' y='254' width='7' height='10'/%3E%3Crect x='1028' y='242' width='7' height='22'/%3E%3Crect x='1040' y='250' width='7' height='14'/%3E%3Crect x='1052' y='246' width='7' height='18'/%3E%3Crect x='1064' y='252' width='7' height='12'/%3E%3Crect x='1076' y='244' width='7' height='20'/%3E%3Crect x='1088' y='250' width='7' height='14'/%3E%3Crect x='1100' y='246' width='7' height='18'/%3E%3Crect x='1112' y='252' width='7' height='12'/%3E%3Crect x='1124' y='244' width='7' height='20'/%3E%3Crect x='1136' y='250' width='7' height='14'/%3E%3Crect x='1148' y='246' width='7' height='18'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600'%3E%3Cg fill='none'%3E%3Cpath d='M-20,480 C150,460 280,420 420,360 S680,250 820,205' stroke='%238B639B' stroke-opacity='0.05' stroke-width='1.8'/%3E%3Cpath d='M-20,170 C180,210 340,250 520,295 S700,335 820,355' stroke='%238B639B' stroke-opacity='0.05' stroke-width='1.4' stroke-dasharray='5 6'/%3E%3Cpath d='M-20,390 L820,110' stroke='%238B639B' stroke-opacity='0.04' stroke-width='1' stroke-dasharray='2 8'/%3E%3Cpath d='M-20,290 C220,300 460,280 820,180' stroke='%238B639B' stroke-opacity='0.04' stroke-width='1'/%3E%3C/g%3E%3Cg stroke='%238B639B' stroke-opacity='0.05' stroke-width='1.2'%3E%3Cline x1='60' y1='395' x2='60' y2='425'/%3E%3Cline x1='150' y1='382' x2='150' y2='412'/%3E%3Cline x1='240' y1='360' x2='240' y2='395'/%3E%3Cline x1='330' y1='225' x2='330' y2='255'/%3E%3Cline x1='420' y1='212' x2='420' y2='242'/%3E%3Cline x1='510' y1='300' x2='510' y2='335'/%3E%3Cline x1='600' y1='418' x2='600' y2='452'/%3E%3Cline x1='690' y1='410' x2='690' y2='444'/%3E%3C/g%3E%3Cg fill='%238B639B' fill-opacity='0.05'%3E%3Crect x='56' y='400' width='8' height='14'/%3E%3Crect x='146' y='388' width='8' height='15'/%3E%3Crect x='236' y='366' width='8' height='14'/%3E%3Crect x='326' y='231' width='8' height='14'/%3E%3Crect x='416' y='218' width='8' height='15'/%3E%3Crect x='506' y='306' width='8' height='14'/%3E%3Crect x='596' y='424' width='8' height='15'/%3E%3Crect x='686' y='416' width='8' height='14'/%3E%3C/g%3E%3C/svg%3E"),
+    radial-gradient(circle 900px at 50% 36%, rgba(175, 113, 157, 0.55) 0%, rgba(175, 113, 157, 0.32) 25%, rgba(175, 113, 157, 0.14) 45%, transparent 70%),
+    radial-gradient(circle 700px at 50% 105%, rgba(139, 99, 155, 0.4) 0%, transparent 70%),
+    radial-gradient(circle 500px at 0% 55%, rgba(248, 178, 178, 0.12) 0%, transparent 70%),
+    radial-gradient(circle 500px at 100% 55%, rgba(248, 178, 178, 0.1) 0%, transparent 70%);
+  background-repeat: repeat, repeat, no-repeat, no-repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-position: top left, top left, 50% 38%, 50% 30%, top left, 50% 36%, 50% 105%, 0% 55%, 100% 55%;
+  background-size: 80px 80px, 80px 80px, 1400px 420px, 1200px 600px, 800px 600px, auto, auto, auto, auto;
+  background-attachment: fixed;
+  color: #ffffff;
+}
+
+/* --------------------------------------------------------------- header */
+
+.lp__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 10px var(--sp-5);
+}
+
+.lp__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.lp__mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--r-md);
+  background: rgba(248, 178, 178, 0.14);
+  border: 1px solid rgba(248, 178, 178, 0.5);
+  color: #f8b2b2;
+}
+
+.lp__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.lp__login {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 26px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid #ffffff;
+  background: transparent;
+  color: #ffffff;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.lp__login:hover {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 20px rgba(248, 178, 178, 0.45);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+/* ----------------------------------------------------------------- hero */
+
+.lp__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-5) var(--sp-5);
+}
+
+.lp__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp-3);
+  max-width: 760px;
+  padding-top: var(--sp-4);
+}
+
+.lp__headline {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4.4vw, 3.2rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: #ffffff;
+}
+
+.lp__ai {
+  color: #f8b2b2;
+}
+
+.lp__sub {
+  font-size: var(--fs-body-md);
+  color: #e3d9e5;
+  max-width: 62ch;
+  line-height: 1.55;
+}
+
+.lp__cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-top: var(--sp-1);
+}
+
+.lp__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 12px 28px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.lp__btn--solid {
+  background: #f8b2b2;
+  border: 1px solid #f8b2b2;
+  color: #403d88;
+  box-shadow: 0 0 24px rgba(248, 178, 178, 0.35);
+}
+
+.lp__btn--solid:hover {
+  background: #f9c4c4;
+  color: #403d88;
+  text-decoration: none;
+  box-shadow: 0 0 32px rgba(248, 178, 178, 0.5);
+  transform: translateY(-1px);
+}
+
+.lp__btn--hollow {
+  background: transparent;
+  border: 1.5px solid #ffffff;
+  color: #ffffff;
+}
+
+.lp__btn--hollow:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+/* ----------------------------------------------------------------- grid */
+
+.lp__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  column-gap: var(--sp-5);
+  row-gap: var(--sp-4);
+  width: 100%;
+  margin-top: var(--sp-5);
+}
+
+.lp__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: 14px var(--sp-4);
+  border-radius: var(--r-lg);
+  border: 1px solid rgba(248, 178, 178, 0.32);
+  background: rgba(139, 99, 155, 0.18);
+  box-shadow: 0 0 20px rgba(248, 178, 178, 0.08), 0 10px 28px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.lp__card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(248, 178, 178, 0.6);
+  box-shadow: 0 0 28px rgba(248, 178, 178, 0.18), 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+.lp__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, rgba(139, 99, 155, 0.55) 0%, rgba(64, 61, 136, 0.55) 100%);
+  border: 1px solid rgba(248, 178, 178, 0.4);
+  box-shadow: 0 0 14px rgba(248, 178, 178, 0.25);
+  color: #f8b2b2;
+}
+
+.lp__card-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #ffffff;
+}
+
+.lp__card-body {
+  font-size: var(--fs-sm);
+  color: #e3d9e5;
+  line-height: 1.6;
+}
+
+/* --------------------------------------------------------------- footer */
+
+.lp__footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  padding: 0 var(--sp-5) var(--sp-2);
+  font-size: var(--fs-sm);
+  color: rgba(227, 217, 229, 0.7);
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .lp__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .lp__btn {
+    width: 100%;
+  }
+
+  .lp__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lp__name {
+    white-space: normal;
+  }
+}

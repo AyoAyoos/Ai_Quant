@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { fetchDeployments, fetchHealth, fetchStrategy } from '../lib/api.js'
 import { getCachedBacktest, readStrategies } from '../lib/storage.js'
 import { formatDateTime } from '../lib/format.js'
+import Icon from '../components/Icon.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import Note from '../components/Note.jsx'
 
@@ -114,6 +115,10 @@ export default function OverviewPage() {
     <div className="page">
       <div className="page-head">
         <div className="page-head__text">
+          <Link className="page-back" to="/welcome">
+            <Icon name="arrow_back" size={16} />
+            Back to Home Page
+          </Link>
           <h1 className="page-title">Overview</h1>
           <p className="page-lede">
             Quick overview of the current system: strategies, paper-trading status, key metrics and
