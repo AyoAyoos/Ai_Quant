@@ -24,11 +24,19 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://quant_user:quant_pass@localhost:5432/quant_trading
+      SANDBOX_MEMORY_MB: 1024
     defaults:
       run:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+
+      - name: Add swap
+        run: |
+          sudo fallocate -l 4G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
 
       - uses: actions/setup-python@v5
         with:
