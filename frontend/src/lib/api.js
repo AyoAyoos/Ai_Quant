@@ -168,6 +168,19 @@ export function fetchDeployments(strategyId, { signal } = {}) {
   return request(`/strategies/${encodeURIComponent(strategyId)}/deployments`, { signal })
 }
 
+/**
+ * POST /strategies/builder - structured strategy builder endpoint.
+ * Sends a complete strategy specification and receives a generated draft
+ * strategy ({ strategy_id, generated_code, strategy_specification, ... }).
+ */
+export function generateStrategy(spec, { signal } = {}) {
+  return request('/strategies/builder', {
+    method: 'POST',
+    body: spec,
+    signal,
+  })
+}
+
 /** True when the failure means "this strategy id no longer exists". */
 export function isNotFound(err) {
   return err instanceof ApiError && err.status === 404
