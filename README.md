@@ -131,11 +131,9 @@ Ai_Quant/
 │   │   │                            # (740 real OHLCV rows for offline tests)
 │   │   ├── test_guardrails.py       # 12 escape-hatch rejections
 │   │   ├── test_runner.py           # metrics, Sortino, trades, equity curve
-│   │   ├── test_worker_cli.py       # sentinel protocol, timeouts, tree-kill
 │   │   ├── test_backtest_api.py     # endpoint incl. 404/422 paths (needs Postgres)
 │   │   ├── test_deployment_gate.py  # lifecycle transitions (needs Postgres)
 │   │   ├── test_display.py          # reply cleaning (no DB)
-│   │   ├── test_strategy_builder.py      # strategy builder endpoint tests (needs Postgres)
 │   │   └── test_strategy_builder_unit.py # strategy builder unit tests (no DB)
 │   ├── Dockerfile                   # python:3.11-slim + uvicorn
 │   ├── pytest.ini                   # testpaths=., pythonpath=.
@@ -535,7 +533,7 @@ Router instead of returning an nginx 404.
 
 ```bash
 cd backend
-python -m pytest            # full suite, ~13s
+python -m pytest            # full suite, ~4s
 python -m pytest tests/test_runner.py -q
 python -m pytest -k sortino -q
 ```
@@ -544,11 +542,9 @@ python -m pytest -k sortino -q
 | --- | --- | --- |
 | `test_guardrails.py` | Clean code accepted; 12 escape hatches rejected statically | No |
 | `test_runner.py` | Metrics incl. Sortino properties, trade list ↔ aggregates, equity curve ends on broker value | No |
-| `test_worker_cli.py` | Sentinel protocol, timeout kill, tree-kill incl. orphan check, POSIX memory cap | No |
 | `test_backtest_api.py` | Endpoint incl. 404/422 paths, DB persistence | Yes (self-skips) |
 | `test_deployment_gate.py` | Full approve/reject/deploy/stop lifecycle, 13 cases | Yes (self-skips) |
 | `test_display.py` | Reply cleaning: marker/headers/fences stripped, prose kept | No |
-| `test_strategy_builder.py` | Strategy builder endpoint validation, persistence | Yes (self-skips) |
 | `test_strategy_builder_unit.py` | Prompt building, parameter validation, spec conversion | No |
 
 Fixtures in `tests/fixtures/`: four strategy fixtures plus `nifty50.csv`
