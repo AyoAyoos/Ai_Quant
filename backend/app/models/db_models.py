@@ -78,6 +78,7 @@ class Strategy(Base):
     description = Column(Text)
     market = Column(String, default="NIFTY50")
     generated_code = Column(Text, nullable=False)  # AI-generated Python strategy code
+    strategy_spec = Column(JSON)  # Validated engine-neutral StrategySpec v1
     status = Column(Enum(StrategyStatus), default=StrategyStatus.draft)
     # Human reason for the last reject/stop transition; null otherwise.
     status_note = Column(Text)

@@ -1,4 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Literal, Optional
+from datetime import datetime
+from enum import Enum
 
 
 class ChatMessageIn(BaseModel):
@@ -186,6 +189,22 @@ class PaperTickResult(BaseModel):
     account: PaperAccountSnapshot
 
 
+class PaperOrderOut(BaseModel):
+    """Audit record of a simulated order: what was asked for and what happened."""
+
+    id: str
+    deployment_id: str
+    symbol: str
+    side: str
+    quantity: int
+    order_type: str
+    status: str
+    reason: str | None = None
+    created_at: str | None = None
+    filled_at: str | None = None
+    fill_price: float | None = None
+
+
 class BacktestResultOut(BaseModel):
     strategy_id: str
     status: str = "backtested"
@@ -207,3 +226,103 @@ class BacktestResultOut(BaseModel):
     equity_curve: list[list] = []
     warnings: list[str] = []
     raw_metrics: dict | None = None
+
+
+# Validation verdict types
+from app.services.strategy_validation_service import ReasonCode, AgreementStatus, Verdict
+
+
+class RiskCheckResult(BaseModel):
+    check_name: str
+    passed: bool
+    value: float
+    threshold: float
+    reason_code: ReasonCode | None = None
+
+
+class PaperEvidenceSummary(BaseModel):
+    status: Literal["AVAILABLE", "INSUFFICIENT", "UNAVAILABLE"]
+    deployment_id: str | None = None
+    completed_trades: int = 0
+    realized_pnl: float = 0.0
+    unrealized_pnl: float = 0.0
+    current_equity: float | None = None
+    open_position: bool = False
+    last_bar_date: str | None = None
+    error: str | None = None
+
+
+class NormalizedTrade(BaseModel):
+    """A single completed trade, normalized across engines."""
+    model_config = ConfigDict(extra="forbid")
+
+    entry_time: str
+    exit_time: str
+    entry_price: float
+    exit_price: float
+    size: int
+    pnl: float
+    return_pct: float
+
+
+class NormalizedMetrics(BaseModel):
+    """Normalized backtest metrics."""
+    model_config = ConfigDict(extra="forbid")
+
+    initial_cash: float
+    final_equity: float
+    return_pct: float
+    trade_count: int
+    winning_trades: int
+    losing_trades: int
+    win_rate_pct: float
+    max_drawdown_pct: float
+    profit_factor: Optional[float] = None
+    total_commission: float
+    start_date: str
+    end_date: str
+    bars_processed: int
+
+
+class NormalizedResult(BaseModel):
+    """Complete normalized backtest result."""
+    model_config = ConfigDict(extra="forbid")
+
+    engine: Literal["backtrader", "backtesting.py", "shared_runtime"]
+    spec_version: int
+    metrics: NormalizedMetrics
+    trades: list[NormalizedTrade]
+    warnings: list[str]
+    execution_model: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ComparisonEvidenceOut(BaseModel):
+    return_delta_pct: float
+    max_drawdown_delta_pct: float
+    win_rate_delta_pct: float
+    final_equity_delta: float
+    trade_count_delta: int
+    total_commission_delta: float
+    aligned_trades: int
+    trade_alignment_pct: float
+    engine_a: str
+    engine_b: str
+    execution_model_a: str
+    execution_model_b: str
+    warnings: list[str]
+
+
+class ValidationVerdictOut(BaseModel):
+    strategy_id: str
+    spec_version: int
+    verdict: Verdict
+    reason_codes: list[ReasonCode]
+    warnings: list[str]
+    engine_agreement: AgreementStatus
+    comparison_evidence: ComparisonEvidenceOut | None = None
+    backtrader_result: NormalizedResult | None = None
+    backtesting_py_result: NormalizedResult | None = None
+    paper_evidence: PaperEvidenceSummary
+    risk_checks: list[RiskCheckResult]
+    timestamp: datetime

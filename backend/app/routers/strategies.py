@@ -30,6 +30,13 @@ from app.schemas import (
     RejectIn,
     StopIn,
     StrategyDetailOut,
+    ValidationVerdictOut,
+    ReasonCode,
+    AgreementStatus,
+    Verdict,
+    RiskCheckResult,
+    PaperEvidenceSummary,
+    ComparisonEvidenceOut,
 )
 from app.services.backtest_service import (
     BacktestError,
@@ -51,6 +58,7 @@ from app.services.paper_engine import (
     run_tick,
     snapshot,
 )
+from app.services.strategy_validation_service import get_strategy_validation_service
 
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
@@ -453,6 +461,7 @@ def paper_tick(
     db.commit()
     db.refresh(dep)
 
+    order_out = _order_out(order) if order is not None else None
     return PaperTickResult(
         strategy_id=strategy.id,
         deployment_id=dep.id,
@@ -462,7 +471,7 @@ def paper_tick(
         action=result["action"].upper(),
         duplicate=False,
         reason=order.reason if order is not None and order.status != ORDER_FILLED else None,
-        order=_order_out(order) if order is not None else None,
+        order=order_out.model_dump() if order_out is not None else None,
         fill_price=order.fill_price if order is not None else None,
         quantity=order.quantity if order is not None else None,
         marked_positions=result["marked_positions"],
@@ -581,3 +590,115 @@ def _date_str(raw) -> str | None:
     if not raw:
         return None
     return str(raw)
+
+
+@router.post("/{strategy_id}/validate", response_model=ValidationVerdictOut)
+def validate_strategy(
+    strategy_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Run the complete independent validation pipeline for a strategy.
+    
+    This endpoint:
+    1. Loads the strategy's StrategySpec (from storage if available, otherwise extracts from generated code)
+    2. Runs dual-engine backtest (Backtrader + Backtesting.py)
+    4. Compares results objectively
+    5. Collects paper trading evidence
+    6. Runs deterministic risk/performance checks
+    7. Produces final verdict: VALID | INVALID | INSUFFICIENT_DATA
+    
+    Returns a structured ValidationVerdictOut with all evidence.
+    """
+    strategy = _get_strategy_or_404(db, strategy_id)
+    
+    # Check if strategy has generated code
+    if not strategy.generated_code:
+        raise HTTPException(
+            status_code=422,
+            detail={"reasons": ["strategy has no generated code to validate"]},
+        )
+    
+    # Get the validation service
+    validation_service = get_strategy_validation_service()
+    
+    # Use the existing backtest data path
+    try:
+        data_path = str(ensure_market_data(strategy.market))
+    except MarketDataError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Could not load market data for {strategy.market!r}: {exc}",
+        ) from exc
+    
+    # Determine StrategySpec source: prefer stored strategy_spec, fallback to extraction
+    from app.services.strategy_spec import StrategySpec, parse_strategy_spec
+    
+    if strategy.strategy_spec:
+        # Use the stored StrategySpec directly (new preferred path)
+        spec = parse_strategy_spec(strategy.strategy_spec)
+    else:
+        # Legacy fallback: extract from generated Backtrader code
+        from app.services.strategy_extractor import extract_strategy
+        from app.services.strategy_spec import parse_strategy_spec
+        import re
+        
+        extracted = extract_strategy(strategy.generated_code)
+        
+        if not extracted:
+            raise HTTPException(
+                status_code=422,
+                detail={"reasons": ["Could not extract StrategySpec from generated code"]},
+            )
+        
+        # Create a minimal StrategySpec from the extracted code
+        spec_dict = {
+            "version": 1,
+            "name": extracted.name,
+            "indicators": [],  # Will be inferred from code
+            "entry": {"left": "close", "operator": "greater_than", "right_value": 0},
+            "exit": {"left": "close", "operator": "less_than", "right_value": 0},
+            "direction": "long",
+        }
+        
+        # Try to parse indicators from the code
+        import re
+        indicator_pattern = re.compile(r"bt\.indicators\.(\w+)\([^)]*period\s*=\s*(\d+)")
+        indicators = []
+        for match in indicator_pattern.finditer(strategy.generated_code):
+            ind_type = match.group(1).lower()
+            period = int(match.group(2))
+            if ind_type in ["sma", "ema", "rsi"]:
+                indicators.append({"name": f"{ind_type}_{period}", "type": ind_type, "period": period})
+        
+        # Deduplicate
+        seen = set()
+        unique_indicators = []
+        for ind in indicators:
+            key = (ind["type"], ind["period"])
+            if key not in seen:
+                seen.add(key)
+                unique_indicators.append(ind)
+        
+        if unique_indicators:
+            spec_dict["indicators"] = unique_indicators
+        
+        try:
+            spec = parse_strategy_spec(spec_dict)
+        except Exception as e:
+            raise HTTPException(
+                status_code=422,
+                detail={"reasons": [f"Invalid StrategySpec: {e}"]},
+            )
+    
+    # Run the full validation
+    verdict = validation_service.run_validation(
+        strategy_spec=spec,
+        strategy_id=strategy.id,
+        market=strategy.market,
+        initial_cash=100000.0,
+        commission_pct=0.1,
+        sizer_percents=95.0,
+    )
+    
+    return verdict
