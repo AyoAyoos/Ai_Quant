@@ -33,10 +33,17 @@ jobs:
 
       - name: Add swap
         run: |
-          sudo fallocate -l 4G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          if swapon --show | grep -q .; then
+            echo "swap already active"; swapon --show
+          else
+            sudo rm -f /ci-swapfile
+            sudo dd if=/dev/zero of=/ci-swapfile bs=1M count=4096 status=none \
+              || sudo fallocate -l 4G /ci-swapfile
+            sudo chmod 600 /ci-swapfile
+            sudo mkswap /ci-swapfile
+            sudo swapon /ci-swapfile
+          fi
+          free -h
 
       - uses: actions/setup-python@v5
         with:
