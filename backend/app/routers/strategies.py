@@ -9,6 +9,9 @@ from app.models import (
     BacktestResult,
     DeploymentStatus,
     PaperDeployment,
+    PaperOrder,
+    PaperPosition,
+    PaperTrade,
     Strategy,
     StrategyStatus,
 )
@@ -18,6 +21,10 @@ from app.schemas import (
     DeployIn,
     DeploymentOut,
     GateOut,
+    PaperAccountSnapshot,
+    PaperOrderOut,
+    PaperPositionOut,
+    PaperTradeOut,
     RejectIn,
     StopIn,
     StrategyDetailOut,
@@ -33,6 +40,7 @@ from app.services.deployment_gate import (
     check_deploy,
 )
 from app.services.market_data import MarketDataError, ensure_market_data
+from app.services.paper_engine import open_account, snapshot
 
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
@@ -121,11 +129,12 @@ def reject_strategy(strategy_id: str, payload: RejectIn, db: Session = Depends(g
 
 @router.post("/{strategy_id}/deploy", response_model=DeploymentOut)
 def deploy_strategy(strategy_id: str, payload: DeployIn, db: Session = Depends(get_db)):
-    """approved -> paper_trading, recording the deployment.
+    """approved -> paper_trading, recording the deployment and opening its account.
 
-    This is the gate, not a live engine: it validates status, re-runs the
-    guardrails over the current code, and refuses duplicate active
-    deployments. No orders are placed anywhere.
+    This is the gate plus the virtual-account foundation: it validates status,
+    re-runs the guardrails over the current code, and refuses duplicate active
+    deployments, then opens a virtual balance seeded with the configured
+    capital. No strategy signal is executed and no order is placed here.
     """
     strategy = _get_strategy_or_404(db, strategy_id)
     reasons = check_deploy(strategy)
@@ -138,6 +147,9 @@ def deploy_strategy(strategy_id: str, payload: DeployIn, db: Session = Depends(g
         commission_pct=payload.commission_pct,
         sizer_percents=payload.sizer_percents,
     )
+    # Open the virtual account from the config snapshot: balance starts equal
+    # to the configured cash, with no positions, trades or orders.
+    open_account(dep)
     db.add(dep)
     strategy.status = StrategyStatus.paper_trading
     strategy.status_note = None
@@ -173,6 +185,115 @@ def list_deployments(strategy_id: str, db: Session = Depends(get_db)):
         strategy.deployments, key=lambda d: d.deployed_at or datetime.min, reverse=True
     )
     return [_deployment_out(d) for d in ordered]
+
+
+# --------------------------------------------------------------------------- #
+# Paper-trading account (Phase 1: read-only)
+#
+# Every route below resolves the strategy's ACTIVE deployment first and values
+# its virtual account. The collections are legitimately empty straight after a
+# deploy — no signal has been executed yet.
+# --------------------------------------------------------------------------- #
+def _active_deployment_or_422(db: Session, strategy_id: str) -> tuple[Strategy, PaperDeployment]:
+    """Resolve the active paper deployment, or 422 with a reason."""
+    strategy = _get_strategy_or_404(db, strategy_id)
+    dep = active_deployment(strategy)
+    if dep is None:
+        raise HTTPException(
+            status_code=422,
+            detail={"reasons": ["no active paper deployment — deploy the strategy first"]},
+        )
+    return strategy, dep
+
+
+def _position_out(p: PaperPosition) -> PaperPositionOut:
+    return PaperPositionOut(
+        id=p.id,
+        deployment_id=p.deployment_id,
+        symbol=p.symbol,
+        quantity=p.quantity,
+        avg_entry_price=p.avg_entry_price,
+        last_price=p.last_price,
+        opened_at=p.opened_at.isoformat() if p.opened_at else None,
+        updated_at=p.updated_at.isoformat() if p.updated_at else None,
+    )
+
+
+def _trade_out(t: PaperTrade) -> PaperTradeOut:
+    return PaperTradeOut(
+        id=t.id,
+        deployment_id=t.deployment_id,
+        symbol=t.symbol,
+        direction=t.direction,
+        quantity=t.quantity,
+        entry_price=t.entry_price,
+        exit_price=t.exit_price,
+        entry_date=t.entry_date.isoformat() if t.entry_date else None,
+        exit_date=t.exit_date.isoformat() if t.exit_date else None,
+        gross_pnl=t.gross_pnl,
+        commission=t.commission,
+        net_pnl=t.net_pnl,
+        won=t.won,
+        created_at=t.created_at.isoformat() if t.created_at else None,
+    )
+
+
+def _order_out(o: PaperOrder) -> PaperOrderOut:
+    return PaperOrderOut(
+        id=o.id,
+        deployment_id=o.deployment_id,
+        symbol=o.symbol,
+        side=o.side,
+        quantity=o.quantity,
+        order_type=o.order_type,
+        status=o.status,
+        reason=o.reason,
+        created_at=o.created_at.isoformat() if o.created_at else None,
+        filled_at=o.filled_at.isoformat() if o.filled_at else None,
+        fill_price=o.fill_price,
+    )
+
+
+@router.get("/{strategy_id}/paper-account", response_model=PaperAccountSnapshot)
+def get_paper_account(strategy_id: str, db: Session = Depends(get_db)):
+    """Point-in-time valuation of the active deployment's virtual account."""
+    _, dep = _active_deployment_or_422(db, strategy_id)
+    return snapshot(dep)
+
+
+@router.get("/{strategy_id}/positions", response_model=list[PaperPositionOut])
+def list_positions(strategy_id: str, db: Session = Depends(get_db)):
+    """Open paper positions for the active deployment, oldest first."""
+    _, dep = _active_deployment_or_422(db, strategy_id)
+    ordered = sorted(
+        dep.positions or [],
+        key=lambda p: p.opened_at or datetime.min,
+    )
+    return [_position_out(p) for p in ordered]
+
+
+@router.get("/{strategy_id}/trades", response_model=list[PaperTradeOut])
+def list_paper_trades(strategy_id: str, db: Session = Depends(get_db)):
+    """Closed paper trades for the active deployment, newest exit first."""
+    _, dep = _active_deployment_or_422(db, strategy_id)
+    ordered = sorted(
+        dep.trades or [],
+        key=lambda t: t.exit_date or datetime.min,
+        reverse=True,
+    )
+    return [_trade_out(t) for t in ordered]
+
+
+@router.get("/{strategy_id}/orders", response_model=list[PaperOrderOut])
+def list_paper_orders(strategy_id: str, db: Session = Depends(get_db)):
+    """Simulated order log for the active deployment, newest first."""
+    _, dep = _active_deployment_or_422(db, strategy_id)
+    ordered = sorted(
+        dep.orders or [],
+        key=lambda o: o.created_at or datetime.min,
+        reverse=True,
+    )
+    return [_order_out(o) for o in ordered]
 
 
 @router.post("/{strategy_id}/backtest", response_model=BacktestResultOut)

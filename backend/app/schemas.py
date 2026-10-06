@@ -63,6 +63,89 @@ class BacktestRequest(BaseModel):
     sizer_percents: float = Field(default=95.0, gt=0, lt=100)
 
 
+class PaperPositionOut(BaseModel):
+    """One open paper position. `last_price` is null until first marked."""
+
+    id: str
+    deployment_id: str
+    symbol: str
+    quantity: int
+    avg_entry_price: float
+    last_price: float | None = None
+    opened_at: str | None = None
+    updated_at: str | None = None
+
+
+class PaperTradeOut(BaseModel):
+    """One closed paper trade with its realised P&L already booked."""
+
+    id: str
+    deployment_id: str
+    symbol: str
+    direction: str
+    quantity: int
+    entry_price: float
+    exit_price: float
+    entry_date: str | None = None
+    exit_date: str | None = None
+    gross_pnl: float
+    commission: float
+    net_pnl: float
+    won: bool
+    created_at: str | None = None
+
+
+class PaperOrderOut(BaseModel):
+    """Audit record of a simulated order: what was asked for and what happened."""
+
+    id: str
+    deployment_id: str
+    symbol: str
+    side: str
+    quantity: int
+    order_type: str
+    status: str
+    reason: str | None = None
+    created_at: str | None = None
+    filled_at: str | None = None
+    fill_price: float | None = None
+
+
+class PaperAccountSnapshot(BaseModel):
+    """Point-in-time valuation of a deployment's virtual paper account.
+
+    `initial_balance` is the capital the deployment was configured with
+    (`PaperDeployment.cash`, immutable). Everything below it is derived:
+
+        position_value    = sum(quantity * last_price)
+        unrealized_pnl    = sum((last_price - avg_entry_price) * quantity)
+        equity            = balance + position_value
+        total_pnl         = equity - initial_balance
+        total_return_pct  = (total_pnl / initial_balance) * 100
+
+    `total_pnl` is derived from cash rather than by adding the two P&L legs, so
+    it stays truthful even if a leg is mid-settlement. Because closing a trade
+    credits cash and books `realized_pnl` together, the identity
+    `realized_pnl + unrealized_pnl == total_pnl` holds.
+    """
+
+    deployment_id: str
+    strategy_id: str
+    status: str
+    initial_balance: float
+    cash_balance: float
+    position_value: float
+    equity: float
+    realized_pnl: float
+    unrealized_pnl: float
+    total_pnl: float
+    total_return_pct: float
+    open_positions: int = 0
+    closed_trades: int = 0
+    last_bar_date: str | None = None
+    last_error: str | None = None
+
+
 class BacktestResultOut(BaseModel):
     strategy_id: str
     status: str = "backtested"
