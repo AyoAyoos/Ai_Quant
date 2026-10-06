@@ -115,7 +115,7 @@ export default function OverviewPage() {
     <div className="page">
       <div className="page-head">
         <div className="page-head__text">
-          <Link className="page-back" to="/welcome">
+          <Link className="page-back" to="/">
             <Icon name="arrow_back" size={16} />
             Back to Home Page
           </Link>

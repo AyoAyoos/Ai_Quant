@@ -19,9 +19,9 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState('')
 
-  // Already signed in: skip the form and go home (or back to the saved page).
+  // Already signed in: skip the form and go to the dashboard (or back to the saved page).
   if (isAuthenticated) {
-    return <Navigate to={location.state?.from?.pathname || '/'} replace />
+    return <Navigate to={location.state?.from?.pathname || '/dashboard'} replace />
   }
 
   const handleSubmit = (event) => {
@@ -33,7 +33,7 @@ export default function LoginPage() {
     setError('')
     login(email.trim(), password)
     void remember
-    navigate(location.state?.from?.pathname || '/', { replace: true })
+    navigate(location.state?.from?.pathname || '/dashboard', { replace: true })
   }
 
   return (

@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import AppShell from './components/AppShell.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
@@ -20,11 +20,12 @@ import LandingPage from './pages/LandingPage.jsx'
 import StrategyBuilderPage from './pages/StrategyBuilderPage.jsx'
 
 /**
- * Route map for the 7-page split — UI ORGANIZATION ONLY.
+ * Route map — ENTRY FLOW ONLY.
  *
- *   /welcome           Public landing page (pre-login entry)
- *   /login             Public login page (redirects back after sign-in)
- *   /                  Overview / Dashboard (quick system overview, guarded)
+ *   /                  Public landing page (pre-login entry, always first)
+ *   /welcome           Legacy alias of / (redirects)
+ *   /login             Public login page (redirects to dashboard when signed in)
+ *   /dashboard         Overview / Dashboard (guarded, post-login home)
  *   /studio + /chat    AI Strategy Studio (same ChatPage; /chat kept as alias)
  *   /strategies        Strategies library (unchanged)
  *   /backtests         Backtesting hub (links into per-strategy backtest pages)
@@ -40,7 +41,9 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="welcome" element={<LandingPage />} />
+        {/* Public entry: landing is always first, even for signed-in users. */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="welcome" element={<Navigate to="/" replace />} />
         {/* Public shell branch: login keeps the header, no nav, no guard. */}
         <Route element={<AppShell />} path="/">
           <Route path="login" element={<LoginPage />} />
@@ -54,7 +57,7 @@ export default function App() {
           }
           path="/"
         >
-          <Route index element={<OverviewPage />} />
+          <Route path="dashboard" element={<OverviewPage />} />
           <Route path="studio" element={<ChatPage />} />
           <Route path="studio/builder" element={<StrategyBuilderPage />} />
           <Route path="chat" element={<ChatPage />} />

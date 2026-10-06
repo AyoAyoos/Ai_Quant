@@ -2,7 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 
 /**
- * Route guard: unauthenticated visits bounce to /welcome with the attempted
+ * Route guard: unauthenticated visits bounce to /login with the attempted
  * location saved in state so login can send the user back afterwards.
  */
 export default function ProtectedRoute({ children }) {
@@ -10,7 +10,7 @@ export default function ProtectedRoute({ children }) {
   const location = useLocation()
 
   if (!isAuthenticated) {
-    return <Navigate to="/welcome" replace state={{ from: location }} />
+    return <Navigate to="/login" replace state={{ from: location }} />
   }
 
   return children

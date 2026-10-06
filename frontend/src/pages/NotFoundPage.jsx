@@ -15,7 +15,7 @@ export default function NotFoundPage() {
             documentation.
           </p>
           <div className="empty-state__actions">
-            <Link className="btn btn--primary" to="/">
+            <Link className="btn btn--primary" to="/dashboard">
               Go to overview
             </Link>
             <Link className="btn" to="/studio">

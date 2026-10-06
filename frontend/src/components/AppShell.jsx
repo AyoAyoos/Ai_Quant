@@ -20,7 +20,7 @@ function useStrategyCount() {
 }
 
 const NAV = [
-  { to: '/', label: 'Overview', icon: 'grid_view', end: true },
+  { to: '/dashboard', label: 'Overview', icon: 'grid_view', end: true },
   { to: '/studio', label: 'Studio', icon: 'forum', end: false },
   { to: '/studio/builder', label: 'Builder', icon: 'build', end: false },
   { to: '/strategies', label: 'Strategies', icon: 'dashboard', end: false, count: true },
@@ -73,7 +73,7 @@ export default function AppShell() {
               type="button"
               onClick={() => {
                 logout()
-                navigate('/welcome', { replace: true })
+                navigate('/', { replace: true })
               }}
             >
               Logout

@@ -37,7 +37,7 @@ const FEATURES = [
 /**
  * Landing — public pre-login entry page (dark mode).
  *
- * Purely presentational: no API calls, no state. Served at /welcome.
+ * Purely presentational: no API calls, no state. Served at /.
  */
 export default function LandingPage() {
   return (
