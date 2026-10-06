@@ -1,33 +1,51 @@
 import { Route, Routes } from 'react-router-dom'
 import AppShell from './components/AppShell.jsx'
+import AnalyticsPage from './pages/AnalyticsPage.jsx'
 import ApprovalPage from './pages/ApprovalPage.jsx'
 import BacktestPage from './pages/BacktestPage.jsx'
+import BacktestsHubPage from './pages/BacktestsHubPage.jsx'
 import ChatPage from './pages/ChatPage.jsx'
 import DeploymentPage from './pages/DeploymentPage.jsx'
-import LandingPage from './pages/LandingPage.jsx'
+import DocsPage from './pages/DocsPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
+import OverviewPage from './pages/OverviewPage.jsx'
+import PaperTradingHubPage from './pages/PaperTradingHubPage.jsx'
+import SettingsPage from './pages/SettingsPage.jsx'
 import StrategiesPage from './pages/StrategiesPage.jsx'
 import StrategyOverviewPage from './pages/StrategyOverviewPage.jsx'
 
 /**
- * One file that is nothing but routes — each screen lives in src/pages so the
- * task-per-page split is visible in the router itself.
+ * Route map for the 7-page split — UI ORGANIZATION ONLY.
  *
- * "/" is the marketing/landing surface and "chat" is the workbench. Keeping chat
- * on its own path means every internal link stays unambiguous and the SPA
- * fallback in nginx can serve the same entry point for both.
+ *   /                  Overview / Dashboard (quick system overview)
+ *   /studio + /chat    AI Strategy Studio (same ChatPage; /chat kept as alias)
+ *   /strategies        Strategies library (unchanged)
+ *   /backtests         Backtesting hub (links into per-strategy backtest pages)
+ *   /analytics         Analytics (reads cached runs, recalculates nothing)
+ *   /paper-trading     Paper Trading hub (aggregates deployment histories)
+ *   /settings          Settings / System (config + system info)
+ *   /docs              Documentation (existing landing content, verbatim)
+ *
+ * Per-strategy task pages (/strategies/:id, /backtest, /approval, /deployment)
+ * are untouched — same components, same API calls, same logic.
  */
 export default function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<LandingPage />} />
+        <Route index element={<OverviewPage />} />
+        <Route path="studio" element={<ChatPage />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="strategies" element={<StrategiesPage />} />
         <Route path="strategies/:id" element={<StrategyOverviewPage />} />
         <Route path="strategies/:id/backtest" element={<BacktestPage />} />
         <Route path="strategies/:id/approval" element={<ApprovalPage />} />
         <Route path="strategies/:id/deployment" element={<DeploymentPage />} />
+        <Route path="backtests" element={<BacktestsHubPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="paper-trading" element={<PaperTradingHubPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="docs" element={<DocsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

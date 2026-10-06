@@ -1,9 +1,14 @@
 /* =============================================================================
    tokens.css — reset, design tokens, base typography, layout primitives.
 
-   Material 3 light scheme, crimson primary. Surface ramp is blue-tinted,
-   dividers are the dusty-rose `outline-variant`, and the crimson primary is
-   reserved for brand, focus and destructive emphasis.
+   Premium light lavender off-white pages (#F9F8FC) with opaque white cards
+   and a deep indigo-purple brand (#403D88) supported by amethyst (#8B639B),
+   dusty mauve/rose (#AF719D) and soft pink/coral (#F8B2B2).
+   Borders, highlights and shadows are subtly purple/indigo tinted.
+   Outer background carries an extremely faint ghost trading pattern
+   (coordinate grid + faded candlesticks + soft trendlines) plus a subtle
+   lavender/pink ambient glow near top-right and bottom-left.
+   Cards stay solid flat opaque white — no wave/trendline graphics inside.
 
    Every token name that existed before the redesign is preserved, so all
    pre-existing class rules keep working against the new palette.
@@ -13,24 +18,27 @@
   color-scheme: light;
 
   /* ---------------------------------------------------------- surface ramp */
-  --bg: #f8f9ff;
-  --surface: #f8f9ff;
-  --surface-2: #e6eeff;
-  --surface-3: #eff3ff;
-  --surface-hover: #dee9fe;
+  --bg: #f9f8fc;
+  --surface: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #ffffff;
+  --surface-hover: #ede8f2;
 
   /* longhand M3 container names, used by the landing page */
   --surface-lowest: #ffffff;
-  --surface-low: #eff3ff;
-  --surface-container: #e6eeff;
-  --surface-high: #dee9fe;
-  --surface-highest: #d8e3f8;
-  --surface-variant: #d8e3f8;
+  --surface-low: #ffffff;
+  --surface-container: #ffffff;
+  --surface-high: #ffffff;
+  --surface-highest: #ffffff;
+  --surface-variant: #ffffff;
+
+  /* very light lavender-mauve accent for table headers and subtle wells */
+  --surface-accent: #f4f0f7;
 
   /* inverse — terminal panels, code blocks */
   --inverse-surface: #263141;
   --inverse-on-surface: #ebf1ff;
-  --surface-dim: #cfdbef;
+  --surface-dim: #f9f8fc;
 
   /* code surfaces are darker than `inverse-surface` so syntax sits forward */
   --code-bg: #1b2331;
@@ -39,34 +47,34 @@
   --code-muted: #8d99b2;
 
   /* ------------------------------------------------------------------ lines */
-  --border: #e3d9e6;
-  --border-strong: #cfc0d4;
+  --border: #e3d9e5;
+  --border-strong: #cfbfd4;
 
   /* ------------------------------------------------------------------- text */
-  --text: #111c2b;
-  --text-soft: #3d4757;
-  --muted: #5c6472;
-  --faint: #7d8593;
+  --text: #1e1636;
+  --text-soft: #3a354a;
+  --muted: #6c5e78;
+  --faint: #9a8ba8;
 
   /* on-surface role aliases, kept for the landing page */
-  --on-surface: #111c2b;
-  --on-surface-variant: #5d6472;
-  --on-background: #111c2b;
+  --on-surface: #1e1636;
+  --on-surface-variant: #6c5e78;
+  --on-background: #1e1636;
 
   /* ------------------------------------------------------------------ brand */
-  --primary: #bb0028;
+  --primary: #403d88;
   --on-primary: #ffffff;
-  --primary-container: #e61337;
-  --on-primary-container: #fffbff;
-  --primary-fixed: #ffdad8;
-  --primary-fixed-dim: #ffb3b1;
-  --on-primary-fixed: #410007;
-  --on-primary-fixed-variant: #92001d;
-  --surface-tint: #bf0029;
+  --primary-container: #342f73;
+  --on-primary-container: #ffffff;
+  --primary-fixed: #ece7f4;
+  --primary-fixed-dim: #d9cfe8;
+  --on-primary-fixed: #1e1636;
+  --on-primary-fixed-variant: #403d88;
+  --surface-tint: #403d88;
 
-  /* the pre-redesign accent names now point at the crimson brand */
+  /* the pre-redesign accent names now point at the indigo-purple brand */
   --accent: var(--primary);
-  --accent-soft: var(--surface-high);
+  --accent-soft: #ece7f4;
   --accent-text: var(--primary);
 
   /* --------------------------------------------------------------- secondary */
@@ -87,16 +95,16 @@
   --on-tertiary-fixed: #261903;
 
   /* ------------------------------------------------------------- outline/err */
-  --outline: #7d6a6b;
-  --outline-variant: #e7bcbb;
+  --outline: #8b639b;
+  --outline-variant: #e3d9e5;
   --error: #ba1a1a;
   --on-error: #ffffff;
   --error-container: #ffdad6;
   --on-error-container: #93000a;
 
   /* ------------------------------------------------------------- semantics */
-  /* Trading semantics live outside the M3 roles: a loss must never read as the
-     same crimson the brand uses for buttons, so gains/losses are keyed to a
+  /* Trading semantics live outside the brand roles: a loss must never read as the
+     same teal-green the brand uses for buttons, so gains/losses are keyed to a
      distinct green and a deeper red. */
   --positive: #1b6b4a;
   --positive-soft: #d7f0e2;
@@ -174,10 +182,10 @@
   --r-pill: 999px;
 
   /* ----------------------------------------------------------- elevation */
-  --shadow-1: 0 1px 2px rgba(17, 28, 43, 0.06), 0 1px 3px 1px rgba(17, 28, 43, 0.05);
-  --shadow-2: 0 1px 3px rgba(17, 28, 43, 0.08), 0 6px 16px rgba(17, 28, 43, 0.07);
-  --shadow-3: 0 4px 8px rgba(17, 28, 43, 0.07), 0 14px 32px rgba(17, 28, 43, 0.1);
-  --focus-ring: 0 0 0 3px rgba(187, 0, 40, 0.16);
+  --shadow-1: 0 1px 2px rgba(64, 61, 136, 0.06), 0 1px 3px 1px rgba(64, 61, 136, 0.05);
+  --shadow-2: 0 1px 3px rgba(64, 61, 136, 0.08), 0 6px 16px rgba(139, 99, 155, 0.09);
+  --shadow-3: 0 4px 8px rgba(64, 61, 136, 0.07), 0 14px 32px rgba(139, 99, 155, 0.11);
+  --focus-ring: 0 0 0 3px rgba(64, 61, 136, 0.18);
 
   /* -------------------------------------------------------------- motion */
   --dur-fast: 120ms;
@@ -209,7 +217,18 @@ html {
 body {
   margin: 0;
   overscroll-behavior: none;
-  background: var(--bg);
+  background-color: #f9f8fc;
+  background-image:
+    radial-gradient(680px 380px at 88% -80px, rgba(139, 99, 155, 0.13), transparent 70%),
+    radial-gradient(760px 460px at -12% 108%, rgba(248, 178, 178, 0.13), transparent 70%),
+    radial-gradient(900px 520px at 6% 110%, rgba(64, 61, 136, 0.07), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600'%3E%3Cg fill='none'%3E%3Cpath d='M-20,480 C150,460 280,420 420,360 S680,250 820,205' stroke='%238B639B' stroke-opacity='0.05' stroke-width='1.8'/%3E%3Cpath d='M-20,170 C180,210 340,250 520,295 S700,335 820,355' stroke='%23AF719D' stroke-opacity='0.045' stroke-width='1.4' stroke-dasharray='5 6'/%3E%3Cpath d='M-20,390 L820,110' stroke='%23403D88' stroke-opacity='0.03' stroke-width='1' stroke-dasharray='2 8'/%3E%3Cpath d='M60,620 L740,-20' stroke='%238B639B' stroke-opacity='0.028' stroke-width='1'/%3E%3Cpath d='M-20,290 C220,300 460,280 820,180' stroke='%23AF719D' stroke-opacity='0.03' stroke-width='1'/%3E%3C/g%3E%3Cg stroke='%23403D88' stroke-opacity='0.05' stroke-width='1.2'%3E%3Cline x1='60' y1='395' x2='60' y2='425'/%3E%3Cline x1='78' y1='388' x2='78' y2='420'/%3E%3Cline x1='96' y1='392' x2='96' y2='428'/%3E%3Cline x1='114' y1='385' x2='114' y2='415'/%3E%3Cline x1='132' y1='390' x2='132' y2='422'/%3E%3Cline x1='150' y1='382' x2='150' y2='412'/%3E%3Cline x1='168' y1='386' x2='168' y2='418'/%3E%3Cline x1='330' y1='225' x2='330' y2='255'/%3E%3Cline x1='348' y1='218' x2='348' y2='250'/%3E%3Cline x1='366' y1='222' x2='366' y2='256'/%3E%3Cline x1='384' y1='215' x2='384' y2='245'/%3E%3Cline x1='402' y1='220' x2='402' y2='252'/%3E%3Cline x1='420' y1='212' x2='420' y2='242'/%3E%3Cline x1='438' y1='216' x2='438' y2='248'/%3E%3Cline x1='580' y1='425' x2='580' y2='455'/%3E%3Cline x1='598' y1='418' x2='598' y2='450'/%3E%3Cline x1='616' y1='422' x2='616' y2='456'/%3E%3Cline x1='634' y1='415' x2='634' y2='445'/%3E%3Cline x1='652' y1='420' x2='652' y2='452'/%3E%3Cline x1='670' y1='412' x2='670' y2='442'/%3E%3Cline x1='688' y1='416' x2='688' y2='448'/%3E%3Cline x1='706' y1='410' x2='706' y2='440'/%3E%3Cline x1='520' y1='110' x2='520' y2='135'/%3E%3Cline x1='538' y1='105' x2='538' y2='130'/%3E%3Cline x1='556' y1='108' x2='556' y2='132'/%3E%3Cline x1='620' y1='95' x2='620' y2='120'/%3E%3Cline x1='638' y1='90' x2='638' y2='118'/%3E%3C/g%3E%3Cg fill='%238B639B' fill-opacity='0.045'%3E%3Crect x='56' y='400' width='8' height='14'/%3E%3Crect x='74' y='394' width='8' height='16'/%3E%3Crect x='92' y='398' width='8' height='12'/%3E%3Crect x='110' y='391' width='8' height='15'/%3E%3Crect x='128' y='396' width='8' height='13'/%3E%3Crect x='146' y='388' width='8' height='15'/%3E%3Crect x='164' y='392' width='8' height='14'/%3E%3Crect x='326' y='231' width='8' height='14'/%3E%3Crect x='344' y='224' width='8' height='16'/%3E%3Crect x='362' y='228' width='8' height='13'/%3E%3Crect x='380' y='221' width='8' height='15'/%3E%3Crect x='398' y='226' width='8' height='14'/%3E%3Crect x='416' y='218' width='8' height='15'/%3E%3Crect x='434' y='222' width='8' height='14'/%3E%3Crect x='576' y='431' width='8' height='14'/%3E%3Crect x='594' y='424' width='8' height='16'/%3E%3Crect x='612' y='428' width='8' height='13'/%3E%3Crect x='630' y='421' width='8' height='15'/%3E%3Crect x='648' y='426' width='8' height='14'/%3E%3Crect x='666' y='418' width='8' height='15'/%3E%3Crect x='684' y='422' width='8' height='14'/%3E%3Crect x='702' y='416' width='8' height='15'/%3E%3Crect x='516' y='116' width='8' height='12'/%3E%3Crect x='534' y='111' width='8' height='13'/%3E%3Crect x='552' y='114' width='8' height='12'/%3E%3Crect x='616' y='101' width='8' height='12'/%3E%3Crect x='634' y='96' width='8' height='13'/%3E%3C/g%3E%3Cg fill='%23AF719D' fill-opacity='0.04'%3E%3Crect x='52' y='448' width='6' height='10'/%3E%3Crect x='62' y='442' width='6' height='16'/%3E%3Crect x='72' y='450' width='6' height='8'/%3E%3Crect x='82' y='440' width='6' height='18'/%3E%3Crect x='92' y='446' width='6' height='12'/%3E%3Crect x='102' y='443' width='6' height='15'/%3E%3Crect x='112' y='449' width='6' height='9'/%3E%3Crect x='122' y='441' width='6' height='17'/%3E%3Crect x='132' y='447' width='6' height='11'/%3E%3Crect x='142' y='444' width='6' height='14'/%3E%3Crect x='152' y='450' width='6' height='8'/%3E%3Crect x='162' y='442' width='6' height='16'/%3E%3Crect x='572' y='474' width='6' height='10'/%3E%3Crect x='582' y='468' width='6' height='16'/%3E%3Crect x='592' y='476' width='6' height='8'/%3E%3Crect x='602' y='466' width='6' height='18'/%3E%3Crect x='612' y='472' width='6' height='12'/%3E%3Crect x='622' y='469' width='6' height='15'/%3E%3Crect x='632' y='475' width='6' height='9'/%3E%3Crect x='642' y='467' width='6' height='17'/%3E%3Crect x='652' y='473' width='6' height='11'/%3E%3Crect x='662' y='470' width='6' height='14'/%3E%3Crect x='672' y='476' width='6' height='8'/%3E%3Crect x='682' y='468' width='6' height='16'/%3E%3Crect x='692' y='474' width='6' height='10'/%3E%3Crect x='702' y='471' width='6' height='13'/%3E%3Crect x='322' y='272' width='6' height='10'/%3E%3Crect x='332' y='266' width='6' height='16'/%3E%3Crect x='342' y='270' width='6' height='12'/%3E%3Crect x='352' y='267' width='6' height='15'/%3E%3Crect x='362' y='271' width='6' height='11'/%3E%3Crect x='372' y='268' width='6' height='14'/%3E%3Crect x='382' y='272' width='6' height='10'/%3E%3Crect x='392' y='266' width='6' height='16'/%3E%3Crect x='402' y='270' width='6' height='12'/%3E%3Crect x='412' y='267' width='6' height='15'/%3E%3Crect x='422' y='271' width='6' height='11'/%3E%3Crect x='432' y='268' width='6' height='14'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M48 0H0V48' fill='none' stroke='%23403D88' stroke-opacity='0.045' stroke-width='1'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cpath d='M240 0H0V240' fill='none' stroke='%238B639B' stroke-opacity='0.035' stroke-width='1'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat, repeat, repeat;
+  background-position: top right, bottom left, bottom left, top left, top left, top left;
+  background-size: auto, auto, auto, 800px 600px, 48px 48px, 240px 240px;
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-sans);
   font-size: var(--fs-base);

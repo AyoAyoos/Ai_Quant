@@ -1,36 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { fetchHealth, HEALTH_POLL_MS } from '../lib/api.js'
 import { readStrategies } from '../lib/storage.js'
 import Icon from './Icon.jsx'
-
-function useBackendHealth() {
-  const [state, setState] = useState('checking')
-
-  useEffect(() => {
-    let cancelled = false
-    let timer = null
-
-    async function probe() {
-      try {
-        await fetchHealth()
-        if (!cancelled) setState('online')
-      } catch {
-        if (!cancelled) setState('offline')
-      } finally {
-        if (!cancelled) timer = setTimeout(probe, HEALTH_POLL_MS)
-      }
-    }
-
-    probe()
-    return () => {
-      cancelled = true
-      if (timer) clearTimeout(timer)
-    }
-  }, [])
-
-  return state
-}
 
 function useStrategyCount() {
   // Strategies are created or removed on other routes, so a committed
@@ -47,42 +18,34 @@ function useStrategyCount() {
   return count
 }
 
-const HEALTH_COPY = {
-  checking: 'Checking backend',
-  online: 'Backend online',
-  offline: 'Backend unreachable',
-}
+const NAV = [
+  { to: '/', label: 'Overview', icon: 'grid_view', end: true },
+  { to: '/studio', label: 'Studio', icon: 'forum', end: false },
+  { to: '/strategies', label: 'Strategies', icon: 'dashboard', end: false, count: true },
+  { to: '/backtests', label: 'Backtesting', icon: 'timeline', end: false },
+  { to: '/analytics', label: 'Analytics', icon: 'calculate', end: false },
+  { to: '/paper-trading', label: 'Paper Trading', icon: 'verified', end: false },
+]
 
-function HealthIndicator({ state }) {
-  return (
-    <span
-      className={`health health--${state}`}
-      title={
-        state === 'offline'
-          ? 'The API on port 8000 is not responding. Start the backend, then this turns green.'
-          : HEALTH_COPY[state]
-      }
-    >
-      <span className="health__dot" aria-hidden="true" />
-      {HEALTH_COPY[state]}
-    </span>
-  )
-}
+const NAV_SECONDARY = [
+  { to: '/settings', label: 'Settings', icon: 'security', end: false },
+  { to: '/docs', label: 'Documentation', icon: 'article', end: false },
+]
 
 /**
- * Persistent chrome for every route. Only the header lives here; each route
- * renders its own page so the shell has no knowledge of strategy ids.
+ * Persistent chrome for every route — 7 pages + documentation.
  *
- * The app bar is deliberately plain: it is the constant the marketing landing
- * page sits under, and the landing page supplies its own sub-navigation.
+ * PAGE SPLIT ONLY: this shell adds navigation between the page wrappers. It
+ * has no knowledge of strategy ids, makes no API call except the registry
+ * count, and changes no button, workflow or calculation anywhere.
  */
 export default function AppShell() {
-  const health = useBackendHealth()
   const strategyCount = useStrategyCount()
   const { pathname } = useLocation()
-  // Chat owns its own scroll container so the composer stays pinned to the
-  // viewport; every other page scrolls as one document.
-  const fixedMain = pathname === '/chat'
+  // Studio owns its own scroll container so the composer stays pinned to the
+  // viewport; every other page scrolls as one document. /chat is the legacy
+  // alias of /studio and behaves the same.
+  const fixedMain = pathname === '/studio' || pathname === '/chat'
 
   return (
     <div className="app-shell">
@@ -105,31 +68,38 @@ export default function AppShell() {
           </div>
 
           <div className="header-right">
-            <HealthIndicator state={health} />
             <nav className="main-nav" aria-label="Main">
-              <NavLink
-                to="/"
-                end
-                className={({ isActive }) => `main-nav__link${isActive ? ' main-nav__link--active' : ''}`}
-              >
-                <Icon name="dashboard" size={17} />
-                Overview
-              </NavLink>
-              <NavLink
-                to="/chat"
-                className={({ isActive }) => `main-nav__link${isActive ? ' main-nav__link--active' : ''}`}
-              >
-                <Icon name="forum" size={17} />
-                Studio
-              </NavLink>
-              <NavLink
-                to="/strategies"
-                className={({ isActive }) => `main-nav__link${isActive ? ' main-nav__link--active' : ''}`}
-              >
-                <Icon name="grid_view" size={17} />
-                Strategies
-                {strategyCount > 0 && <span className="main-nav__count">{strategyCount}</span>}
-              </NavLink>
+              {NAV.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    `main-nav__link${isActive || (item.to === '/studio' && pathname === '/chat') ? ' main-nav__link--active' : ''}`
+                  }
+                >
+                  <Icon name={item.icon} size={17} />
+                  {item.label}
+                  {item.count && strategyCount > 0 && (
+                    <span className="main-nav__count">{strategyCount}</span>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+            <nav className="main-nav" aria-label="Secondary">
+              {NAV_SECONDARY.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    `main-nav__link${isActive ? ' main-nav__link--active' : ''}`
+                  }
+                >
+                  <Icon name={item.icon} size={17} />
+                  {item.label}
+                </NavLink>
+              ))}
             </nav>
           </div>
         </div>
