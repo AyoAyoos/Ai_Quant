@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+import traceback
 
 from fastapi import APIRouter, Depends, HTTPException
 import httpx
@@ -59,70 +60,77 @@ async def generate_strategy(payload: StrategyBuilderRequest, db: Session = Depen
     The generated strategy is saved as a draft and can be backtested,
     approved, and deployed via the existing workflow.
     """
-    # Validate indicator parameters
-    param_errors = validate_indicator_parameters(payload)
-    if param_errors:
-        raise HTTPException(status_code=422, detail={"errors": param_errors})
-    
-    # Get or create a dev conversation (same as chat endpoint)
-    conversation = _get_or_create_dev_conversation(db)
-    
     try:
-        # Generate strategy using LLM
-        generated = await generate_structured_strategy(payload)
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"LLM service error: {exc}",
-        ) from exc
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"LLM returned invalid JSON: {exc}",
-        ) from exc
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"LLM response validation failed: {exc}",
-        ) from exc
-    
-    # Extract and clean the generated code
-    name = generated.get("name", "Generated Strategy")
-    description = generated.get("description", "")
-    code = generated.get("code", "")
-    
-    if not code or "GeneratedStrategy" not in code:
-        raise HTTPException(
-            status_code=502,
-            detail="LLM failed to generate valid strategy code",
+        # Validate indicator parameters
+        param_errors = validate_indicator_parameters(payload)
+        if param_errors:
+            raise HTTPException(status_code=422, detail={"errors": param_errors})
+        
+        # Get or create a dev conversation (same as chat endpoint)
+        conversation = _get_or_create_dev_conversation(db)
+        
+        try:
+            # Generate strategy using LLM
+            generated = await generate_structured_strategy(payload)
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"LLM service error: {exc}",
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"LLM returned invalid JSON: {exc}",
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"LLM response validation failed: {exc}",
+            ) from exc
+        
+        # Extract and clean the generated code
+        name = generated.get("name", "Generated Strategy")
+        description = generated.get("description", "")
+        code = generated.get("code", "")
+        
+        if not code or "GeneratedStrategy" not in code:
+            raise HTTPException(
+                status_code=502,
+                detail="LLM failed to generate valid strategy code",
+            )
+        
+        # Convert spec to output format
+        spec_out = convert_spec_to_output(payload)
+        
+        # Create strategy record
+        strategy = Strategy(
+            conversation_id=conversation.id,
+            name=name,
+            description=description,
+            market=payload.market,
+            generated_code=code,
+            strategy_spec=spec_out.model_dump(),
         )
-    
-    # Convert spec to output format
-    spec_out = convert_spec_to_output(payload)
-    
-    # Create strategy record
-    strategy = Strategy(
-        conversation_id=conversation.id,
-        name=name,
-        description=description,
-        market=payload.market,
-        generated_code=code,
-        strategy_spec=spec_out.model_dump(),
-    )
-    db.add(strategy)
-    db.commit()
-    db.refresh(strategy)
-    
-    return StrategyGenerateResponse(
-        strategy_id=strategy.id,
-        name=strategy.name,
-        description=strategy.description,
-        market=strategy.market,
-        timeframe=payload.timeframe,
-        status=strategy.status.value,
-        generated_code=strategy.generated_code,
-        strategy_specification=spec_out,
-    )
+        db.add(strategy)
+        db.commit()
+        db.refresh(strategy)
+        
+        return StrategyGenerateResponse(
+            strategy_id=strategy.id,
+            name=strategy.name,
+            description=strategy.description,
+            market=strategy.market,
+            timeframe=payload.timeframe,
+            status=strategy.status.value,
+            generated_code=strategy.generated_code,
+            strategy_specification=spec_out,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        print(error_trace)
+        raise HTTPException(status_code=500, detail=f"CRASH: {str(e)}") from e
 
 
 def _get_or_create_dev_conversation(db: Session):
