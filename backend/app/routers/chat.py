@@ -51,7 +51,16 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
     ]
 
     # 4. Call LLM
-    reply = await chat_completion(history)
+    try:
+        reply = await chat_completion(history)
+    except ValueError as exc:
+        # Missing GROQ_API_KEY (fail-fast validation in llm_service).
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"LLM service error: {exc}",
+        ) from exc
 
     # 5. Store assistant reply
     assistant_msg = Message(conversation_id=conversation.id, role=MessageRole.assistant, content=reply)

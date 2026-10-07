@@ -73,12 +73,18 @@ async def chat_completion(messages: list[dict]) -> str:
     messages: list of {"role": "user"|"assistant", "content": str}
     Returns the assistant's reply text.
     """
+    api_key = (settings.groq_api_key or "").strip()
+    if not api_key:
+        raise ValueError(
+            "LLM API key is not configured. Set GROQ_API_KEY in backend/.env "
+            "and restart the backend."
+        )
     payload = {
         "model": settings.groq_model,
         "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
         "temperature": 0.2,
     }
-    headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
+    headers = {"Authorization": f"Bearer {api_key}"}
 
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(

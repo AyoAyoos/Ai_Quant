@@ -12,6 +12,9 @@ from app.models import (
     BacktestResult,
     DeploymentStatus,
     PaperDeployment,
+    PaperOrder,
+    PaperPosition,
+    PaperTrade,
     Strategy,
     StrategyStatus,
 )
@@ -21,6 +24,14 @@ from app.schemas import (
     DeployIn,
     DeploymentOut,
     GateOut,
+    MarketBarsOut,
+    MarketBarOut,
+    PaperAccountOut,
+    PaperOrderOut,
+    PaperPositionOut,
+    PaperTickIn,
+    PaperTickOut,
+    PaperTradeOut,
     RejectIn,
     StopIn,
     StrategyDetailOut,
@@ -39,6 +50,13 @@ from app.services.deployment_gate import (
     check_deploy,
 )
 from app.services.market_data import MarketDataError, ensure_market_data
+from app.services.paper_bars import PaperBarsError, load_bars, processed_bars
+from app.services.paper_engine import (
+    PaperTickError,
+    account_snapshot,
+    balance_of,
+    run_paper_tick,
+)
 from app.services.strategy_builder import (
     generate_structured_strategy,
     validate_indicator_parameters,
@@ -261,6 +279,12 @@ def deploy_strategy(strategy_id: str, payload: DeployIn, db: Session = Depends(g
         cash=payload.cash,
         commission_pct=payload.commission_pct,
         sizer_percents=payload.sizer_percents,
+        # Virtual paper account starts untouched: full starting cash,
+        # no P&L, no processed bar, no error.
+        cash_balance=payload.cash,
+        realized_pnl=0.0,
+        last_bar_date=None,
+        last_error=None,
     )
     db.add(dep)
     strategy.status = StrategyStatus.paper_trading
@@ -400,3 +424,260 @@ def _date_str(raw) -> str | None:
     if not raw:
         return None
     return str(raw)
+
+
+# --------------------------------------------------------------------------- #
+# Paper trading execution endpoints (simulated fills only — no broker)
+# --------------------------------------------------------------------------- #
+def _resolve_deployment(
+    db: Session, strategy: Strategy, deployment_id: str | None = None
+) -> PaperDeployment:
+    """Active deployment by default, latest otherwise; 404 when never deployed."""
+    if deployment_id is not None:
+        detail = f"no deployment {deployment_id!r} for this strategy"
+        canonical = canonical_uuid_or_404(deployment_id, detail)
+        dep = (
+            db.query(PaperDeployment)
+            .filter(
+                PaperDeployment.id == canonical,
+                PaperDeployment.strategy_id == strategy.id,
+            )
+            .first()
+        )
+        if dep is None:
+            raise HTTPException(status_code=404, detail=detail)
+        return dep
+    ordered = sorted(
+        strategy.deployments, key=lambda d: d.deployed_at or datetime.min, reverse=True
+    )
+    active = next(
+        (d for d in ordered if d.status == DeploymentStatus.active), None
+    )
+    if active is not None:
+        return active
+    if ordered:
+        return ordered[0]
+    raise HTTPException(
+        status_code=404, detail="strategy has never been deployed to paper trading"
+    )
+
+
+def _last_close(strategy: Strategy, deployment: PaperDeployment) -> float | None:
+    """Close of the watermark bar for unrealized P&L; None when unavailable."""
+    if not deployment.last_bar_date:
+        return None
+    try:
+        bars = load_bars(strategy.market or "NIFTY50")
+    except PaperBarsError:
+        return None
+    match = next((b for b in bars if b["date"] == deployment.last_bar_date), None)
+    return float(match["close"]) if match else None
+
+
+def _position_out(
+    pos: PaperPosition, last_close: float | None
+) -> PaperPositionOut:
+    market_value = (
+        round(int(pos.quantity) * last_close, 2) if last_close is not None else None
+    )
+    unrealized = (
+        round((last_close - float(pos.avg_price)) * int(pos.quantity), 2)
+        if last_close is not None
+        else None
+    )
+    return PaperPositionOut(
+        id=pos.id,
+        deployment_id=pos.deployment_id,
+        symbol=pos.symbol,
+        quantity=int(pos.quantity),
+        avg_price=float(pos.avg_price),
+        entry_date=pos.entry_date,
+        market_value=market_value,
+        unrealized_pnl=unrealized,
+    )
+
+
+def _order_out(order: PaperOrder) -> PaperOrderOut:
+    return PaperOrderOut(
+        id=order.id,
+        deployment_id=order.deployment_id,
+        symbol=order.symbol,
+        side=order.side,
+        quantity=int(order.quantity),
+        price=float(order.price),
+        bar_date=order.bar_date,
+        status=order.status,
+        commission=float(order.commission or 0.0),
+        note=order.note,
+        created_at=order.created_at.isoformat() if order.created_at else None,
+    )
+
+
+def _trade_out(trade: PaperTrade) -> PaperTradeOut:
+    return PaperTradeOut(
+        id=trade.id,
+        deployment_id=trade.deployment_id,
+        symbol=trade.symbol,
+        quantity=int(trade.quantity),
+        entry_price=float(trade.entry_price),
+        exit_price=float(trade.exit_price),
+        entry_date=trade.entry_date,
+        exit_date=trade.exit_date,
+        pnl=float(trade.pnl),
+        pnl_net=float(trade.pnl_net),
+        entry_order_id=trade.entry_order_id,
+        exit_order_id=trade.exit_order_id,
+    )
+
+
+def _account_out(
+    db: Session, strategy: Strategy, deployment: PaperDeployment
+) -> PaperAccountOut:
+    positions = (
+        db.query(PaperPosition)
+        .filter(PaperPosition.deployment_id == deployment.id)
+        .all()
+    )
+    completed = (
+        db.query(PaperTrade)
+        .filter(PaperTrade.deployment_id == deployment.id)
+        .count()
+    )
+    snap = account_snapshot(deployment, positions, completed, _last_close(strategy, deployment))
+    return PaperAccountOut(**snap)
+
+
+@router.post("/{strategy_id}/paper-tick", response_model=PaperTickOut)
+def paper_tick(strategy_id: str, payload: PaperTickIn | None = None, db: Session = Depends(get_db)):
+    """Advance ONE cached market bar through the deployed strategy's simulation.
+
+    Without a bar date the oldest unprocessed cached bar is used. An explicit
+    bar date must equal exactly the next unprocessed bar — skips are rejected
+    to preserve chronological execution. An optional deployment id pins the
+    tick; without it the active deployment ticks. Stopped deployments are
+    history and never tick.
+    """
+    strategy = _get_strategy_or_404(db, strategy_id)
+    requested_deployment = payload.deployment_id if payload else None
+    if requested_deployment is None:
+        dep = active_deployment(strategy)
+        if dep is None:
+            raise HTTPException(
+                status_code=422,
+                detail={"reasons": ["strategy has no active paper deployment to tick"]},
+            )
+    else:
+        dep = _resolve_deployment(db, strategy, requested_deployment)
+        if dep.status != DeploymentStatus.active:
+            raise HTTPException(
+                status_code=422,
+                detail={"reasons": ["strategy has no active paper deployment to tick"]},
+            )
+    if not strategy.generated_code:
+        raise HTTPException(status_code=422, detail="strategy has no generated code")
+    try:
+        result = run_paper_tick(
+            db,
+            strategy,
+            dep,
+            requested_date=(payload.bar_date if payload else None),
+        )
+    except PaperTickError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return PaperTickOut(**result)
+
+
+@router.get("/{strategy_id}/paper-account", response_model=PaperAccountOut)
+def paper_account(
+    strategy_id: str, deployment_id: str | None = None, db: Session = Depends(get_db)
+):
+    """Authoritative virtual-account snapshot (active deployment, else latest)."""
+    strategy = _get_strategy_or_404(db, strategy_id)
+    return _account_out(db, strategy, _resolve_deployment(db, strategy, deployment_id))
+
+
+@router.get("/{strategy_id}/paper-positions", response_model=list[PaperPositionOut])
+def paper_positions(
+    strategy_id: str, deployment_id: str | None = None, db: Session = Depends(get_db)
+):
+    """Open simulated positions for a deployment (active, else latest)."""
+    strategy = _get_strategy_or_404(db, strategy_id)
+    dep = _resolve_deployment(db, strategy, deployment_id)
+    rows = (
+        db.query(PaperPosition)
+        .filter(PaperPosition.deployment_id == dep.id)
+        .order_by(PaperPosition.symbol)
+        .all()
+    )
+    last_close = _last_close(strategy, dep)
+    return [_position_out(p, last_close) for p in rows]
+
+
+@router.get("/{strategy_id}/paper-orders", response_model=list[PaperOrderOut])
+def paper_orders(
+    strategy_id: str, deployment_id: str | None = None, db: Session = Depends(get_db)
+):
+    """Simulated order ledger, newest first — rejected orders included."""
+    strategy = _get_strategy_or_404(db, strategy_id)
+    dep = _resolve_deployment(db, strategy, deployment_id)
+    rows = (
+        db.query(PaperOrder)
+        .filter(PaperOrder.deployment_id == dep.id)
+        .order_by(PaperOrder.bar_date.desc(), PaperOrder.created_at.desc())
+        .all()
+    )
+    return [_order_out(o) for o in rows]
+
+
+@router.get("/{strategy_id}/paper-trades", response_model=list[PaperTradeOut])
+def paper_trades(
+    strategy_id: str, deployment_id: str | None = None, db: Session = Depends(get_db)
+):
+    """Completed simulated round-trips, newest first."""
+    strategy = _get_strategy_or_404(db, strategy_id)
+    dep = _resolve_deployment(db, strategy, deployment_id)
+    rows = (
+        db.query(PaperTrade)
+        .filter(PaperTrade.deployment_id == dep.id)
+        .order_by(PaperTrade.exit_date.desc(), PaperTrade.created_at.desc())
+        .all()
+    )
+    return [_trade_out(t) for t in rows]
+
+
+@router.get("/{strategy_id}/market-bars", response_model=MarketBarsOut)
+def market_bars(
+    strategy_id: str,
+    deployment_id: str | None = None,
+    limit: int = 2000,
+    db: Session = Depends(get_db),
+):
+    """Processed-period NIFTY OHLC bars for the paper-trading chart, oldest first.
+
+    READ-ONLY: returns the cached bars the engine already processed
+    (watermark-inclusive) from the SAME source the engine ticks. Never
+    creates trades, never touches the account, never downloads data.
+    """
+    strategy = _get_strategy_or_404(db, strategy_id)
+    dep = _resolve_deployment(db, strategy, deployment_id)
+    market = (strategy.market or "NIFTY50").strip().upper()
+    try:
+        bars = load_bars(market)
+    except PaperBarsError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    shown = processed_bars(bars, dep.last_bar_date)
+    safe_limit = max(1, min(int(limit or 2000), 5000))
+    truncated = len(shown) > safe_limit
+    if truncated:
+        # Keep the FULL processed span's tail? No — §19 forbids hiding early
+        # BUY/SELL activity: keep the OLDEST bars so every stored fill keeps
+        # its candle, and flag the truncation honestly.
+        shown = shown[:safe_limit]
+    return MarketBarsOut(
+        strategy_id=strategy.id,
+        deployment_id=dep.id,
+        market=market,
+        last_bar_date=dep.last_bar_date,
+        bars=[MarketBarOut(**b) for b in shown],
+        truncated=truncated,
+    )

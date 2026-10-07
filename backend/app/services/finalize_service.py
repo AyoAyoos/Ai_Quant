@@ -56,13 +56,16 @@ async def finalize_strategy(conversation_history: list[dict]) -> dict | None:
     Never raises — a failed finalize call should not crash the chat endpoint;
     the caller should just treat it as "not finalized yet."
     """
+    api_key = (settings.groq_api_key or "").strip()
+    if not api_key:
+        return None
     payload = {
         "model": settings.groq_model,
         "messages": [{"role": "system", "content": FINALIZE_SYSTEM_PROMPT}] + conversation_history,
         "temperature": 0.1,
         "response_format": RESPONSE_SCHEMA,
     }
-    headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
+    headers = {"Authorization": f"Bearer {api_key}"}
 
     try:
         async with httpx.AsyncClient(timeout=60) as client:

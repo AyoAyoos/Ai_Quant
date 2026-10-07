@@ -515,6 +515,22 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
     trade_collector = getattr(strat.analyzers, "closedtrades", None)
     dropped_trades = int(getattr(trade_collector, "dropped", 0) or 0)
 
+    # End-of-run broker position: the paper-trading engine replays the data
+    # slice-by-slice and reads ONLY this field as the strategy's signal for
+    # the slice's last bar (long => buy-side signal, anything else => flat).
+    # Quantities/prices for simulated fills are computed by the paper engine
+    # itself, never taken from here.
+    open_position = None
+    try:
+        broker_position = cerebro.broker.getposition(data)
+    except Exception:
+        broker_position = None
+    if broker_position is not None and int(broker_position.size or 0) != 0:
+        open_position = {
+            "size": int(broker_position.size),
+            "price": _sanitize(round(float(broker_position.price), 2)),
+        }
+
     metrics = {
         "start_date": str(df.index[0].date()),
         "end_date": str(df.index[-1].date()),
@@ -529,6 +545,7 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
         "trades_truncated": dropped_trades,
         "equity_curve": _build_equity_curve(time_return, value_start),
         "warnings": [],
+        "open_position": open_position,
     }
     metrics.update(_extract_trade_metrics(trades))
     metrics.update(_extract_drawdown(drawdown))

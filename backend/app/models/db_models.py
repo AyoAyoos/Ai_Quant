@@ -114,6 +114,14 @@ class PaperDeployment(Base):
     and was explicitly deployed. Stopping flips the strategy back to
     approved and closes the record — the history is preserved for audit.
     Only one active deployment per strategy is allowed.
+
+    The virtual paper account lives on this row: ``cash`` is the starting
+    capital snapshotted at deploy time, ``cash_balance`` is the current
+    virtual cash (decreases on simulated BUY fills, increases on SELL fills),
+    ``realized_pnl`` accumulates net P&L of closed simulated trades, and
+    ``last_bar_date`` is the watermark of the last market bar the paper
+    engine processed (``YYYY-MM-DD``). ``last_error`` keeps the latest
+    execution error visible instead of failing silently.
     """
 
     __tablename__ = "paper_deployments"
@@ -128,5 +136,93 @@ class PaperDeployment(Base):
     deployed_at = Column(DateTime, default=datetime.utcnow)
     stopped_at = Column(DateTime)
     stop_reason = Column(Text)
+    # Virtual paper account state (NULL cash_balance on pre-existing rows
+    # reads as "untouched, equals starting cash").
+    cash_balance = Column(Float)
+    realized_pnl = Column(Float, default=0.0)
+    last_bar_date = Column(String(10))
+    last_error = Column(Text)
 
     strategy = relationship("Strategy", back_populates="deployments")
+    positions = relationship(
+        "PaperPosition", back_populates="deployment", cascade="all, delete-orphan"
+    )
+    orders = relationship(
+        "PaperOrder", back_populates="deployment", cascade="all, delete-orphan"
+    )
+    trades = relationship(
+        "PaperTrade", back_populates="deployment", cascade="all, delete-orphan"
+    )
+
+
+class PaperPosition(Base):
+    """A currently open simulated long position.
+
+    Long-only, one open position per deployment/symbol: the engine refuses
+    to open a second position while one exists and never opens shorts.
+    """
+
+    __tablename__ = "paper_positions"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    deployment_id = Column(
+        UUID(as_uuid=False), ForeignKey("paper_deployments.id"), nullable=False
+    )
+    symbol = Column(String, nullable=False, default="NIFTY50")
+    quantity = Column(Integer, nullable=False)
+    avg_price = Column(Float, nullable=False)
+    entry_date = Column(String(10), nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    deployment = relationship("PaperDeployment", back_populates="positions")
+
+
+class PaperOrder(Base):
+    """Every simulated order the paper engine placed, filled or rejected.
+
+    Rejected orders are stored (status ``"rejected"`` with a reason in
+    ``note``) so the UI can show them — they must never render as trades
+    or chart markers.
+    """
+
+    __tablename__ = "paper_orders"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    deployment_id = Column(
+        UUID(as_uuid=False), ForeignKey("paper_deployments.id"), nullable=False
+    )
+    symbol = Column(String, nullable=False, default="NIFTY50")
+    side = Column(String(4), nullable=False)  # "BUY" | "SELL"
+    quantity = Column(Integer, nullable=False)
+    price = Column(Float, nullable=False)  # simulated fill price (bar close)
+    bar_date = Column(String(10), nullable=False)  # market bar the fill belongs to
+    status = Column(String(10), nullable=False, default="filled")  # filled | rejected
+    commission = Column(Float, nullable=False, default=0.0)
+    note = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    deployment = relationship("PaperDeployment", back_populates="orders")
+
+
+class PaperTrade(Base):
+    """A completed simulated round-trip (BUY fill paired with its SELL fill)."""
+
+    __tablename__ = "paper_trades"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    deployment_id = Column(
+        UUID(as_uuid=False), ForeignKey("paper_deployments.id"), nullable=False
+    )
+    symbol = Column(String, nullable=False, default="NIFTY50")
+    quantity = Column(Integer, nullable=False)
+    entry_price = Column(Float, nullable=False)
+    exit_price = Column(Float, nullable=False)
+    entry_date = Column(String(10), nullable=False)
+    exit_date = Column(String(10), nullable=False)
+    pnl = Column(Float, nullable=False)  # gross, before commissions
+    pnl_net = Column(Float, nullable=False)  # net of both fills' commissions
+    entry_order_id = Column(String)
+    exit_order_id = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    deployment = relationship("PaperDeployment", back_populates="trades")

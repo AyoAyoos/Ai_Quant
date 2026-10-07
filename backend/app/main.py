@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.middleware import CORS_ALLOW_ORIGINS, JsonErrorMiddleware
 from app.routers import chat
+from app.routers import paper
 from app.routers import strategies
 
 from pathlib import Path
@@ -48,6 +49,7 @@ app.add_middleware(
 )
 
 app.include_router(chat.router)
+app.include_router(paper.router)
 app.include_router(strategies.router)
 
 

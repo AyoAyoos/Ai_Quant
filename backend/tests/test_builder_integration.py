@@ -28,6 +28,10 @@ def db():
 
 def _mock_llm_success(monkeypatch):
     """Mock the LLM to return a valid strategy."""
+    # Test-only dummy key: HTTP is fully mocked below, so no real LLM call
+    # occurs. This only satisfies the empty-key guard in strategy_builder.
+    from app.config import settings as _settings
+    monkeypatch.setattr(_settings, "groq_api_key", "test-dummy-key")
     mock_llm_resp = json.dumps({
         "name": "EMA RSI Strategy",
         "description": "Buys when EMA 20 crosses above EMA 50 and RSI is below 30. Sells on opposite signal or risk management exits.",

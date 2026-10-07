@@ -100,6 +100,146 @@ class BacktestResultOut(BaseModel):
 
 
 # ============================================================
+# Paper Trading Schemas (simulated execution only — no broker)
+# ============================================================
+
+class PaperTickIn(BaseModel):
+    """Optional explicit bar date for a paper tick (``YYYY-MM-DD``).
+
+    Omitted (the normal UI path) advances the oldest unprocessed cached bar.
+    When supplied, it must equal EXACTLY the next unprocessed bar — skips
+    are rejected to preserve chronological execution.
+    ``deployment_id`` optionally pins the tick to one deployment; omitted
+    ticks the active deployment (stopped deployments never tick).
+    """
+
+    bar_date: str | None = None
+    deployment_id: str | None = None
+
+
+class PaperTickOut(BaseModel):
+    deployment_id: str
+    strategy_id: str
+    bar_date: str
+    signal: str  # BUY | SELL | HOLD — what the strategy replay said
+    action: str  # BUY | SELL | HOLD — what the simulator executed
+    price: float | None = None  # simulated fill price, or the bar close on HOLD
+    quantity: int = 0
+    order_id: str | None = None
+    order_status: str | None = None  # filled | rejected | None (HOLD writes no order)
+    trade_id: str | None = None
+    pnl_net: float | None = None
+    cash_balance: float | None = None
+    equity: float | None = None
+    realized_pnl: float | None = None
+    note: str | None = None
+
+
+class PaperAccountOut(BaseModel):
+    """Authoritative virtual-account snapshot. The frontend displays it verbatim."""
+
+    deployment_id: str
+    strategy_id: str
+    status: str
+    starting_cash: float
+    cash_balance: float
+    equity: float
+    realized_pnl: float
+    unrealized_pnl: float | None = None
+    total_pnl: float
+    return_pct: float | None = None
+    open_positions: int
+    completed_trades: int
+    last_bar_date: str | None = None
+    last_error: str | None = None
+    deployed_at: str | None = None
+    stopped_at: str | None = None
+    is_active: bool
+
+
+class PaperPositionOut(BaseModel):
+    id: str
+    deployment_id: str
+    symbol: str
+    quantity: int
+    avg_price: float
+    entry_date: str
+    market_value: float | None = None
+    unrealized_pnl: float | None = None
+
+
+class PaperOrderOut(BaseModel):
+    id: str
+    deployment_id: str
+    symbol: str
+    side: str
+    quantity: int
+    price: float
+    bar_date: str
+    status: str
+    commission: float
+    note: str | None = None
+    created_at: str | None = None
+
+
+class PaperTradeOut(BaseModel):
+    id: str
+    deployment_id: str
+    symbol: str
+    quantity: int
+    entry_price: float
+    exit_price: float
+    entry_date: str
+    exit_date: str
+    pnl: float
+    pnl_net: float
+    entry_order_id: str | None = None
+    exit_order_id: str | None = None
+
+
+class MarketBarOut(BaseModel):
+    date: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+class MarketBarsOut(BaseModel):
+    """Processed-period OHLC bars, oldest first. READ-ONLY — never trades."""
+
+    strategy_id: str
+    deployment_id: str | None = None
+    market: str
+    last_bar_date: str | None = None
+    bars: list[MarketBarOut] = []
+    truncated: bool = False
+
+
+class PaperDeploymentSummaryOut(BaseModel):
+    """One row for the Paper Trading hub: deployment + live snapshot numbers."""
+
+    id: str
+    strategy_id: str
+    strategy_name: str | None = None
+    market: str | None = None
+    status: str
+    starting_cash: float
+    cash_balance: float | None = None
+    equity: float | None = None
+    realized_pnl: float | None = None
+    total_pnl: float | None = None
+    return_pct: float | None = None
+    open_positions: int = 0
+    completed_trades: int = 0
+    last_bar_date: str | None = None
+    deployed_at: str | None = None
+    stopped_at: str | None = None
+    stop_reason: str | None = None
+
+
+# ============================================================
 # Structured Strategy Builder Schemas
 # ============================================================
 

@@ -2075,3 +2075,196 @@
     width: 100%;
   }
 }
+
+/* --------------------------------------- paper trading candlestick chart */
+
+.candle-chart {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-lowest);
+}
+
+.candle-chart__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.candle-chart__title {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+
+.candle-chart__badge {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  padding: 2px 8px;
+}
+
+.candle-chart__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.candle-chart__grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.candle-chart__axis-text {
+  fill: var(--faint);
+  font-size: 9px;
+  font-family: var(--font-mono);
+}
+
+.candle-chart__wick--up {
+  stroke: var(--positive);
+  stroke-width: 1.2;
+}
+
+.candle-chart__wick--down {
+  stroke: var(--negative);
+  stroke-width: 1.2;
+}
+
+.candle-chart__body--up {
+  fill: var(--positive);
+}
+
+.candle-chart__body--down {
+  fill: var(--negative);
+}
+
+.candle-chart__marker {
+  stroke: var(--surface-lowest);
+  stroke-width: 1;
+}
+
+.candle-chart__marker--buy {
+  fill: var(--positive);
+}
+
+.candle-chart__marker--sell {
+  fill: var(--negative);
+}
+
+.candle-chart__crosshair {
+  stroke: var(--primary);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.candle-chart__dates {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.candle-chart__tooltip {
+  position: absolute;
+  z-index: 4;
+  transform: translate(-50%, 12px);
+  bottom: 34px;
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-lowest);
+  box-shadow: var(--shadow-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.candle-chart__tooltip-date {
+  color: var(--muted);
+}
+
+.candle-chart__tooltip-row {
+  color: var(--text);
+}
+
+.candle-chart__tooltip-trade {
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------- paper deployment details */
+
+.paper-expanded {
+  margin-top: var(--sp-3);
+  border: 1px solid #e3d9e5;
+  border-radius: var(--r-lg);
+  background: #ffffff;
+  box-shadow: var(--shadow-1);
+  overflow: visible;
+  max-height: none;
+}
+
+.paper-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+}
+
+.paper-details__heading {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  margin: 0 0 var(--sp-2);
+}
+
+.paper-details__tick-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.paper-details__bar-date {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.paper-details__bar-date input {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-lowest);
+  color: var(--text);
+  width: 150px;
+}

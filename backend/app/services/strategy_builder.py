@@ -314,6 +314,12 @@ async def generate_structured_strategy(spec: StrategyBuilderRequest) -> dict:
     Returns dict with: name, description, code
     Raises on failure.
     """
+    api_key = (settings.groq_api_key or "").strip()
+    if not api_key:
+        raise ValueError(
+            "LLM API key is not configured. Set GROQ_API_KEY in backend/.env "
+            "and restart the backend."
+        )
     prompt = build_strategy_prompt(spec)
     
     payload = {
@@ -325,7 +331,7 @@ async def generate_structured_strategy(spec: StrategyBuilderRequest) -> dict:
         "temperature": 0.1,
         "response_format": STRATEGY_BUILDER_RESPONSE_SCHEMA,
     }
-    headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
+    headers = {"Authorization": f"Bearer {api_key}"}
     
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(

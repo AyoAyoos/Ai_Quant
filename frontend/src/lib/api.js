@@ -205,6 +205,70 @@ export function fetchDeployments(strategyId, { signal } = {}) {
   return request(`/strategies/${encodeURIComponent(strategyId)}/deployments`, { signal })
 }
 
+/* ------------------------------------------------ paper trading (simulated) */
+
+/** GET /paper/deployments — every deployment across strategies, active first. */
+export function fetchAllPaperDeployments({ signal } = {}) {
+  return request('/paper/deployments', { signal })
+}
+
+/** GET /strategies/{id}/paper-account — authoritative virtual-account snapshot. */
+export function fetchPaperAccount(strategyId, { deploymentId, signal } = {}) {
+  const query = deploymentId ? `?deployment_id=${encodeURIComponent(deploymentId)}` : ''
+  return request(`/strategies/${encodeURIComponent(strategyId)}/paper-account${query}`, {
+    signal,
+  })
+}
+
+/** GET /strategies/{id}/paper-positions — open simulated positions. */
+export function fetchPaperPositions(strategyId, { deploymentId, signal } = {}) {
+  const query = deploymentId ? `?deployment_id=${encodeURIComponent(deploymentId)}` : ''
+  return request(`/strategies/${encodeURIComponent(strategyId)}/paper-positions${query}`, {
+    signal,
+  })
+}
+
+/** GET /strategies/{id}/paper-orders — simulated order ledger, rejected included. */
+export function fetchPaperOrders(strategyId, { deploymentId, signal } = {}) {
+  const query = deploymentId ? `?deployment_id=${encodeURIComponent(deploymentId)}` : ''
+  return request(`/strategies/${encodeURIComponent(strategyId)}/paper-orders${query}`, {
+    signal,
+  })
+}
+
+/** GET /strategies/{id}/paper-trades — completed simulated round-trips. */
+export function fetchPaperTrades(strategyId, { deploymentId, signal } = {}) {
+  const query = deploymentId ? `?deployment_id=${encodeURIComponent(deploymentId)}` : ''
+  return request(`/strategies/${encodeURIComponent(strategyId)}/paper-trades${query}`, {
+    signal,
+  })
+}
+
+/** GET /strategies/{id}/market-bars — processed-period OHLC, oldest first, read-only. */
+export function fetchMarketBars(strategyId, { deploymentId, signal } = {}) {
+  const query = deploymentId ? `?deployment_id=${encodeURIComponent(deploymentId)}` : ''
+  return request(`/strategies/${encodeURIComponent(strategyId)}/market-bars${query}`, {
+    signal,
+  })
+}
+
+/**
+ * POST /strategies/{id}/paper-tick — advance exactly the next cached bar
+ * through the deployed strategy's simulation. `deploymentId` pins the tick
+ * to one deployment so one row can never advance another. No LLM, no broker.
+ * (The backend retains an optional `barDate` for tests only; the normal UI
+ * never sends it so chronology cannot be skipped.)
+ */
+export function runPaperTick(strategyId, { deploymentId, signal } = {}) {
+  const body = {}
+  if (deploymentId) body.deployment_id = deploymentId
+  return request(`/strategies/${encodeURIComponent(strategyId)}/paper-tick`, {
+    method: 'POST',
+    body,
+    signal,
+  })
+}
+
 /**
  * POST /strategies/builder - structured strategy builder endpoint.
  * Sends a complete strategy specification and receives a generated draft
