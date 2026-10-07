@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Icon from '../components/Icon.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 
@@ -22,54 +22,6 @@ const RIGHT_CANDLES = [
   { h: 44, up: true },
 ]
 
-const SOCIALS = [
-  {
-    label: 'Continue with Google',
-    svg: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          fill="#4285F4"
-          d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"
-        />
-        <path
-          fill="#34A853"
-          d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"
-        />
-        <path
-          fill="#FBBC05"
-          d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"
-        />
-        <path
-          fill="#EA4335"
-          d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"
-        />
-      </svg>
-    ),
-  },
-  {
-    label: 'Continue with GitHub',
-    svg: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          fill="currentColor"
-          d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"
-        />
-      </svg>
-    ),
-  },
-  {
-    label: 'Continue with Apple',
-    svg: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          fill="currentColor"
-          d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.702"
-        />
-      </svg>
-    ),
-  },
-]
-
 /**
  * Auth — borderless immersive entry (frontend prototype, no backend yet).
  *
@@ -86,9 +38,11 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [tab, setTab] = useState('signin')
+  const [tab, setTab] = useState('signup')
   const [stage, setStage] = useState('form')
 
+  const [fullName, setFullName] = useState('')
+  const [contact, setContact] = useState('+91 ')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -145,10 +99,6 @@ export default function LoginPage() {
     setNotice('')
   }
 
-  const handleSocial = (label) => {
-    setNotice(`${label} is not available in this prototype yet.`)
-  }
-
   const handleSignIn = (event) => {
     event.preventDefault()
     const next = {}
@@ -163,6 +113,8 @@ export default function LoginPage() {
   const handleSignUp = (event) => {
     event.preventDefault()
     const next = {}
+    if (!fullName.trim()) next.fullName = 'Enter your full name.'
+    if ((contact.match(/\d/g) || []).length < 12) next.contact = 'Enter a valid 10-digit mobile number.'
     if (!EMAIL_RE.test(email.trim())) next.email = 'Enter a valid email address.'
     if (password.length < 8) next.password = 'Use at least 8 characters.'
     if (confirm !== password) next.confirm = 'Passwords do not match.'
@@ -183,6 +135,18 @@ export default function LoginPage() {
     setOtp(Array(OTP_LEN).fill(''))
     setCooldown(RESEND_SECONDS)
     setStage('forgot-otp')
+  }
+
+  const handleContactChange = (value) => {
+    // Lock the +91 country prefix: if the user deletes into it, restore the
+    // prefix and keep whatever digits they typed as the local number.
+    if (!value.startsWith('+91')) {
+      const digits = value.replace(/\D/g, '')
+      const local = digits.startsWith('91') ? digits.slice(2) : digits
+      setContact(local ? `+91 ${local}` : '+91 ')
+      return
+    }
+    setContact(value)
   }
 
   const focusOtp = (index) => {
@@ -253,105 +217,13 @@ export default function LoginPage() {
 
   return (
     <div className="authx">
-      <div className="art" aria-hidden="true">
-        <svg className="art__trend art__trend--top" viewBox="0 0 1200 160" preserveAspectRatio="none">
-          <path
-            d="M-20,120 C200,100 340,130 560,80 S880,30 1220,70"
-            fill="none"
-            stroke="#AF719D"
-            strokeWidth="2.5"
-            strokeOpacity="0.55"
-          />
-          <path
-            d="M-20,135 C240,120 420,140 640,95 S940,60 1220,95"
-            fill="none"
-            stroke="#F8B2B2"
-            strokeWidth="1.5"
-            strokeOpacity="0.4"
-            strokeDasharray="7 7"
-          />
-        </svg>
-        <svg
-          className="art__trend art__trend--bottom"
-          viewBox="0 0 1200 160"
-          preserveAspectRatio="none"
-        >
-          <path
-            d="M-20,40 C220,60 420,25 640,70 S940,120 1220,80"
-            fill="none"
-            stroke="#8B639B"
-            strokeWidth="2.5"
-            strokeOpacity="0.55"
-          />
-          <path
-            d="M-20,25 C260,45 460,20 700,60 S960,105 1220,60"
-            fill="none"
-            stroke="#F8B2B2"
-            strokeWidth="1.5"
-            strokeOpacity="0.35"
-            strokeDasharray="7 7"
-          />
-        </svg>
+      <div className="authx__panel authx__panel--form">
+        <Link className="authx__brand" to="/" aria-label="AI Quant home">
+          <img className="authx__brand-logo" src="/favicon.svg" alt="" width={30} height={30} />
+          <span className="authx__brand-name">AI Quant</span>
+        </Link>
 
-        <div className="art__candles art__candles--left">
-          {LEFT_CANDLES.map((c, i) => (
-            <span
-              key={i}
-              className={`candle${c.up ? ' candle--up' : ' candle--down'}`}
-              style={{ height: `${c.h}px` }}
-            />
-          ))}
-        </div>
-        <div className="art__candles art__candles--right">
-          {RIGHT_CANDLES.map((c, i) => (
-            <span
-              key={i}
-              className={`candle${c.up ? ' candle--up' : ' candle--down'}`}
-              style={{ height: `${c.h}px` }}
-            />
-          ))}
-        </div>
-
-        <span className="art__chip art__chip--a">
-          <Icon name="trending_up" size={16} />
-          +12.4% NIFTY 50
-        </span>
-        <span className="art__chip art__chip--b">Sharpe 1.84</span>
-        <span className="art__chip art__chip--c">
-          <Icon name="trending_down" size={16} />
-          −2.1% drawdown
-        </span>
-        <span className="art__chip art__chip--d">CAGR +18.2%</span>
-
-        <span className="art__orb art__orb--a" />
-        <span className="art__orb art__orb--b" />
-        <span className="art__ring" />
-      </div>
-
-      <div className="authx__wrap">
-        {stage === 'form' && (
-          <div className="authx__tabs" role="tablist" aria-label="Choose an action">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'signup'}
-              className={`authx__tab${tab === 'signup' ? ' authx__tab--active' : ''}`}
-              onClick={() => switchTab('signup')}
-            >
-              Create Account
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'signin'}
-              className={`authx__tab${tab === 'signin' ? ' authx__tab--active' : ''}`}
-              onClick={() => switchTab('signin')}
-            >
-              Log In
-            </button>
-          </div>
-        )}
-
+        <div className="authx__wrap">
         <div className="authx__body" key={`${tab}-${stage}`} aria-live="polite">
           <h1 className="authx__title" id="auth-title" ref={headingRef} tabIndex={-1}>
             {stateHeading}
@@ -441,31 +313,6 @@ export default function LoginPage() {
                 Sign In
               </button>
 
-              <div className="authx__or" role="separator">
-                <span>or continue with</span>
-              </div>
-
-              <div className="authx__socials">
-                {SOCIALS.map((s) => (
-                  <button
-                    key={s.label}
-                    type="button"
-                    className="authx__social"
-                    aria-label={s.label}
-                    title={s.label}
-                    onClick={() => handleSocial(s.label)}
-                  >
-                    {s.svg}
-                  </button>
-                ))}
-              </div>
-
-              {notice && (
-                <p className="authx__notice" role="status">
-                  {notice}
-                </p>
-              )}
-
               <p className="authx__foot">
                 Don&apos;t have an account?{' '}
                 <button type="button" className="authx__link" onClick={() => switchTab('signup')}>
@@ -477,6 +324,52 @@ export default function LoginPage() {
 
           {stage === 'form' && tab === 'signup' && (
             <form className="authx__form" onSubmit={handleSignUp} noValidate>
+              <div className="authx__field">
+                <label className="authx__label" htmlFor="auth-full-name">
+                  Full Name
+                </label>
+                <input
+                  className={`authx__input${errors.fullName ? ' authx__input--error' : ''}`}
+                  id="auth-full-name"
+                  name="full-name"
+                  type="text"
+                  autoComplete="name"
+                  placeholder="John Doe"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  aria-invalid={Boolean(errors.fullName)}
+                  aria-describedby={errors.fullName ? 'auth-full-name-err' : undefined}
+                />
+                {errors.fullName && (
+                  <p className="authx__error" id="auth-full-name-err" role="alert">
+                    {errors.fullName}
+                  </p>
+                )}
+              </div>
+
+              <div className="authx__field">
+                <label className="authx__label" htmlFor="auth-contact">
+                  Contact Number
+                </label>
+                <input
+                  className={`authx__input${errors.contact ? ' authx__input--error' : ''}`}
+                  id="auth-contact"
+                  name="contact"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="+91 98765 43210"
+                  value={contact}
+                  onChange={(e) => handleContactChange(e.target.value)}
+                  aria-invalid={Boolean(errors.contact)}
+                  aria-describedby={errors.contact ? 'auth-contact-err' : undefined}
+                />
+                {errors.contact && (
+                  <p className="authx__error" id="auth-contact-err" role="alert">
+                    {errors.contact}
+                  </p>
+                )}
+              </div>
+
               <div className="authx__field">
                 <label className="authx__label" htmlFor="auth-new-email">
                   Email
@@ -561,35 +454,10 @@ export default function LoginPage() {
                 Create Account
               </button>
 
-              <div className="authx__or" role="separator">
-                <span>or continue with</span>
-              </div>
-
-              <div className="authx__socials">
-                {SOCIALS.map((s) => (
-                  <button
-                    key={s.label}
-                    type="button"
-                    className="authx__social"
-                    aria-label={s.label}
-                    title={s.label}
-                    onClick={() => handleSocial(s.label)}
-                  >
-                    {s.svg}
-                  </button>
-                ))}
-              </div>
-
-              {notice && (
-                <p className="authx__notice" role="status">
-                  {notice}
-                </p>
-              )}
-
               <p className="authx__foot">
                 Already have an account?{' '}
                 <button type="button" className="authx__link" onClick={() => switchTab('signin')}>
-                  Log in.
+                  Sign In
                 </button>
               </p>
             </form>
@@ -707,6 +575,111 @@ export default function LoginPage() {
               </button>
             </div>
           )}
+        </div>
+        </div>
+      </div>
+
+      <div className="authx__panel authx__panel--art">
+        <div className="art" aria-hidden="true">
+          <svg className="art__quant" viewBox="0 0 600 760" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="art-line" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stopColor="#F8B2B2" />
+                <stop offset="1" stopColor="#AF719D" />
+              </linearGradient>
+              <linearGradient id="art-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#AF719D" stopOpacity="0.35" />
+                <stop offset="1" stopColor="#AF719D" stopOpacity="0" />
+              </linearGradient>
+              <pattern id="art-grid" width="48" height="48" patternUnits="userSpaceOnUse">
+                <path d="M48 0H0V48" fill="none" stroke="#8B639B" strokeOpacity="0.28" />
+              </pattern>
+            </defs>
+            <rect x="0" y="0" width="600" height="760" fill="url(#art-grid)" />
+            <path
+              d="M0,560 C80,540 140,480 220,460 S380,380 460,300 S560,180 620,120 L620,760 L0,760 Z"
+              fill="url(#art-area)"
+            />
+            <path
+              d="M0,560 C80,540 140,480 220,460 S380,380 460,300 S560,180 620,120"
+              fill="none"
+              stroke="url(#art-line)"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+            <path
+              d="M0,620 C120,600 240,620 360,560 S520,500 620,460"
+              fill="none"
+              stroke="#8B639B"
+              strokeWidth="2.5"
+              strokeDasharray="8 8"
+              strokeOpacity="0.8"
+            />
+            <g>
+              <circle cx="220" cy="460" r="7" fill="#F8B2B2" />
+              <circle cx="220" cy="460" r="14" fill="none" stroke="#F8B2B2" strokeOpacity="0.5" />
+              <circle cx="380" cy="376" r="7" fill="#F8B2B2" />
+              <circle cx="380" cy="376" r="14" fill="none" stroke="#F8B2B2" strokeOpacity="0.5" />
+              <circle cx="500" cy="252" r="8" fill="#AF719D" />
+              <circle cx="500" cy="252" r="16" fill="none" stroke="#AF719D" strokeOpacity="0.5" />
+              <line x1="220" y1="460" x2="380" y2="376" stroke="#F8B2B2" strokeOpacity="0.45" />
+              <line x1="380" y1="376" x2="500" y2="252" stroke="#F8B2B2" strokeOpacity="0.45" />
+              <line x1="220" y1="460" x2="220" y2="640" stroke="#8B639B" strokeOpacity="0.5" strokeDasharray="4 5" />
+              <line x1="380" y1="376" x2="380" y2="640" stroke="#8B639B" strokeOpacity="0.5" strokeDasharray="4 5" />
+              <line x1="500" y1="252" x2="500" y2="640" stroke="#8B639B" strokeOpacity="0.5" strokeDasharray="4 5" />
+            </g>
+            <g opacity="0.9">
+              <rect x="60" y="600" width="18" height="44" rx="4" fill="#F8B2B2" opacity="0.85" />
+              <rect x="86" y="584" width="18" height="60" rx="4" fill="#8B639B" />
+              <rect x="112" y="610" width="18" height="34" rx="4" fill="#F8B2B2" opacity="0.85" />
+              <rect x="138" y="576" width="18" height="68" rx="4" fill="#F8B2B2" opacity="0.85" />
+              <rect x="164" y="596" width="18" height="48" rx="4" fill="#8B639B" />
+              <rect x="410" y="580" width="18" height="64" rx="4" fill="#F8B2B2" opacity="0.85" />
+              <rect x="436" y="604" width="18" height="40" rx="4" fill="#8B639B" />
+              <rect x="462" y="570" width="18" height="74" rx="4" fill="#F8B2B2" opacity="0.85" />
+              <rect x="488" y="594" width="18" height="50" rx="4" fill="#8B639B" />
+            </g>
+          </svg>
+
+          <div className="art__candles art__candles--left">
+            {LEFT_CANDLES.map((c, i) => (
+              <span
+                key={i}
+                className={`candle${c.up ? ' candle--up' : ' candle--down'}`}
+                style={{ height: `${c.h}px` }}
+              />
+            ))}
+          </div>
+          <div className="art__candles art__candles--right">
+            {RIGHT_CANDLES.map((c, i) => (
+              <span
+                key={i}
+                className={`candle${c.up ? ' candle--up' : ' candle--down'}`}
+                style={{ height: `${c.h}px` }}
+              />
+            ))}
+          </div>
+
+          <span className="art__chip art__chip--a">
+            <Icon name="trending_up" size={16} />
+            +12.4% NIFTY 50
+          </span>
+          <span className="art__chip art__chip--b">Sharpe 1.84</span>
+          <span className="art__chip art__chip--c">
+            <Icon name="trending_down" size={16} />
+            −2.1% drawdown
+          </span>
+          <span className="art__chip art__chip--d">CAGR +18.2%</span>
+
+          <div className="art__engine">
+            <span className="art__engine-label">AI Strategy Engine</span>
+            <span className="art__engine-formula">Sharpe = (Rₚ − Rƒ) / σₚ · RSI-14 · MACD · SMA-200</span>
+            <span className="art__engine-sub">Backtest · Analyse · Paper Trade</span>
+          </div>
+
+          <span className="art__orb art__orb--a" />
+          <span className="art__orb art__orb--b" />
+          <span className="art__ring" />
         </div>
       </div>
     </div>

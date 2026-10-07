@@ -26,8 +26,9 @@ import StrategyBuilderPage from './pages/StrategyBuilderPage.jsx'
  *   /welcome           Legacy alias of / (redirects)
  *   /login             Public login page (redirects to dashboard when signed in)
  *   /dashboard         Overview / Dashboard (guarded, post-login home)
- *   /studio + /chat    AI Strategy Studio (same ChatPage; /chat kept as alias)
- *   /strategies        Strategies library (unchanged)
+ *   /studio            AI Strategy Studio (public, no login required)
+ *   /chat              AI Strategy Studio alias (guarded)
+ *   /strategies        Strategies library (public, no login required)
  *   /backtests         Backtesting hub (links into per-strategy backtest pages)
  *   /analytics         Analytics (reads cached runs, recalculates nothing)
  *   /paper-trading     Paper Trading hub (aggregates deployment histories)
@@ -44,11 +45,13 @@ export default function App() {
         {/* Public entry: landing is always first, even for signed-in users. */}
         <Route path="/" element={<LandingPage />} />
         <Route path="welcome" element={<Navigate to="/" replace />} />
-        {/* Public shell branch: login keeps the header, no nav, no guard. */}
+        {/* Public shell branch: login, studio + strategies need no guard. */}
         <Route element={<AppShell />} path="/">
           <Route path="login" element={<LoginPage />} />
+          <Route path="studio" element={<ChatPage />} />
+          <Route path="strategies" element={<StrategiesPage />} />
         </Route>
-        {/* Guarded shell branch: dashboard + every app page needs login. */}
+        {/* Guarded shell branch: dashboard + remaining app pages need login. */}
         <Route
           element={
             <ProtectedRoute>
@@ -58,10 +61,8 @@ export default function App() {
           path="/"
         >
           <Route path="dashboard" element={<OverviewPage />} />
-          <Route path="studio" element={<ChatPage />} />
           <Route path="studio/builder" element={<StrategyBuilderPage />} />
           <Route path="chat" element={<ChatPage />} />
-          <Route path="strategies" element={<StrategiesPage />} />
           <Route path="strategies/:id" element={<StrategyOverviewPage />} />
           <Route path="strategies/:id/backtest" element={<BacktestPage />} />
           <Route path="strategies/:id/approval" element={<ApprovalPage />} />

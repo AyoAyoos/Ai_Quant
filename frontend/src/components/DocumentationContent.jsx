@@ -164,10 +164,6 @@ const STACK = [
 
 const LIMITATIONS = [
   {
-    title: 'No authentication',
-    body: 'A single local user is created on first use. There are no passwords, no multi-tenant isolation, no RBAC and no SSO — it is a single-operator workbench, not a hosted service.',
-  },
-  {
     title: 'No live brokerage gateway',
     body: 'Deployments are validated and recorded, but nothing schedules them against a live market and no order ever reaches a broker. There is no broker integration of any kind.',
   },
@@ -188,6 +184,13 @@ const LIMITATIONS = [
     body: 'Generated strategies are experimental hypotheses exposed to overfitting, lookahead bias and slippage the simulation does not model. The approval gate checks quality, never profitability.',
   },
 ]
+
+/* Landing subset: only the 3 high-conversion scope points stay visible. */
+const LANDING_LIMITATION_TITLES = new Set([
+  'No live brokerage gateway',
+  'Curated to NIFTY 50',
+  'No guaranteed returns',
+])
 
 const DOCKER_CMD = 'docker compose up --build'
 
@@ -350,8 +353,12 @@ function EquityPreview() {
 
 /* ------------------------------------------------------------------ content */
 
-export default function DocumentationContent() {
+export default function DocumentationContent({ isLandingSubset = false }) {
   const m = SAMPLE_METRICS
+
+  const visibleLimits = isLandingSubset
+    ? LIMITATIONS.filter((limit) => LANDING_LIMITATION_TITLES.has(limit.title))
+    : LIMITATIONS
 
   const statTiles = [
     { label: 'Total return', value: `${m.total_return_pct.toFixed(2)}%`, sub: `vs ${m.benchmark_return_pct.toFixed(2)}% buy & hold`, tone: 'up' },
@@ -394,6 +401,7 @@ export default function DocumentationContent() {
       </section>
 
       {/* ---------------------------------------------- how it works */}
+      {!isLandingSubset && (
       <section className="landing__section" id="how-it-works">
         <SectionHead
           eyebrow="System pipeline"
@@ -426,8 +434,10 @@ export default function DocumentationContent() {
           <span>Operator rejects → reason stored, strategy archived and unreachable for deployment</span>
         </div>
       </section>
+      )}
 
       {/* --------------------------------------------------- features */}
+      {!isLandingSubset && (
       <section className="landing__section" id="features">
         <SectionHead
           eyebrow="Capabilities"
@@ -448,6 +458,7 @@ export default function DocumentationContent() {
           ))}
         </div>
       </section>
+      )}
 
       {/* ---------------------------------------------------- metrics */}
       <section className="landing__section" id="metrics">
@@ -474,6 +485,7 @@ export default function DocumentationContent() {
 
         <EquityPreview />
 
+        {!isLandingSubset && (
         <p className="landing__fineprint">
           Reproduce it: from the <code>backend/</code> directory, pipe the sample class into{' '}
           <code>
@@ -484,9 +496,11 @@ export default function DocumentationContent() {
           hold on the same bars — a modest edge, on a single historical window, with no out-of-sample
           split. That is the honest ceiling of what one backtest can tell you.
         </p>
+        )}
       </section>
 
       {/* ---------------------------------------------------- security */}
+      {!isLandingSubset && (
       <section className="landing__section" id="security">
         <SectionHead
           eyebrow="Subprocess hardening"
@@ -523,8 +537,10 @@ export default function DocumentationContent() {
           worker as an unprivileged user and treat the host accordingly.
         </p>
       </section>
+      )}
 
       {/* -------------------------------------------------- tech stack */}
+      {!isLandingSubset && (
       <section className="landing__section" id="tech-stack">
         <SectionHead eyebrow="Core infrastructure" title="Built on boring, proven tooling" />
         <div className="landing__stack">
@@ -537,8 +553,10 @@ export default function DocumentationContent() {
           ))}
         </div>
       </section>
+      )}
 
       {/* --------------------------------------------------- quickstart */}
+      {!isLandingSubset && (
       <section className="landing__section" id="quickstart">
         <SectionHead
           eyebrow="Developer setup"
@@ -597,6 +615,7 @@ export default function DocumentationContent() {
           the compose backend at once — they collide on port 8000.
         </p>
       </section>
+      )}
 
       {/* ------------------------------------------------- limitations */}
       <section className="landing__section" id="limitations">
@@ -606,7 +625,7 @@ export default function DocumentationContent() {
           lede="Explicit operational boundaries. A research tool that oversells its scope is worse than no tool."
         />
         <div className="landing__limits">
-          {LIMITATIONS.map((limit) => (
+          {visibleLimits.map((limit) => (
             <article key={limit.title} className="landing__limit">
               <h3 className="landing__limit-title">
                 <Icon name="cancel" size={19} />

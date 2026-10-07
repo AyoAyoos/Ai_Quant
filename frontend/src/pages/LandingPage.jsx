@@ -5,16 +5,19 @@ import DocumentationContent from '../components/DocumentationContent.jsx'
 
 const FEATURES = [
   {
+    id: 'studio',
     icon: 'smart_toy',
     title: 'Conversational Strategy Studio',
     body: 'Leverage advanced LLMs to transform your trading ideas into ready-to-run Python code through a multi-phase interactive chat interface.',
   },
   {
+    id: 'strategies',
     icon: 'bar_chart',
     title: 'Secure Backtesting & Analytics',
     body: 'Safely evaluate generated strategies against real NIFTY 50 historical data in an isolated sandbox, complete with deep performance metrics, risk analysis, and equity curve visualization.',
   },
   {
+    id: null,
     icon: 'shield',
     title: 'Risk-Free Paper Trading',
     body: 'Progress your strategies through a strict data-driven approval lifecycle. Deploy and monitor paper trades in a simulated environment without risking real capital.',
@@ -29,12 +32,20 @@ const FEATURES = [
 export default function LandingPage() {
   const { hash } = useLocation()
 
-  // Deep-link support for the embedded docs (e.g. /#documentation).
+  // Deep-link support for in-page anchors (e.g. /#features, /#studio, /#strategies,
+  // /#documentation). React Router does not scroll to hashes on its own, so
+  // resolve the target element and smooth-scroll to it.
   useEffect(() => {
-    if (hash === '#documentation') {
-      document.getElementById('documentation')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
+    if (!hash) return
+    const targetId = hash.replace('#', '')
+    document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [hash])
+
+  const scrollToSection = (id) => (event) => {
+    event.preventDefault()
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.history.replaceState(null, '', `#${id}`)
+  }
 
   return (
     <div className="lp">
@@ -48,15 +59,15 @@ export default function LandingPage() {
           <span className="lp__name">AI Quant</span>
         </span>
         <nav className="lp__nav" aria-label="Primary">
-          <a className="lp__nav-link" href="#lp-features">
+          <a className="lp__nav-link" href="#features" onClick={scrollToSection('features')}>
             Features
           </a>
-          <Link className="lp__nav-link" to="/studio">
+          <a className="lp__nav-link" href="#studio" onClick={scrollToSection('studio')}>
             Studio
-          </Link>
-          <Link className="lp__nav-link" to="/strategies">
+          </a>
+          <a className="lp__nav-link" href="#strategies" onClick={scrollToSection('strategies')}>
             Strategies
-          </Link>
+          </a>
         </nav>
         <Link className="lp__login" to="/login">
           Login
@@ -73,18 +84,9 @@ export default function LandingPage() {
             Turn your ideas into data-driven trading strategies with the power of AI. Backtest.
             Analyse. Trade (Paper).
           </p>
-          <div className="lp__cta">
-            <Link className="lp__btn lp__btn--solid" to="/studio">
-              Try Strategy Studio
-              <Icon name="arrow_forward" size={18} />
-            </Link>
-            <Link className="lp__btn lp__btn--hollow" to="/strategies">
-              View Strategies
-            </Link>
-          </div>
         </section>
 
-        <section className="lp__features" id="lp-features" aria-label="Platform features">
+        <section className="lp__features" id="features" aria-label="Platform features">
           <div className="lp__section-head" aria-hidden="true">
             <span className="lp__section-label">Core capabilities</span>
             <span className="lp__section-rule" />
@@ -92,7 +94,11 @@ export default function LandingPage() {
           </div>
           <div className="lp__grid">
             {FEATURES.map((feature) => (
-              <article key={feature.title} className="lp__card">
+              <article
+                key={feature.title}
+                className="lp__card"
+                {...(feature.id ? { id: feature.id } : {})}
+              >
                 <span className="lp__icon" aria-hidden="true">
                   <Icon name={feature.icon} size={22} />
                 </span>
@@ -109,14 +115,41 @@ export default function LandingPage() {
             <span className="lp__section-rule" />
           </div>
           <div className="lp__docs-body">
-            <DocumentationContent />
+            <DocumentationContent isLandingSubset={true} />
           </div>
         </section>
       </main>
 
       <footer className="lp__footer">
-        <Icon name="shield" size={15} />
-        <span>Educational prototype, Paper trading only. No guaranteed returns.</span>
+        <div className="lp__footer-grid">
+          <div className="lp__footer-col">
+            <span className="lp__footer-brand" aria-label="AI Quant home">
+              <img className="lp__logo" src="/favicon.svg" alt="" width={30} height={30} />
+              <span className="lp__name">AI Quant</span>
+            </span>
+            <p className="lp__footer-text">© 2026 AI Quant. All rights reserved.</p>
+          </div>
+          <div className="lp__footer-col">
+            <h2 className="lp__footer-heading">Support</h2>
+            <p className="lp__footer-text">For queries or help: +918237517479</p>
+          </div>
+          <div className="lp__footer-col">
+            <h2 className="lp__footer-heading">Open Source</h2>
+            <a
+              className="lp__footer-link"
+              href="https://github.com/AyoAyoos/Ai_Quant"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Icon name="code" size={16} />
+              <span>GitHub Repository</span>
+            </a>
+          </div>
+        </div>
+        <div className="lp__footer-note">
+          <Icon name="shield" size={15} />
+          <span>Educational prototype, Paper trading only. No guaranteed returns.</span>
+        </div>
       </footer>
     </div>
   )
