@@ -94,8 +94,7 @@ export default function StrategiesPage() {
       <div className="page-head">
         <div className="page-head__text">
           <p className="page-lede">
-            Every strategy created in this browser. Status is read live from the backend every time this
-            page loads — it is never cached, because the approval gate moves it.
+           
           </p>
         </div>
         <Link className="btn btn--primary" to="/chat">

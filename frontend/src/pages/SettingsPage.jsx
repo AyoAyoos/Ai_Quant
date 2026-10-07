@@ -33,8 +33,7 @@ export default function SettingsPage() {
       <div className="page-head">
         <div className="page-head__text">
           <p className="page-lede">
-            Configuration and system information. Detailed technical reference lives here instead
-            of crowding the dashboard.
+            
           </p>
         </div>
       </div>

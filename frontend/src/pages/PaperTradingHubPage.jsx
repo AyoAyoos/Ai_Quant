@@ -70,8 +70,7 @@ export default function PaperTradingHubPage() {
       <div className="page-head">
         <div className="page-head__text">
           <p className="page-lede">
-            Simulated deployment only. Approved strategies can run the same execution path against
-            simulated fills — no broker is connected and no real money is ever at risk.
+            
           </p>
         </div>
         <Link className="btn" to="/strategies">
@@ -79,12 +78,7 @@ export default function PaperTradingHubPage() {
         </Link>
       </div>
 
-      <Note tone="warning" title="Educational prototype. Paper trading only. No live orders.">
-        <span>
-          Deployments are validated and recorded, but nothing schedules them against a live market
-          and no order ever reaches a broker. There is no broker integration of any kind.
-        </span>
-      </Note>
+      
 
       <section className="panel panel--accent" aria-labelledby="paper-active">
         <div className="panel__head">
