@@ -233,3 +233,13 @@ class TestDeploy:
         resp = client.post(f"/strategies/{sid}/deploy", json={})
         assert resp.status_code == 200
         assert len(client.get(f"/strategies/{sid}/deployments").json()) == 2
+
+
+class TestStrategyDetailFields:
+    def test_detail_exposes_market_and_backend_created_at(self, client, db):
+        sid = _seed(status=StrategyStatus.draft)
+        resp = client.get(f"/strategies/{sid}")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["market"] == "NIFTY50"
+        assert body["created_at"], "detail must expose the backend created_at timestamp"

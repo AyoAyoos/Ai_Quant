@@ -186,6 +186,7 @@ def get_strategy(strategy_id: str, db: Session = Depends(get_db)):
         status_note=strategy.status_note,
         generated_code=strategy.generated_code,
         strategy_spec=strategy.strategy_spec,
+        created_at=strategy.created_at.isoformat() if strategy.created_at else None,
     )
 
 

@@ -181,7 +181,7 @@ export default function DeploymentPage() {
               <span className="kv__value">{formatDateTime(active.deployed_at)}</span>
             </div>
             <div className="kv__item">
-              <span className="kv__key">Cash</span>
+              <span className="kv__key">Starting cash</span>
               <span className="kv__value tabular">₹{Number(active.cash).toLocaleString('en-IN')}</span>
             </div>
             <div className="kv__item">
@@ -226,7 +226,7 @@ export default function DeploymentPage() {
           </h2>
         </div>
 
-        {!canDeploy && !canStop && (
+        {!canDeploy && (
           <Note tone="warning" title={`Not available at status "${status}"`}>
             <span>{explainUnavailable(status, 'deploy')}</span>
           </Note>
@@ -235,7 +235,7 @@ export default function DeploymentPage() {
         <form className="form-grid" onSubmit={(event) => event.preventDefault()}>
           <div className="field">
             <label className="field__label" htmlFor="deploy-cash">
-              Cash
+              Starting cash
             </label>
             <div className="field__control">
               <input
@@ -333,7 +333,7 @@ export default function DeploymentPage() {
                 <tr>
                   <th scope="col">Deployment</th>
                   <th scope="col">Status</th>
-                  <th scope="col">Cash</th>
+                  <th scope="col">Starting cash</th>
                   <th scope="col">Commission</th>
                   <th scope="col">Size</th>
                   <th scope="col">Deployed</th>

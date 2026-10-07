@@ -24,6 +24,7 @@ class StrategyDetailOut(BaseModel):
     status_note: str | None = None
     generated_code: str | None = None
     strategy_spec: dict | None = None
+    created_at: str | None = None
 
 
 class GateOut(BaseModel):

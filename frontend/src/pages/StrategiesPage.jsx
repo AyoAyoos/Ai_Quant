@@ -82,8 +82,9 @@ export default function StrategiesPage() {
       .filter((entry) => {
         if (filter === 'all') return true
         const state = details[entry.id]
-        if (!state) return true
-        if (state.missing) return false
+        // Unresolved detail must not be assumed into a specific status:
+        // such entries stay visible only under "All" until status resolves.
+        if (!state || state.missing) return false
         return state.detail?.status === filter
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -190,6 +191,10 @@ export default function StrategiesPage() {
                   )}
                 </div>
 
+                {!missing && (
+                  <p className="disclaimer-text tabular">{detail?.market ?? '—'}</p>
+                )}
+
                 <p className="strategy-tile__desc">
                   {missing
                     ? 'The backend has no strategy with this id. It was probably created against a different database.'
@@ -197,7 +202,7 @@ export default function StrategiesPage() {
                 </p>
 
                 <div className="strategy-tile__foot">
-                  <span className="strategy-tile__time">Created {formatDateTime(entry.createdAt)}</span>
+                  <span className="strategy-tile__time">Created {formatDateTime(detail?.created_at || entry.createdAt)}</span>
                   <div className="row" style={{ gap: 'var(--sp-1)' }}>
                     {missing ? (
                       <button
