@@ -144,7 +144,7 @@ export default function AppShell() {
             itemGap={12}
             markerGap={10}
             markerLength={40}
-            maxShift={20}
+            maxShift={0}
             proximityRadius={100}
             showIndex={false}
             showMarker={false}
