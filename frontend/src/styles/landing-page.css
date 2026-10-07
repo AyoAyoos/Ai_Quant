@@ -402,3 +402,116 @@
     min-height: 0;
   }
 }
+
+/* --------------------------------------- embedded docs on dark landing */
+
+.lp__docs {
+  width: 100%;
+  margin-top: 100px;
+  padding-bottom: var(--sp-6);
+  scroll-margin-top: 24px;
+}
+
+.lp__docs-body {
+  width: 100%;
+  max-width: 896px;
+  margin: 0 auto;
+  /* Remap the light docs tokens onto the dark landing palette. */
+  --bg: transparent;
+  --surface: rgba(0, 0, 0, 0.2);
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --surface-3: rgba(255, 255, 255, 0.06);
+  --surface-lowest: rgba(0, 0, 0, 0.25);
+  --surface-low: transparent;
+  --surface-container: rgba(255, 255, 255, 0.05);
+  --surface-container-low: rgba(255, 255, 255, 0.04);
+  --surface-high: rgba(255, 255, 255, 0.07);
+  --surface-highest: rgba(255, 255, 255, 0.09);
+  --surface-variant: rgba(255, 255, 255, 0.08);
+  --surface-accent: rgba(255, 255, 255, 0.04);
+  --surface-tint: #403d88;
+  --border: rgba(139, 99, 155, 0.5);
+  --border-strong: rgba(139, 99, 155, 0.65);
+  --outline: #8b639b;
+  --outline-variant: rgba(139, 99, 155, 0.5);
+  --text: #ffffff;
+  --text-soft: #e3d9e5;
+  --muted: #e3d9e5;
+  --faint: rgba(227, 217, 229, 0.6);
+  --on-surface: #ffffff;
+  --on-surface-variant: #e3d9e5;
+  --on-background: #ffffff;
+  --primary: #f8b2b2;
+  --accent: #f8b2b2;
+  --accent-text: #f8b2b2;
+  --accent-soft: rgba(248, 178, 178, 0.14);
+  --primary-container: #373472;
+  --primary-fixed: rgba(248, 178, 178, 0.16);
+  --primary-fixed-dim: #f8b2b2;
+  --on-primary-fixed: #ffffff;
+  --on-primary-fixed-variant: #f8b2b2;
+  --tertiary-fixed: rgba(0, 0, 0, 0.2);
+  --surface-dim: #e3d9e5;
+  --inverse-surface: rgba(0, 0, 0, 0.3);
+  --inverse-on-surface: #ffffff;
+  --code-bg: rgba(0, 0, 0, 0.3);
+  --code-bg-2: rgba(0, 0, 0, 0.35);
+  --code-text: #f8b2b2;
+  --code-muted: rgba(227, 217, 229, 0.65);
+  color: #ffffff;
+}
+
+.lp__docs-body .landing {
+  background: transparent;
+}
+
+.lp__docs-body .landing__container {
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.lp__docs-body .landing__section:first-child {
+  margin-top: 0;
+}
+
+/* Headings in brand pink / muted purple; body copy light. */
+.lp__docs-body .landing__section-title,
+.lp__docs-body .landing__step-title,
+.lp__docs-body .landing__feature-title {
+  color: #f8b2b2;
+}
+
+.lp__docs-body .landing__limit-title,
+.lp__docs-body .landing__stack-name,
+.lp__docs-body .landing__path-title {
+  color: #af719d;
+}
+
+/* Hardcoded light cards from the light theme, re-skinned as dark glass. */
+.lp__docs-body .landing__quick-card {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(139, 99, 155, 0.65);
+}
+
+.lp__docs-body .landing__quick-card:hover {
+  border-color: #af719d;
+}
+
+.lp__docs-body .landing__quick-title {
+  color: #ffffff;
+}
+
+.lp__docs-body .landing__quick-body {
+  color: #e3d9e5;
+}
+
+.lp__docs-body .landing__quick-icon {
+  background: rgba(139, 99, 155, 0.3);
+  color: #f8b2b2;
+}
+
+.lp__docs-body .landing__notice {
+  background: rgba(0, 0, 0, 0.2);
+  box-shadow: none;
+}

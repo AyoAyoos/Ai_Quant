@@ -46,7 +46,6 @@ export default function BacktestsHubPage() {
     <div className="page">
       <div className="page-head">
         <div className="page-head__text">
-          <h1 className="page-title">Backtesting</h1>
           <p className="page-lede">
             Run a strategy and see the result. Pick a strategy below to open its backtest workspace —
             parameters, NIFTY 50 run, equity curve, metrics, trade table and approval gate link all

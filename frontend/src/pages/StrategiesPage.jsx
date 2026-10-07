@@ -93,7 +93,6 @@ export default function StrategiesPage() {
     <div className="page">
       <div className="page-head">
         <div className="page-head__text">
-          <h1 className="page-title">Strategy library</h1>
           <p className="page-lede">
             Every strategy created in this browser. Status is read live from the backend every time this
             page loads — it is never cached, because the approval gate moves it.

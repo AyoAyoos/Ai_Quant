@@ -1,5 +1,7 @@
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import Icon from '../components/Icon.jsx'
+import DocumentationContent from '../components/DocumentationContent.jsx'
 
 const FEATURES = [
   {
@@ -25,6 +27,15 @@ const FEATURES = [
  * Purely presentational: no API calls, no state. Served at /.
  */
 export default function LandingPage() {
+  const { hash } = useLocation()
+
+  // Deep-link support for the embedded docs (e.g. /#documentation).
+  useEffect(() => {
+    if (hash === '#documentation') {
+      document.getElementById('documentation')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [hash])
+
   return (
     <div className="lp">
       <a className="skip-link" href="#lp-main">
@@ -89,6 +100,16 @@ export default function LandingPage() {
                 <p className="lp__card-body">{feature.body}</p>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className="lp__docs" id="documentation" aria-label="Documentation">
+          <div className="lp__section-head" aria-hidden="true">
+            <span className="lp__section-label">Documentation</span>
+            <span className="lp__section-rule" />
+          </div>
+          <div className="lp__docs-body">
+            <DocumentationContent />
           </div>
         </section>
       </main>

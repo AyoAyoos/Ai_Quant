@@ -69,7 +69,6 @@ export default function PaperTradingHubPage() {
     <div className="page">
       <div className="page-head">
         <div className="page-head__text">
-          <h1 className="page-title">Paper Trading</h1>
           <p className="page-lede">
             Simulated deployment only. Approved strategies can run the same execution path against
             simulated fills — no broker is connected and no real money is ever at risk.

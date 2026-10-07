@@ -90,15 +90,8 @@ function useOverviewData() {
   return { entries, statusById, health, deployments, backtestedCount }
 }
 
-const SYSTEM_ROWS = [
-  { label: 'Backtest engine', value: 'Backtrader 1.9.78.123 · 120 s watchdog', key: 'engine' },
-  { label: 'NIFTY 50 data', value: '^NSEI daily via Yahoo Finance · local CSV cache', key: 'data' },
-  { label: 'AI / LLM', value: 'Groq · openai/gpt-oss-120b · key required for chat', key: 'ai' },
-  { label: 'Security sandbox', value: 'AST allowlist · subprocess isolation · 1 GB / 120 s / 256 KB', key: 'sandbox' },
-]
-
 export default function OverviewPage() {
-  const { entries, statusById, health, deployments, backtestedCount } = useOverviewData()
+  const { entries, statusById, deployments, backtestedCount } = useOverviewData()
 
   const counts = { draft: 0, backtested: 0, approved: 0, paper_trading: 0, rejected: 0 }
   for (const entry of entries) {
@@ -224,55 +217,6 @@ export default function OverviewPage() {
             </table>
           </div>
         )}
-      </section>
-
-      <section className="panel" aria-labelledby="overview-system">
-        <div className="panel__head">
-          <h2 className="section-title" id="overview-system">
-            System status
-          </h2>
-          <Link className="btn btn--sm" to="/settings">
-            Open settings / system
-          </Link>
-        </div>
-        <div className="kv">
-          <div className="kv__item">
-            <span className="kv__key">Backend</span>
-            <span className="kv__value">
-              {health === 'online' ? 'Online' : health === 'offline' ? 'Unreachable' : 'Checking…'}
-            </span>
-          </div>
-          {SYSTEM_ROWS.map((row) => (
-            <div className="kv__item" key={row.key}>
-              <span className="kv__key">{row.label}</span>
-              <span className="kv__value kv__value--muted">{row.value}</span>
-            </div>
-          ))}
-        </div>
-        <p className="disclaimer-text">
-          Detailed security and infrastructure reference lives under Settings → Security and in
-          Documentation — kept off this page on purpose.
-        </p>
-      </section>
-
-      <section className="panel" aria-labelledby="overview-actions">
-        <h2 className="section-title" id="overview-actions">
-          Quick actions
-        </h2>
-        <div className="page-actions">
-          <Link className="btn btn--primary" to="/studio">
-            Open Strategy Studio
-          </Link>
-          <Link className="btn" to="/backtests">
-            Run a backtest
-          </Link>
-          <Link className="btn" to="/analytics">
-            Analyze results
-          </Link>
-          <Link className="btn btn--ghost" to="/docs">
-            How it works
-          </Link>
-        </div>
       </section>
 
       <Note tone="warning" title="Regulatory & algorithmic safety notice">

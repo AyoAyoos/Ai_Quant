@@ -72,6 +72,17 @@ export default function LineSidebar({
 
   let activeIndex = items.findIndex(isActive)
   if (activeIndex < 0) activeIndex = Math.min(defaultActive, items.length - 1)
+  // Prefer the longest matching route so /studio/builder highlights Builder,
+  // not its Studio parent.
+  else {
+    let best = activeIndex
+    items.forEach((item, i) => {
+      if (i !== activeIndex && isActive(item) && (item.to || '').length > (items[best].to || '').length) {
+        best = i
+      }
+    })
+    activeIndex = best
+  }
 
   const centers = () => {
     const list = listRef.current

@@ -34,7 +34,6 @@ const SIDEBAR_ITEMS = [
   { label: 'Analytics', to: '/analytics', icon: 'calculate' },
   { label: 'Paper Trading', to: '/paper-trading', icon: 'verified' },
   { label: 'Settings', to: '/settings', icon: 'security' },
-  { label: 'Documentation', to: '/docs', icon: 'article' },
 ]
 
 /**
@@ -70,7 +69,11 @@ export default function AppShell() {
     return pathname === item.to || pathname.startsWith(`${item.to}/`)
   }
 
-  const activeLabel = (items.find(isActiveItem) || {}).label || ''
+  const activeMatches = items.filter(isActiveItem)
+  // Longest route wins so /studio/builder titles Builder, not Studio.
+  const activeItem =
+    activeMatches.sort((a, b) => (b.to || '').length - (a.to || '').length)[0] || {}
+  const activeLabel = activeItem.label || ''
 
   return (
     <div className="app-shell">

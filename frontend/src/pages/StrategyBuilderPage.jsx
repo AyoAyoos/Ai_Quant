@@ -14,7 +14,6 @@ export default function StrategyBuilderPage() {
             <span aria-hidden="true">/</span>
             <span>Strategy Builder</span>
           </nav>
-          <h1 className="page-title">Strategy Builder</h1>
           <p className="page-lede">
             Create a trading strategy using a structured form. Configure market, style, indicators,
             conditions and risk — all on one page.

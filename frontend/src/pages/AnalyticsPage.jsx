@@ -38,7 +38,6 @@ export default function AnalyticsPage() {
     <div className="page">
       <div className="page-head">
         <div className="page-head__text">
-          <h1 className="page-title">Analytics</h1>
           <p className="page-lede">
             Understand and analyze the result. Select a cached backtest to inspect its performance
             charts, risk metrics and trade analysis — the same numbers the backtest run produced,
