@@ -31,11 +31,16 @@ Your task: Generate a complete, executable Backtrader strategy based on the user
 INPUT: You will receive a JSON specification with:
 - market: Trading instrument (e.g., NIFTY50)
 - trading_style: scalping | intraday | swing | positional
-- timeframe: Chart timeframe (e.g., 15m, 1h, 1d)
 - indicators: List of technical indicators with parameters
 - entry_conditions: List of entry rule descriptions
 - exit_conditions: List of exit rule descriptions
 - risk_management: Stop loss, take profit, trailing stop, max trades per day
+
+IMPORTANT: Backtests always run on the NIFTY 50 daily bars dataset (2-year history, ~500 bars). 
+All indicators are calculated on daily data regardless of the timeframe label chosen. 
+Design your entry/exit logic so it will actually trigger on ~500 daily bars — 
+avoid near-impossible multi-condition AND conjunctions (e.g., "EMA cross-up AND RSI < 30" rarely coincide on daily bars);
+prefer conditions that can realistically coincide or use OR logic for exits.
 
 STRICT RULES:
 1. Use ONLY the indicators specified. Do NOT add any other indicators.
@@ -98,8 +103,8 @@ INDICATOR MAPPING (use these EXACT Backtrader indicator classes):
 - Bollinger Bands -> bt.indicators.BollingerBands
 - Volume -> self.data.volume (no indicator needed, use directly)
 
-COMPLETE WORKING EXAMPLE:
-For spec: EMA(20,50), RSI(14,30,70), entry="EMA 20 crosses above EMA 50 AND RSI below 30", exit="Exit on opposite signal", SL=1%, TP=2%, trailing=0.5%, max_trades=3
+COMPLETE WORKING EXAMPLE (daily-appropriate):
+For spec: EMA(20,50), RSI(14,30,70), entry="EMA 20 crosses above EMA 50", exit="Exit on opposite signal", SL=1%, TP=2%, trailing=0.5%, max_trades=3
 
 ```python
 import backtrader as bt
@@ -141,9 +146,8 @@ class GeneratedStrategy(bt.Strategy):
         
         # Entry conditions (ALL must be true - AND logic)
         ema_cross_up = self.ema_fast[0] > self.ema_slow[0] and self.ema_fast[-1] <= self.ema_slow[-1]
-        rsi_oversold = self.rsi[0] < self.p.rsi_oversold
         
-        if not self.position and ema_cross_up and rsi_oversold:
+        if not self.position and ema_cross_up:
             self.buy()
             self.trade_count += 1
             self.entry_price = self.data.close[0]
@@ -234,7 +238,6 @@ def build_strategy_prompt(spec: StrategyBuilderRequest) -> str:
 
 MARKET: {spec.market}
 TRADING STYLE: {spec.trading_style}
-TIMEFRAME: {spec.timeframe}
 
 INDICATORS:
 {indicators_text}

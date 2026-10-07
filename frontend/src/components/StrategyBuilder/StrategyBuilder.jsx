@@ -16,14 +16,12 @@ const DEFAULT_CONFIG = {
   market: 'NIFTY50',
   tradingStyle: 'intraday',
   timeframe: '15m',
-  indicators: ['EMA', 'RSI'],
+  indicators: ['EMA'],
   indicatorParams: {
     EMA: { fast: 20, slow: 50 },
-    RSI: { period: 14, oversold: 30, overbought: 70 },
   },
   entryConditions: [
     { left: 'EMA 20', operator: 'crosses above', right: 'EMA 50', logicalOp: 'AND' },
-    { left: 'RSI', operator: 'is below', right: '30', logicalOp: 'AND' },
   ],
   exitConditions: {
     exitOnOpposite: true,

@@ -225,7 +225,7 @@ class TestBuildStrategyPrompt:
         
         assert "NIFTY50" in prompt
         assert "intraday" in prompt
-        assert "15m" in prompt
+        # TIMEFRAME is no longer in the prompt - backtests always run on daily dataset
         assert "EMA" in prompt
         assert "RSI" in prompt
         assert "fast=20" in prompt
