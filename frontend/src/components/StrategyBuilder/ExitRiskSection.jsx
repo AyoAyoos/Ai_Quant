@@ -22,7 +22,9 @@ export default function ExitRiskSection({ value: rawValue, onChange, error }) {
       ...value,
       [section]: {
         ...value[section],
-        [field]: { ...value[section][field], [subField]: newValue },
+        [field]: subField
+          ? { ...value[section][field], [subField]: newValue }
+          : newValue,
       },
     })
   }

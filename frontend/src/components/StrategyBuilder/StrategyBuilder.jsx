@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { generateStrategy, isNetworkError, isNotFound } from '../../lib/api.js'
+import { registerStrategy } from '../../lib/storage.js'
 import { useNavigate } from 'react-router-dom'
 import MarketSection from './MarketSection.jsx'
 import TradingStyleSection from './TradingStyleSection.jsx'
@@ -116,6 +117,14 @@ export default function StrategyBuilder() {
       }
 
       const result = await generateStrategy(spec)
+
+      // Register the strategy in the local registry so it appears on the Strategies page
+      registerStrategy({
+        id: result.strategy_id,
+        name: result.name,
+        description: result.description,
+      })
+
       setGeneratedStrategy(result)
       setGenerationStatus('success')
     } catch (err) {

@@ -9,6 +9,7 @@ This service handles the structured strategy generation workflow:
 5. Returns structured result for persistence
 """
 import json
+import re
 import httpx
 
 from app.config import settings
@@ -49,13 +50,126 @@ STRICT RULES:
 10. For risk management: implement stop loss, take profit, and trailing stop as percentage-based exits.
 11. For max_trades_per_day: implement a daily trade counter that prevents new entries after the limit.
 
-INDICATOR MAPPING (use these exact Backtrader indicator classes):
+IMPLEMENTATION REQUIREMENTS (CRITICAL - your code MUST follow these patterns):
+
+A. INDICATOR INITIALIZATION (in __init__):
+   - Create ALL indicators specified using the exact Backtrader classes from the mapping below
+   - Use indicator parameters EXACTLY as specified
+   - Store indicators as self.indicator_name (e.g., self.ema_fast, self.rsi)
+   - For multiple EMAs/SMAs, use descriptive names like ema_fast, ema_slow
+
+B. CROSSOVER DETECTION (in next()):
+   - Bullish crossover (fast crosses above slow): indicator_fast[0] > indicator_slow[0] and indicator_fast[-1] <= indicator_slow[-1]
+   - Bearish crossover (fast crosses below slow): indicator_fast[0] < indicator_slow[0] and indicator_fast[-1] >= indicator_slow[-1]
+   - Use [0] for current bar, [-1] for previous bar - NEVER use [1] (lookahead)
+
+C. THRESHOLD CONDITIONS (in next()):
+   - "RSI is below 30" -> self.rsi[0] < 30
+   - "RSI is above 70" -> self.rsi[0] > 70
+   - "Price above upper band" -> self.data.close[0] > self.bb.top[0]
+   - "Price below lower band" -> self.data.close[0] < self.bb.bot[0]
+   - "Volume spike" -> self.data.volume[0] > self.data.volume[-1] * 1.5 (or similar)
+
+D. ENTRY LOGIC (in next()):
+   - Check ALL entry conditions must be met (AND logic)
+   - Only enter if not self.position
+   - Increment trade counter on entry
+   - Store entry_price = self.data.close[0] for risk management
+
+E. EXIT LOGIC (in next()):
+   - Check exit conditions OR risk management exits (OR logic)
+   - Only exit if self.position
+   - User-specified exits (e.g., "Exit on opposite signal" = bearish crossover OR RSI overbought)
+   - Risk management exits (stop loss, take profit, trailing stop) - ALWAYS implement these
+   - For stop loss: (entry_price - current_price) / entry_price * 100 >= stop_loss_pct
+   - For take profit: (current_price - entry_price) / entry_price * 100 >= take_profit_pct
+   - For trailing stop: track highest_price_since_entry, exit if (highest - current) / highest * 100 >= trailing_pct
+
+F. MAX TRADES PER DAY:
+   - Track self.trade_count and self.last_trade_date
+   - Reset counter when date changes
+   - Skip new entries if trade_count >= max_trades_per_day
+
+INDICATOR MAPPING (use these EXACT Backtrader indicator classes):
 - EMA -> bt.indicators.EMA
 - SMA -> bt.indicators.SMA
 - RSI -> bt.indicators.RSI
 - MACD -> bt.indicators.MACD
 - Bollinger Bands -> bt.indicators.BollingerBands
 - Volume -> self.data.volume (no indicator needed, use directly)
+
+COMPLETE WORKING EXAMPLE:
+For spec: EMA(20,50), RSI(14,30,70), entry="EMA 20 crosses above EMA 50 AND RSI below 30", exit="Exit on opposite signal", SL=1%, TP=2%, trailing=0.5%, max_trades=3
+
+```python
+import backtrader as bt
+
+class GeneratedStrategy(bt.Strategy):
+    params = (
+        ("ema_fast_period", 20),
+        ("ema_slow_period", 50),
+        ("rsi_period", 14),
+        ("rsi_oversold", 30),
+        ("rsi_overbought", 70),
+        ("stop_loss_pct", 1.0),
+        ("take_profit_pct", 2.0),
+        ("trailing_stop_pct", 0.5),
+        ("max_trades_per_day", 3),
+    )
+
+    def __init__(self):
+        # Indicators - use EXACT parameters from spec
+        self.ema_fast = bt.indicators.EMA(self.data.close, period=self.p.ema_fast_period)
+        self.ema_slow = bt.indicators.EMA(self.data.close, period=self.p.ema_slow_period)
+        self.rsi = bt.indicators.RSI(self.data.close, period=self.p.rsi_period)
+        
+        # Trade tracking
+        self.trade_count = 0
+        self.last_trade_date = None
+        self.entry_price = None
+        self.highest_price = None
+
+    def next(self):
+        # Max trades per day check
+        current_date = self.data.datetime.date(0)
+        if self.last_trade_date != current_date:
+            self.trade_count = 0
+            self.last_trade_date = current_date
+        
+        if self.trade_count >= self.p.max_trades_per_day:
+            return
+        
+        # Entry conditions (ALL must be true - AND logic)
+        ema_cross_up = self.ema_fast[0] > self.ema_slow[0] and self.ema_fast[-1] <= self.ema_slow[-1]
+        rsi_oversold = self.rsi[0] < self.p.rsi_oversold
+        
+        if not self.position and ema_cross_up and rsi_oversold:
+            self.buy()
+            self.trade_count += 1
+            self.entry_price = self.data.close[0]
+            self.highest_price = self.data.close[0]
+            return
+        
+        # Exit conditions (ANY can trigger - OR logic)
+        if self.position:
+            # User-specified exit: opposite signal
+            ema_cross_down = self.ema_fast[0] < self.ema_slow[0] and self.ema_fast[-1] >= self.ema_slow[-1]
+            rsi_overbought = self.rsi[0] > self.p.rsi_overbought
+            exit_opposite = ema_cross_down or rsi_overbought
+            
+            # Risk management exits
+            current_price = self.data.close[0]
+            self.highest_price = max(self.highest_price, current_price)
+            
+            stop_loss_hit = (self.entry_price - current_price) / self.entry_price * 100 >= self.p.stop_loss_pct
+            take_profit_hit = (current_price - self.entry_price) / self.entry_price * 100 >= self.p.take_profit_pct
+            trailing_stop_hit = (self.highest_price - current_price) / self.highest_price * 100 >= self.p.trailing_stop_pct
+            
+            if exit_opposite or stop_loss_hit or take_profit_hit or trailing_stop_hit:
+                self.sell()
+                self.entry_price = None
+                self.highest_price = None
+```
 
 OUTPUT FORMAT:
 Return ONLY a JSON object with this exact structure:
@@ -134,9 +248,60 @@ EXIT CONDITIONS:
 RISK MANAGEMENT:
 {risk_text}
 
-Generate the complete strategy code following all the rules in the system prompt."""
+Generate the complete strategy code following all the rules in the system prompt. Pay special attention to the IMPLEMENTATION REQUIREMENTS section which shows exact code patterns for crossover detection, threshold conditions, entry/exit logic, and risk management."""
     
     return prompt
+
+
+def validate_generated_code(code: str) -> list[str]:
+    """
+    Validate that the generated code has basic trading logic.
+    Returns list of warnings (non-blocking) and errors (blocking).
+    """
+    warnings = []
+    errors = []
+    
+    # Check for required imports
+    if "import backtrader as bt" not in code:
+        errors.append("Missing 'import backtrader as bt'")
+    
+    # Check for GeneratedStrategy class
+    if "class GeneratedStrategy" not in code:
+        errors.append("Missing 'class GeneratedStrategy' definition")
+    
+    # Check for __init__ method
+    if "def __init__" not in code:
+        warnings.append("No __init__ method found - indicators may not be initialized")
+    
+    # Check for next method
+    if "def next" not in code:
+        errors.append("Missing 'def next' method - strategy will not execute any logic")
+    
+    # Check for buy/sell calls
+    if "self.buy()" not in code and "self.buy(" not in code:
+        warnings.append("No buy() call found - strategy may not enter positions")
+    
+    if "self.sell()" not in code and "self.sell(" not in code and "self.close()" not in code:
+        warnings.append("No sell()/close() call found - strategy may not exit positions")
+    
+    # Check for indicator initialization (bt.indicators)
+    if "bt.indicators" not in code:
+        warnings.append("No bt.indicators initialization found - strategy may not use any indicators")
+    
+    # Check for position check
+    if "self.position" not in code:
+        warnings.append("No self.position check found - strategy may not handle position state correctly")
+    
+    # Check for entry_price tracking (needed for stop loss/take profit)
+    # Look for any risk management parameter usage
+    has_risk_params = any(param in code for param in [
+        "stop_loss_pct", "take_profit_pct", "trailing_stop_pct",
+        "self.p.stop_loss", "self.p.take_profit", "self.p.trailing_stop"
+    ])
+    if "entry_price" not in code and has_risk_params:
+        warnings.append("Risk management parameters used but entry_price not tracked - stop loss/take profit may not work")
+    
+    return {"warnings": warnings, "errors": errors}
 
 
 async def generate_structured_strategy(spec: StrategyBuilderRequest) -> dict:
@@ -172,6 +337,18 @@ async def generate_structured_strategy(spec: StrategyBuilderRequest) -> dict:
     
     if not all(k in parsed for k in ("name", "description", "code")):
         raise ValueError("LLM response missing required fields")
+    
+    # Validate generated code
+    validation = validate_generated_code(parsed["code"])
+    if validation["errors"]:
+        raise ValueError(f"Generated code validation failed: {'; '.join(validation['errors'])}")
+    
+    # Log warnings but don't fail
+    if validation["warnings"]:
+        import logging
+        logger = logging.getLogger(__name__)
+        for w in validation["warnings"]:
+            logger.warning(f"Generated code warning: {w}")
     
     return parsed
 

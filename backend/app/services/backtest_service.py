@@ -66,9 +66,20 @@ def _apply_posix_limits(memory_mb: int | None, cpu_seconds: int | None) -> None:
 
     if memory_mb:
         limit = int(memory_mb * 1024 * 1024)
-        resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+        try:
+            current_soft, current_hard = resource.getrlimit(resource.RLIMIT_AS)
+            if limit <= current_hard:
+                resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+        except (ValueError, OSError):
+            # macOS may refuse to set limits if soft is already at max; ignore
+            pass
     if cpu_seconds:
-        resource.setrlimit(resource.RLIMIT_CPU, (int(cpu_seconds), int(cpu_seconds)))
+        try:
+            current_soft, current_hard = resource.getrlimit(resource.RLIMIT_CPU)
+            if int(cpu_seconds) <= current_hard:
+                resource.setrlimit(resource.RLIMIT_CPU, (int(cpu_seconds), int(cpu_seconds)))
+        except (ValueError, OSError):
+            pass
 
 
 def _kill_tree(proc: subprocess.Popen) -> None:

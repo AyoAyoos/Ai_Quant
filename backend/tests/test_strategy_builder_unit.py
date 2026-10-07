@@ -10,6 +10,7 @@ from app.services.strategy_builder import (
     build_strategy_prompt,
     validate_indicator_parameters,
     convert_spec_to_output,
+    validate_generated_code,
 )
 from app.schemas import (
     StrategyBuilderRequest,
@@ -273,3 +274,122 @@ class TestConvertSpecToOutput:
         assert output.risk_management.take_profit_percent == 2
         assert output.risk_management.trailing_stop_percent == 0.5
         assert output.risk_management.max_trades_per_day == 3
+
+
+class TestValidateGeneratedCode:
+    def test_valid_complete_strategy(self):
+        code = '''
+import backtrader as bt
+
+class GeneratedStrategy(bt.Strategy):
+    params = (("ema_fast_period", 20),)
+
+    def __init__(self):
+        self.ema_fast = bt.indicators.EMA(self.data.close, period=self.p.ema_fast_period)
+
+    def next(self):
+        if not self.position and self.ema_fast[0] > self.ema_fast[-1]:
+            self.buy()
+        elif self.position:
+            self.sell()
+'''
+        result = validate_generated_code(code)
+        assert result["errors"] == []
+        # May have warnings but no errors
+
+    def test_missing_import(self):
+        code = '''
+class GeneratedStrategy(bt.Strategy):
+    def next(self):
+        self.buy()
+'''
+        result = validate_generated_code(code)
+        assert any("import backtrader" in e for e in result["errors"])
+
+    def test_missing_class(self):
+        code = '''
+import backtrader as bt
+
+def next(self):
+    self.buy()
+'''
+        result = validate_generated_code(code)
+        assert any("GeneratedStrategy" in e for e in result["errors"])
+
+    def test_missing_next_method(self):
+        code = '''
+import backtrader as bt
+
+class GeneratedStrategy(bt.Strategy):
+    def __init__(self):
+        pass
+'''
+        result = validate_generated_code(code)
+        assert any("next" in e for e in result["errors"])
+
+    def test_no_buy_call(self):
+        code = '''
+import backtrader as bt
+
+class GeneratedStrategy(bt.Strategy):
+    def next(self):
+        if self.position:
+            self.sell()
+'''
+        result = validate_generated_code(code)
+        assert any("buy" in w for w in result["warnings"])
+
+    def test_no_sell_call(self):
+        code = '''
+import backtrader as bt
+
+class GeneratedStrategy(bt.Strategy):
+    def next(self):
+        if not self.position:
+            self.buy()
+'''
+        result = validate_generated_code(code)
+        assert any("sell" in w for w in result["warnings"])
+
+    def test_no_indicators(self):
+        code = '''
+import backtrader as bt
+
+class GeneratedStrategy(bt.Strategy):
+    def next(self):
+        if not self.position:
+            self.buy()
+        else:
+            self.sell()
+'''
+        result = validate_generated_code(code)
+        assert any("indicators" in w for w in result["warnings"])
+
+    def test_no_position_check(self):
+        code = '''
+import backtrader as bt
+
+class GeneratedStrategy(bt.Strategy):
+    def next(self):
+        self.buy()
+        self.sell()
+'''
+        result = validate_generated_code(code)
+        assert any("position" in w for w in result["warnings"])
+
+    def test_risk_params_without_entry_price(self):
+        code = '''
+import backtrader as bt
+
+class GeneratedStrategy(bt.Strategy):
+    params = (("stop_loss_pct", 1.0),)
+
+    def next(self):
+        if not self.position:
+            self.buy()
+        elif self.position:
+            self.sell()
+'''
+        result = validate_generated_code(code)
+        # Should warn about missing entry_price tracking when stop_loss_pct is used
+        assert any("entry_price" in w for w in result["warnings"])
