@@ -117,6 +117,42 @@
   color: #ffffff;
 }
 
+/* Minimalist auth header: logo only, left-aligned (login route). */
+.app-shell__bar--auth {
+  justify-content: flex-start;
+}
+
+.brand-auth {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  text-decoration: none;
+}
+
+.brand-auth:hover {
+  text-decoration: none;
+}
+
+.brand-auth__logo {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+}
+
+.brand-auth__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  color: #ffffff;
+}
+
+.brand-auth:hover .brand-auth__name {
+  color: #f8b2b2;
+}
+
 /* ------------------------------------------------------------------ auth */
 
 .auth-wrap {

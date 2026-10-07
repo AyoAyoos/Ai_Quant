@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { readStrategies } from '../lib/storage.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import Icon from './Icon.jsx'
+import LineSidebar from './LineSidebar.jsx'
 
 function useStrategyCount() {
   // Strategies are created or removed on other routes, so a committed
@@ -19,27 +20,29 @@ function useStrategyCount() {
   return count
 }
 
-const NAV = [
-  { to: '/dashboard', label: 'Overview', icon: 'grid_view', end: true },
-  { to: '/studio', label: 'Studio', icon: 'forum', end: false },
-  { to: '/studio/builder', label: 'Builder', icon: 'build', end: false },
-  { to: '/strategies', label: 'Strategies', icon: 'dashboard', end: false, count: true },
-  { to: '/backtests', label: 'Backtesting', icon: 'timeline', end: false },
-  { to: '/analytics', label: 'Analytics', icon: 'calculate', end: false },
-  { to: '/paper-trading', label: 'Paper Trading', icon: 'verified', end: false },
-]
-
-const NAV_SECONDARY = [
-  { to: '/settings', label: 'Settings', icon: 'security', end: false },
-  { to: '/docs', label: 'Documentation', icon: 'article', end: false },
+const SIDEBAR_ITEMS = [
+  { label: 'Overview', to: '/dashboard', icon: 'grid_view', end: true },
+  {
+    label: 'Studio',
+    to: '/studio',
+    icon: 'forum',
+    match: ['/studio', '/chat', '/studio/builder'],
+  },
+  { label: 'Builder', to: '/studio/builder', icon: 'build' },
+  { label: 'Strategies', to: '/strategies', icon: 'dashboard', match: ['/strategies'] },
+  { label: 'Backtesting', to: '/backtests', icon: 'timeline' },
+  { label: 'Analytics', to: '/analytics', icon: 'calculate' },
+  { label: 'Paper Trading', to: '/paper-trading', icon: 'verified' },
+  { label: 'Settings', to: '/settings', icon: 'security' },
+  { label: 'Documentation', to: '/docs', icon: 'article' },
 ]
 
 /**
- * Persistent chrome for every route — 7 pages + documentation.
+ * Persistent chrome: top bar + (guarded pages) fixed left sidebar.
  *
- * PAGE SPLIT ONLY: this shell adds navigation between the page wrappers. It
- * has no knowledge of strategy ids, makes no API call except the registry
- * count, and changes no button, workflow or calculation anywhere.
+ * Top bar: favicon + "AI Quant" left, Login/Logout right, deep purple.
+ * The old horizontal pill nav is gone; guarded pages navigate via the
+ * left LineSidebar and render untouched in the right content container.
  */
 export default function AppShell() {
   const strategyCount = useStrategyCount()
@@ -50,8 +53,13 @@ export default function AppShell() {
   // viewport; every other page scrolls as one document. /chat is the legacy
   // alias of /studio and behaves the same.
   const fixedMain = pathname === '/studio' || pathname === '/chat'
-  // The login view keeps the chrome but steps it back so the card owns focus.
+  // The login view keeps only the minimalist brand bar so the auth art owns focus.
   const isLogin = pathname === '/login'
+  const [navOpen, setNavOpen] = useState(false)
+
+  const items = SIDEBAR_ITEMS.map((item) =>
+    item.label === 'Strategies' ? { ...item, badge: strategyCount } : item,
+  )
 
   return (
     <div className="app-shell">
@@ -60,16 +68,26 @@ export default function AppShell() {
       </a>
 
       <header className="app-shell__header">
-        <div className="app-shell__bar">
-          <span className="brand__text brand__text--center">
-            <span className="brand__name">Quant Strategy Assistant</span>
-            <span className="brand__disclaimer">
-              Educational prototype. Paper trading only. No guaranteed returns.
-            </span>
-          </span>
+        <div className={`app-shell__bar${isLogin ? ' app-shell__bar--auth' : ' app-shell__bar--app'}`}>
+          {!isLogin && (
+            <button
+              className="nav-toggle"
+              type="button"
+              onClick={() => setNavOpen((open) => !open)}
+              aria-expanded={navOpen}
+              aria-controls="app-sidebar"
+              aria-label={navOpen ? 'Close navigation' : 'Open navigation'}
+            >
+              <Icon name={navOpen ? 'close' : 'menu'} size={22} />
+            </button>
+          )}
+          <Link className="brand-auth" to="/" aria-label="AI Quant home">
+            <img className="brand-auth__logo" src="/favicon.svg" alt="" width={30} height={30} />
+            <span className="brand-auth__name">AI Quant</span>
+          </Link>
           {isAuthenticated ? (
             <button
-              className="login-btn"
+              className="login-btn login-btn--app"
               type="button"
               onClick={() => {
                 logout()
@@ -80,46 +98,58 @@ export default function AppShell() {
             </button>
           ) : (
             !isLogin && (
-              <NavLink
-                to="/login"
-                className={({ isActive }) => `login-btn${isActive ? ' login-btn--active' : ''}`}
-              >
+              <Link className="login-btn login-btn--app" to="/login">
                 Login
-              </NavLink>
+              </Link>
             )
           )}
         </div>
-        {!isLogin && (
-          <div className="app-shell__navwrap">
-            <nav className="main-nav main-nav--bar" aria-label="Main">
-              {[...NAV, ...NAV_SECONDARY].map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    `main-nav__link${isActive || (item.to === '/studio' && pathname === '/chat') ? ' main-nav__link--active' : ''}`
-                  }
-                >
-                  <Icon name={item.icon} size={17} />
-                  {item.label}
-                  {item.count && strategyCount > 0 && (
-                    <span className="main-nav__count">{strategyCount}</span>
-                  )}
-                </NavLink>
-              ))}
-            </nav>
-          </div>
-        )}
       </header>
 
-      <main
-        className={`app-shell__main${fixedMain ? ' app-shell__main--fixed' : ''}`}
-        id="main"
-        tabIndex={-1}
-      >
-        <Outlet />
-      </main>
+      {isLogin ? (
+        <main className="app-shell__main" id="main" tabIndex={-1}>
+          <Outlet />
+        </main>
+      ) : (
+        <div className="app-shell__body">
+          <LineSidebar
+            id="app-sidebar"
+            items={items}
+            defaultActive={0}
+            accentColor="#AF719D"
+            markerColor="#8B639B"
+            textColor="#403D88"
+            fontSize={1.1}
+            itemGap={24}
+            markerGap={10}
+            markerLength={40}
+            maxShift={20}
+            proximityRadius={100}
+            showIndex
+            showMarker={false}
+            smoothing={100}
+            tickScale={0.5}
+            scaleTick={false}
+            falloff="smooth"
+            open={navOpen}
+            onNavigate={() => setNavOpen(false)}
+            onItemClick={(index, label) => {
+              // TODO: Hook this up to your routing logic (e.g., react-router useNavigate)
+              // Routing is handled via each item's `to`; this is the analytics hook.
+              if (typeof window !== 'undefined' && window.console) {
+                window.console.debug('[sidebar]', index, label)
+              }
+            }}
+          />
+          <main
+            className={`app-shell__main${fixedMain ? ' app-shell__main--fixed' : ''}`}
+            id="main"
+            tabIndex={-1}
+          >
+            <Outlet />
+          </main>
+        </div>
+      )}
     </div>
   )
 }
