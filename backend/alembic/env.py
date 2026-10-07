@@ -25,7 +25,9 @@ target_metadata = Base.metadata
 
 # The .env / environment is the single source of truth for the DB URL;
 # override whatever sqlalchemy.url placeholder lives in alembic.ini.
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Escape the % sign for configparser so Alembic doesn't crash
+escaped_url = settings.database_url.replace("%", "%%")
+config.set_main_option("sqlalchemy.url", escaped_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
