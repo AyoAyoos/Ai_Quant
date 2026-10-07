@@ -21,7 +21,7 @@ function useStrategyCount() {
 }
 
 const SIDEBAR_ITEMS = [
-  { label: 'Overview', to: '/dashboard', icon: 'grid_view', end: true },
+  { label: 'Dashboard', to: '/dashboard', icon: 'grid_view', end: true },
   {
     label: 'Studio',
     to: '/studio',
@@ -61,6 +61,17 @@ export default function AppShell() {
     item.label === 'Strategies' ? { ...item, badge: strategyCount } : item,
   )
 
+  const isActiveItem = (item) => {
+    if (item.end) return pathname === item.to
+    if (Array.isArray(item.match) && item.match.length > 0) {
+      return item.match.some((p) => (p === '/' ? pathname === '/' : pathname.startsWith(p)))
+    }
+    if (!item.to) return false
+    return pathname === item.to || pathname.startsWith(`${item.to}/`)
+  }
+
+  const activeLabel = (items.find(isActiveItem) || {}).label || ''
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main">
@@ -69,22 +80,29 @@ export default function AppShell() {
 
       <header className="app-shell__header">
         <div className={`app-shell__bar${isLogin ? ' app-shell__bar--auth' : ' app-shell__bar--app'}`}>
-          {!isLogin && (
-            <button
-              className="nav-toggle"
-              type="button"
-              onClick={() => setNavOpen((open) => !open)}
-              aria-expanded={navOpen}
-              aria-controls="app-sidebar"
-              aria-label={navOpen ? 'Close navigation' : 'Open navigation'}
-            >
-              <Icon name={navOpen ? 'close' : 'menu'} size={22} />
-            </button>
+          <div className="app-shell__bar-left">
+            {!isLogin && (
+              <button
+                className="nav-toggle"
+                type="button"
+                onClick={() => setNavOpen((open) => !open)}
+                aria-expanded={navOpen}
+                aria-controls="app-sidebar"
+                aria-label={navOpen ? 'Close navigation' : 'Open navigation'}
+              >
+                <Icon name={navOpen ? 'close' : 'menu'} size={22} />
+              </button>
+            )}
+            <Link className="brand-auth" to="/" aria-label="AI Quant home">
+              <img className="brand-auth__logo" src="/favicon.svg" alt="" width={30} height={30} />
+              <span className="brand-auth__name">AI Quant</span>
+            </Link>
+          </div>
+          {!isLogin && activeLabel && (
+            <span className="app-shell__title" aria-live="polite">
+              {activeLabel}
+            </span>
           )}
-          <Link className="brand-auth" to="/" aria-label="AI Quant home">
-            <img className="brand-auth__logo" src="/favicon.svg" alt="" width={30} height={30} />
-            <span className="brand-auth__name">AI Quant</span>
-          </Link>
           {isAuthenticated ? (
             <button
               className="login-btn login-btn--app"
@@ -120,12 +138,12 @@ export default function AppShell() {
             markerColor="#8B639B"
             textColor="#403D88"
             fontSize={1.1}
-            itemGap={24}
+            itemGap={12}
             markerGap={10}
             markerLength={40}
             maxShift={20}
             proximityRadius={100}
-            showIndex
+            showIndex={false}
             showMarker={false}
             smoothing={100}
             tickScale={0.5}

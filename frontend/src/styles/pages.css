@@ -47,8 +47,8 @@
 
 .app-shell__header {
   flex: none;
-  background: #403d88;
-  border-bottom: 1px solid #373472;
+  background: #4e4b9a;
+  border-bottom: 1px solid #45418b;
 }
 
 .app-shell__bar {
@@ -61,6 +61,45 @@
   margin: 0 auto;
   padding: var(--sp-3) var(--sp-5);
   flex-wrap: wrap;
+}
+
+/* App (logged-in) bar: full-bleed grid — brand cell matches the sidebar
+   width, title starts exactly above the content edge, actions far right. */
+.app-shell__bar--app {
+  display: grid;
+  grid-template-columns: 248px 1fr auto;
+  grid-template-areas: 'brand title logout';
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  min-height: 64px;
+  padding: 16px 1.5rem 16px 21px;
+  flex-wrap: nowrap;
+}
+
+.app-shell__bar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  grid-area: brand;
+  justify-self: start;
+}
+
+.app-shell__title {
+  grid-area: title;
+  justify-self: start;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #f8b2b2;
+  text-align: left;
 }
 
 /* Light navigation strip directly below the dark brand bar. */
@@ -115,6 +154,15 @@
   background: rgba(255, 255, 255, 0.22);
   border-color: #ffffff;
   color: #ffffff;
+}
+
+/* In the full-bleed app bar the button sits in normal flow at the far edge. */
+.login-btn--app {
+  position: static;
+  transform: none;
+  margin-left: auto;
+  grid-area: logout;
+  justify-self: end;
 }
 
 /* Minimalist auth header: logo only, left-aligned (login route). */
@@ -1116,9 +1164,25 @@ kbd {
 
 /* ---------------------------------------------------------------- responsive */
 
+@media (max-width: 1024px) {
+  /* Rail is 72px: shrink the brand cell to match, logo only. */
+  .app-shell__bar--app {
+    grid-template-columns: 72px 1fr auto;
+  }
+
+  .app-shell__bar--app .brand-auth__name {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
   .app-shell__bar {
     padding: var(--sp-3) var(--sp-4);
+  }
+
+  /* Page gutter shrinks to 16px: nudge the brand cell to hold alignment. */
+  .app-shell__bar--app {
+    grid-template-columns: 73px 1fr auto;
   }
 
   .page {
@@ -1130,11 +1194,32 @@ kbd {
   }
 }
 
+@media (max-width: 900px) {
+  /* Page gutter shrinks to 16px: nudge the brand cell to hold alignment. */
+  .app-shell__bar--app {
+    grid-template-columns: 73px 1fr auto;
+  }
+}
+
 @media (max-width: 640px) {
   .app-shell__bar {
     flex-direction: column;
     align-items: center;
     gap: var(--sp-3);
+  }
+
+  /* Drawer mode (no visible rail): title gets its own row above the content. */
+  .app-shell__bar--app {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'brand logout'
+      'title title';
+    row-gap: 4px;
+    align-items: center;
+  }
+
+  .app-shell__bar--app .brand-auth__name {
+    display: inline;
   }
 
   .login-btn {

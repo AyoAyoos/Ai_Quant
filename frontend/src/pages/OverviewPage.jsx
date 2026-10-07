@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { fetchDeployments, fetchHealth, fetchStrategy } from '../lib/api.js'
 import { getCachedBacktest, readStrategies } from '../lib/storage.js'
 import { formatDateTime } from '../lib/format.js'
-import Icon from '../components/Icon.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import Note from '../components/Note.jsx'
 
@@ -115,23 +114,9 @@ export default function OverviewPage() {
     <div className="page">
       <div className="page-head">
         <div className="page-head__text">
-          <Link className="page-back" to="/">
-            <Icon name="arrow_back" size={16} />
-            Back to Home Page
-          </Link>
-          <h1 className="page-title">Overview</h1>
           <p className="page-lede">
-            Quick overview of the current system: strategies, paper-trading status, key metrics and
-            engine health. Create in the Studio, manage under Strategies, run under Backtesting.
+           
           </p>
-        </div>
-        <div className="page-actions">
-          <Link className="btn btn--primary" to="/studio">
-            Open Strategy Studio
-          </Link>
-          <Link className="btn" to="/strategies">
-            View strategies
-          </Link>
         </div>
       </div>
 

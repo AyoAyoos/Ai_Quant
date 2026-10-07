@@ -16,7 +16,7 @@ export default function NotFoundPage() {
           </p>
           <div className="empty-state__actions">
             <Link className="btn btn--primary" to="/dashboard">
-              Go to overview
+              Go to Dashboard
             </Link>
             <Link className="btn" to="/studio">
               Open studio
