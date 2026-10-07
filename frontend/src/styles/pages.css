@@ -70,12 +70,12 @@
   grid-template-columns: 248px 1fr auto;
   grid-template-areas: 'brand title logout';
   align-items: center;
-  gap: var(--sp-3);
+  gap: 0;
   width: 100%;
   max-width: none;
   margin: 0;
   min-height: 64px;
-  padding: 16px 1.5rem 16px 21px;
+  padding: 16px 1.5rem 16px 0;
   flex-wrap: nowrap;
 }
 
@@ -85,7 +85,10 @@
   gap: var(--sp-3);
   min-width: 0;
   grid-area: brand;
-  justify-self: start;
+  justify-self: stretch;
+  margin: -16px 0;
+  padding: 16px 0 16px 21px;
+  border-right: 1px solid rgba(175, 113, 157, 0.55);
 }
 
 .app-shell__title {
@@ -94,6 +97,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  padding: 0 12px 0 21px;
   font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 600;
@@ -1170,6 +1174,11 @@ kbd {
     grid-template-columns: 72px 1fr auto;
   }
 
+  .app-shell__bar--app .app-shell__bar-left {
+    padding-left: 0;
+    justify-content: center;
+  }
+
   .app-shell__bar--app .brand-auth__name {
     display: none;
   }
@@ -1183,6 +1192,17 @@ kbd {
   /* Page gutter shrinks to 16px: nudge the brand cell to hold alignment. */
   .app-shell__bar--app {
     grid-template-columns: 73px 1fr auto;
+    padding: 12px 16px 12px 0;
+  }
+
+  .app-shell__bar--app .app-shell__bar-left {
+    margin: -12px 0;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .app-shell__bar--app .app-shell__title {
+    padding-left: 16px;
   }
 
   .page {
@@ -1216,6 +1236,17 @@ kbd {
       'title title';
     row-gap: 4px;
     align-items: center;
+  }
+
+  .app-shell__bar--app .app-shell__bar-left {
+    margin: 0;
+    padding: 0;
+    border-right: 0;
+    justify-content: flex-start;
+  }
+
+  .app-shell__bar--app .app-shell__title {
+    padding-left: 0;
   }
 
   .app-shell__bar--app .brand-auth__name {

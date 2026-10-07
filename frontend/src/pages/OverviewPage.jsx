@@ -4,7 +4,6 @@ import { fetchDeployments, fetchHealth, fetchStrategy } from '../lib/api.js'
 import { getCachedBacktest, readStrategies } from '../lib/storage.js'
 import { formatDateTime } from '../lib/format.js'
 import StatusBadge from '../components/StatusBadge.jsx'
-import Note from '../components/Note.jsx'
 
 /**
  * Overview / Dashboard — page 1 of the 7-page split.
@@ -136,8 +135,7 @@ export default function OverviewPage() {
           </div>
         </div>
         <p className="disclaimer-text">
-          Counts come from this browser&apos;s registry with live status read from the backend — the
-          same source as the Strategies page. Nothing here is recalculated.
+
         </p>
       </section>
 
@@ -219,14 +217,14 @@ export default function OverviewPage() {
         )}
       </section>
 
-      <Note tone="warning" title="Regulatory & algorithmic safety notice">
+      {/* <Note tone="warning" title="Regulatory & algorithmic safety notice">
         <span>
           <strong>Educational prototype. Paper trading only. No live orders.</strong> This tool runs
           deterministic simulation and paper-trading bookkeeping on historical NIFTY 50 data. It is
           not investment advice and places no orders of any kind. Past backtested performance does
           not guarantee future returns.
         </span>
-      </Note>
+      </Note> */}
     </div>
   )
 }
