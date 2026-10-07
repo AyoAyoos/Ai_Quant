@@ -211,7 +211,7 @@ export function fetchDeployments(strategyId, { signal } = {}) {
  * strategy ({ strategy_id, generated_code, strategy_specification, ... }).
  */
 export function generateStrategy(spec, { signal } = {}) {
-  return request('/strategies/builder/', {
+  return request('/strategies/builder', {
     method: 'POST',
     body: spec,
     signal,

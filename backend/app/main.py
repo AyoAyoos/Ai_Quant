@@ -29,6 +29,7 @@ app = FastAPI(
     title="AI Conversational Quant Trading App",
     version="0.1.0",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 # Middleware runs outside-in in reverse order of addition: the last one added is
