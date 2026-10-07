@@ -4,20 +4,30 @@ Starlette wraps middleware in reverse order of addition, so the LAST one added
 is the OUTERMOST.
 """
 import logging
+import os
 
 from starlette.exceptions import HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 # Single source of truth for browser origins allowed to call this API.
-CORS_ALLOW_ORIGINS = [
-    "http://localhost:5173",  # React dev server (default port)
-    "http://localhost:5174",  # Vite fallback when 5173 is already in use
-    "http://localhost:5175",  # next Vite fallback
-    "http://localhost:3000",  # dockerized nginx frontend
-]
+# If ALLOWED_ORIGINS is set (non-empty), parse it; otherwise use dev defaults.
+_env = settings.allowed_origins
+if _env:
+    CORS_ALLOW_ORIGINS = [
+        origin.strip() for origin in _env.split(",") if origin.strip()
+    ]
+else:
+    CORS_ALLOW_ORIGINS = [
+        "http://localhost:5173",  # React dev server (default port)
+        "http://localhost:5174",  # Vite fallback when 5173 is already in use
+        "http://localhost:5175",  # next Vite fallback
+        "http://localhost:3000",  # dockerized nginx frontend
+    ]
 
 
 class JsonErrorMiddleware(BaseHTTPMiddleware):

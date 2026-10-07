@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     approval_min_trades: int = 1
     approval_max_drawdown_pct: float = 50.0
 
+    # Comma-separated browser origins allowed by CORS, or "*" for any.
+    # Read from the ALLOWED_ORIGINS env var (set on Render). Empty = dev defaults.
+    allowed_origins: str = ""
+
     class Config:
         env_file = ".env"
 
