@@ -6,7 +6,8 @@
    ========================================================================== */
 
 .lp {
-  min-height: 100%;
+  min-height: 100svh;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   background-color: #403d88;
@@ -23,40 +24,38 @@
   background-repeat: repeat, repeat, no-repeat, no-repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
   background-position: top left, top left, 50% 38%, 50% 30%, top left, 50% 36%, 50% 105%, 0% 55%, 100% 55%;
   background-size: 80px 80px, 80px 80px, 1400px 420px, 1200px 600px, 800px 600px, auto, auto, auto, auto;
-  background-attachment: fixed;
+  background-attachment: scroll;
   color: #ffffff;
 }
 
-/* --------------------------------------------------------------- header */
+/* --------------------------------------------------- header: icon / center / login */
 
 .lp__header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
   width: 100%;
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 10px var(--sp-5);
+  min-height: 64px;
+  padding: 14px var(--sp-6);
 }
 
 .lp__brand {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   min-width: 0;
+  justify-self: start;
 }
 
-.lp__mark {
-  display: grid;
-  place-items: center;
+.lp__logo {
+  display: block;
   width: 34px;
   height: 34px;
   flex: none;
-  border-radius: var(--r-md);
-  background: rgba(248, 178, 178, 0.14);
-  border: 1px solid rgba(248, 178, 178, 0.5);
-  color: #f8b2b2;
+  border-radius: 8px;
 }
 
 .lp__name {
@@ -68,13 +67,37 @@
   white-space: nowrap;
 }
 
+.lp__nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  min-width: 0;
+  justify-self: center;
+}
+
+.lp__nav-link {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: rgba(227, 217, 229, 0.75);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.lp__nav-link:hover {
+  color: #f8b2b2;
+  text-decoration: none;
+}
+
 .lp__login {
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 7px 26px;
   border-radius: var(--r-pill);
-  border: 1.5px solid #ffffff;
+  border: 1px solid rgba(248, 178, 178, 0.65);
   background: transparent;
   color: #ffffff;
   font-size: var(--fs-sm);
@@ -85,13 +108,25 @@
 }
 
 .lp__login:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(248, 178, 178, 0.14);
   box-shadow: 0 0 20px rgba(248, 178, 178, 0.45);
   color: #ffffff;
   text-decoration: none;
 }
 
-/* ----------------------------------------------------------------- hero */
+.lp__rule {
+  width: 100%;
+  height: 1px;
+  background: rgba(175, 113, 157, 0.35);
+}
+
+.lp__main,
+.lp__features,
+.lp__footer {
+  background: transparent;
+}
+
+/* -------------------------------------------------- hero: centered viewport */
 
 .lp__main {
   flex: 1;
@@ -101,26 +136,32 @@
   width: 100%;
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: var(--sp-5) var(--sp-5) var(--sp-5);
+  padding: 0 var(--sp-6) var(--sp-6);
 }
 
 .lp__hero {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 860px;
+  min-height: calc(100svh - 65px);
+  margin: 0 auto;
+  padding: 72px 0 120px;
   text-align: center;
-  gap: var(--sp-3);
-  max-width: 760px;
-  padding-top: var(--sp-4);
 }
 
 .lp__headline {
+  margin: 0;
+  max-width: 22ch;
   font-family: var(--font-display);
-  font-size: clamp(2rem, 4.4vw, 3.2rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  font-size: clamp(2.4rem, 5.2vw, 4rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
   color: #ffffff;
+  text-wrap: balance;
 }
 
 .lp__ai {
@@ -128,10 +169,12 @@
 }
 
 .lp__sub {
-  font-size: var(--fs-body-md);
+  margin: var(--sp-4) 0 0;
+  font-size: 1.1rem;
   color: #e3d9e5;
   max-width: 62ch;
-  line-height: 1.55;
+  line-height: 1.6;
+  text-wrap: pretty;
 }
 
 .lp__cta {
@@ -140,7 +183,7 @@
   justify-content: center;
   gap: var(--sp-3);
   flex-wrap: wrap;
-  margin-top: var(--sp-1);
+  margin-top: var(--sp-5);
 }
 
 .lp__btn {
@@ -148,6 +191,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
+  width: auto;
   padding: 12px 28px;
   border-radius: var(--r-pill);
   font-size: var(--fs-sm);
@@ -175,36 +219,78 @@
 
 .lp__btn--hollow {
   background: transparent;
-  border: 1.5px solid #ffffff;
+  border: 1.5px solid #f8b2b2;
   color: #ffffff;
 }
 
 .lp__btn--hollow:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(248, 178, 178, 0.12);
   color: #ffffff;
   text-decoration: none;
 }
 
-/* ----------------------------------------------------------------- grid */
+/* ------------------------------------------- features: full-width, same margins */
+
+.lp__features {
+  width: 100%;
+  margin-top: var(--sp-8);
+  padding-bottom: var(--sp-6);
+  scroll-margin-top: 72px;
+}
+
+.lp__section-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: var(--sp-5);
+}
+
+.lp__section-label {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(248, 178, 178, 0.9);
+  white-space: nowrap;
+}
+
+.lp__section-rule {
+  flex: 1;
+  height: 1px;
+  background: rgba(175, 113, 157, 0.35);
+}
+
+.lp__section-count {
+  flex: none;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: rgba(248, 178, 178, 0.8);
+}
 
 .lp__grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   column-gap: var(--sp-5);
   row-gap: var(--sp-4);
+  align-items: stretch;
+  justify-content: center;
+  justify-items: stretch;
   width: 100%;
-  margin-top: var(--sp-5);
 }
 
 .lp__card {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--sp-2);
-  padding: 14px var(--sp-4);
+  gap: 10px;
+  min-height: 178px;
+  padding: 20px 20px 22px;
   border-radius: var(--r-lg);
-  border: 1px solid rgba(248, 178, 178, 0.32);
-  background: rgba(139, 99, 155, 0.18);
+  border: 1px solid rgba(139, 99, 155, 0.65);
+  background: rgba(255, 255, 255, 0.05);
   box-shadow: 0 0 20px rgba(248, 178, 178, 0.08), 0 10px 28px rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -231,17 +317,20 @@
 }
 
 .lp__card-title {
+  margin: 2px 0 0;
   font-family: var(--font-display);
-  font-size: var(--fs-md);
+  font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.015em;
+  line-height: 1.3;
   color: #ffffff;
 }
 
 .lp__card-body {
+  margin: 0;
   font-size: var(--fs-sm);
   color: #e3d9e5;
-  line-height: 1.6;
+  line-height: 1.65;
 }
 
 /* --------------------------------------------------------------- footer */
@@ -251,20 +340,56 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  margin-top: var(--sp-4);
-  padding: 0 var(--sp-5) var(--sp-2);
+  max-width: var(--maxw);
+  margin: var(--sp-5) auto 0;
+  padding: 0 var(--sp-5) var(--sp-4);
   font-size: var(--fs-sm);
-  color: rgba(227, 217, 229, 0.7);
+  line-height: 1.5;
+  color: rgba(227, 217, 229, 0.65);
   text-align: center;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
+  .lp__hero {
+    min-height: calc(100svh - 57px);
+    padding: 56px 0 110px;
+  }
+
   .lp__grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
+    max-width: 560px;
+    margin: 0 auto;
   }
 }
 
 @media (max-width: 640px) {
+  .lp__header {
+    min-height: 56px;
+    padding: 10px var(--sp-4);
+    gap: var(--sp-2);
+  }
+
+  .lp__nav {
+    gap: 14px;
+  }
+
+  .lp__nav-link {
+    font-size: var(--fs-caption);
+  }
+
+  .lp__login {
+    padding: 6px 18px;
+  }
+
+  .lp__main {
+    padding: 0 var(--sp-4) var(--sp-4);
+  }
+
+  .lp__hero {
+    min-height: calc(100svh - 57px);
+    padding: 48px 0 100px;
+  }
+
   .lp__btn {
     width: 100%;
   }
@@ -273,7 +398,7 @@
     grid-template-columns: 1fr;
   }
 
-  .lp__name {
-    white-space: normal;
+  .lp__card {
+    min-height: 0;
   }
 }

@@ -3,34 +3,19 @@ import Icon from '../components/Icon.jsx'
 
 const FEATURES = [
   {
-    icon: 'auto_awesome',
-    title: 'AI Strategy Creation',
-    body: 'Describe your idea in natural language and get AI-powered trading strategies with ready-to-run code.',
-  },
-  {
-    icon: 'code',
-    title: 'Backtesting',
-    body: 'Test your strategies on historical data with robust analysis and performance metrics.',
+    icon: 'smart_toy',
+    title: 'Conversational Strategy Studio',
+    body: 'Leverage advanced LLMs to transform your trading ideas into ready-to-run Python code through a multi-phase interactive chat interface.',
   },
   {
     icon: 'bar_chart',
-    title: 'Analytics',
-    body: 'Visualize results, track key metrics and gain insights to improve your strategies.',
+    title: 'Secure Backtesting & Analytics',
+    body: 'Safely evaluate generated strategies against real NIFTY 50 historical data in an isolated sandbox, complete with deep performance metrics, risk analysis, and equity curve visualization.',
   },
   {
     icon: 'shield',
-    title: 'Paper Trading',
-    body: 'Practice and refine your strategies in a risk-free environment.',
-  },
-  {
-    icon: 'database',
-    title: 'Real Market Data',
-    body: 'Powered by reliable market data (e.g., NIFTY 50) for accurate backtesting and analysis.',
-  },
-  {
-    icon: 'smart_toy',
-    title: 'Powered by LLMs',
-    body: 'Built with advanced AI models for smarter, contextual strategy generation.',
+    title: 'Risk-Free Paper Trading',
+    body: 'Progress your strategies through a strict data-driven approval lifecycle. Deploy and monitor paper trades in a simulated environment without risking real capital.',
   },
 ]
 
@@ -47,16 +32,26 @@ export default function LandingPage() {
       </a>
 
       <header className="lp__header">
-        <span className="lp__brand">
-          <span className="lp__mark" aria-hidden="true">
-            <Icon name="ssid_chart" size={20} />
-          </span>
-          <span className="lp__name">Quant Strategy Assistant</span>
+        <span className="lp__brand" aria-label="AI Quant home">
+          <img className="lp__logo" src="/favicon.svg" alt="" width={34} height={34} />
+          <span className="lp__name">AI Quant</span>
         </span>
+        <nav className="lp__nav" aria-label="Primary">
+          <a className="lp__nav-link" href="#lp-features">
+            Features
+          </a>
+          <Link className="lp__nav-link" to="/studio">
+            Studio
+          </Link>
+          <Link className="lp__nav-link" to="/strategies">
+            Strategies
+          </Link>
+        </nav>
         <Link className="lp__login" to="/login">
           Login
         </Link>
       </header>
+      <div className="lp__rule" aria-hidden="true" />
 
       <main className="lp__main" id="lp-main">
         <section className="lp__hero" aria-labelledby="lp-title">
@@ -78,22 +73,29 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="lp__grid" aria-label="Platform features">
-          {FEATURES.map((feature) => (
-            <article key={feature.title} className="lp__card">
-              <span className="lp__icon" aria-hidden="true">
-                <Icon name={feature.icon} size={22} />
-              </span>
-              <h2 className="lp__card-title">{feature.title}</h2>
-              <p className="lp__card-body">{feature.body}</p>
-            </article>
-          ))}
+        <section className="lp__features" id="lp-features" aria-label="Platform features">
+          <div className="lp__section-head" aria-hidden="true">
+            <span className="lp__section-label">Core capabilities</span>
+            <span className="lp__section-rule" />
+            <span className="lp__section-count">03</span>
+          </div>
+          <div className="lp__grid">
+            {FEATURES.map((feature) => (
+              <article key={feature.title} className="lp__card">
+                <span className="lp__icon" aria-hidden="true">
+                  <Icon name={feature.icon} size={22} />
+                </span>
+                <h2 className="lp__card-title">{feature.title}</h2>
+                <p className="lp__card-body">{feature.body}</p>
+              </article>
+            ))}
+          </div>
         </section>
       </main>
 
       <footer className="lp__footer">
         <Icon name="shield" size={15} />
-        <span>Educational prototype. Paper trading only. No guaranteed returns.</span>
+        <span>Educational prototype, Paper trading only. No guaranteed returns.</span>
       </footer>
     </div>
   )
