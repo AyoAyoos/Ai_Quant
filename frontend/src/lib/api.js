@@ -13,8 +13,8 @@
 // VITE_API_BASE_URL is the deploy-time override (Vercel/Render);
 // VITE_API_BASE is the Dockerfile build-arg name.
 export const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ??
-  import.meta.env.VITE_API_BASE ??
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_BASE ||
   (import.meta.env.DEV ? '/api' : 'http://localhost:8000')
 
 /** Backend caps the backtest worker at 120s wall clock (504 on expiry). */
