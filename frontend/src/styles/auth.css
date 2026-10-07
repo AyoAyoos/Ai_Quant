@@ -1,31 +1,88 @@
 /* =============================================================================
-   auth.css — borderless immersive auth (LoginPage at /login).
+   auth.css — split-screen immersive auth (LoginPage at /login).
 
-   Scoped entirely under `.authx` (form) and `.art` (backdrop) so the light
-   app theme is untouched.
+   Scoped entirely under `.authx` (layout + form) and `.art` (right-half
+   quant graphics) so the light app theme is untouched.
    Palette only: #403D88 · #8B639B · #AF719D · #F8B2B2 (+ white/lavender text).
-   No containing card: content floats directly on the 3D trading artwork.
+   Desktop: 50/50 grid (form left, graphics right). Mobile: form only.
    ========================================================================== */
 
 .authx {
   position: relative;
-  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
   width: 100%;
-  padding: 56px 20px 64px;
   overflow: hidden;
-  background-color: #403d88;
-  background-image:
-    radial-gradient(circle 760px at 50% 12%, rgba(175, 113, 157, 0.5) 0%, transparent 70%),
-    radial-gradient(circle 620px at 50% 112%, rgba(139, 99, 155, 0.5) 0%, transparent 70%),
-    radial-gradient(circle 460px at 6% 62%, rgba(248, 178, 178, 0.13) 0%, transparent 70%),
-    radial-gradient(circle 460px at 94% 58%, rgba(248, 178, 178, 0.11) 0%, transparent 70%);
-  background-repeat: no-repeat;
-  background-position: 50% 12%, 50% 112%, 6% 62%, 94% 58%;
+  background: linear-gradient(to bottom, #403d88, #23204b);
   color: #ffffff;
+}
+
+/* One canvas: a very faint grid overlay spanning BOTH halves ties the
+   split-screen together as a single space. */
+.authx::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cpath d='M72 0H0V72' fill='none' stroke='%23FFFFFF' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------- split-screen panels */
+
+.authx__panel {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 100%;
+}
+
+.authx__panel--form {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: transparent;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.authx__brand {
+  position: absolute;
+  top: 22px;
+  left: 28px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.authx__brand-logo {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.authx__brand-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.authx__panel--art {
+  overflow: hidden;
+  height: 100%;
+  background: transparent;
+  box-shadow: -32px 0 64px -32px rgba(10, 8, 30, 0.6);
 }
 
 /* ------------------------------------------------------- 3D art layers */
@@ -33,8 +90,61 @@
 .art {
   position: absolute;
   inset: 0;
+  height: 100%;
   overflow: hidden;
   pointer-events: none;
+}
+
+.art__quant {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 18px rgba(248, 178, 178, 0.22));
+}
+
+.art__engine {
+  position: absolute;
+  left: 50%;
+  bottom: 7%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: 86%;
+  padding: 12px 22px;
+  border-radius: 14px;
+  border: 1px solid rgba(248, 178, 178, 0.3);
+  background: rgba(42, 39, 84, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35), 0 0 24px rgba(175, 113, 157, 0.25);
+  text-align: center;
+  animation: art-drift 7s ease-in-out infinite alternate;
+}
+
+.art__engine-label {
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f8b2b2;
+}
+
+.art__engine-formula {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-caption);
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.art__engine-sub {
+  font-size: var(--fs-caption);
+  letter-spacing: 0.04em;
+  color: rgba(227, 217, 229, 0.75);
 }
 
 .art__trend {
@@ -196,11 +306,14 @@
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 400px;
+  max-width: 430px;
+  margin: auto;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--sp-4);
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: 72px 28px 32px;
 }
 
 /* ------------------------------------------------------------ tabs */
@@ -237,11 +350,11 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 2px;
-  height: 2px;
-  border-radius: 2px;
+  bottom: 0;
+  height: 4px;
+  border-radius: 3px;
   background: #f8b2b2;
-  box-shadow: 0 0 12px rgba(248, 178, 178, 0.8);
+  box-shadow: 0 0 14px rgba(248, 178, 178, 0.9);
 }
 
 /* ---------------------------------------------------------------- body */
@@ -266,10 +379,10 @@
 .authx__title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: #f8b2b2;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
   text-align: center;
 }
 
@@ -294,14 +407,14 @@
 .authx__form {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
-  margin-top: var(--sp-4);
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
 }
 
 .authx__field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .authx__label {
@@ -315,28 +428,30 @@
 .authx__input,
 .authx__control {
   border-radius: var(--r-pill);
-  border: 1px solid rgba(248, 178, 178, 0.16);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid #8b639b;
+  background: rgba(40, 37, 84, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
     background var(--dur-fast) var(--ease);
 }
 
 .authx__input {
   width: 100%;
-  padding: 12px 18px;
+  padding: 10px 18px;
   color: #ffffff;
   font-family: var(--font-sans);
   font-size: var(--fs-base);
 }
 
 .authx__input::placeholder {
-  color: rgba(227, 217, 229, 0.45);
+  color: #b9b3d6;
 }
 
 .authx__input:focus {
   outline: none;
   border-color: #f8b2b2;
-  background: rgba(255, 255, 255, 0.11);
+  background: rgba(50, 46, 99, 0.75);
   box-shadow: 0 0 0 3px rgba(248, 178, 178, 0.25);
 }
 
@@ -349,14 +464,14 @@
 
 .authx__control:focus-within {
   border-color: #f8b2b2;
-  background: rgba(255, 255, 255, 0.11);
+  background: rgba(50, 46, 99, 0.75);
   box-shadow: 0 0 0 3px rgba(248, 178, 178, 0.25);
 }
 
 .authx__control-input {
   flex: 1;
   min-width: 0;
-  padding: 12px 0;
+  padding: 10px 0;
   border: 0;
   background: transparent;
   color: #ffffff;
@@ -365,7 +480,7 @@
 }
 
 .authx__control-input::placeholder {
-  color: rgba(227, 217, 229, 0.45);
+  color: #b9b3d6;
 }
 
 .authx__control-input:focus {
@@ -380,7 +495,7 @@
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: rgba(227, 217, 229, 0.65);
+  color: #ffffff;
   cursor: pointer;
   line-height: 1;
 }
@@ -420,7 +535,7 @@
 
 .authx__submit {
   width: 100%;
-  padding: 13px 16px;
+  padding: 11px 16px;
   border-radius: var(--r-pill);
   border: 1px solid #f8b2b2;
   background: #f8b2b2;
@@ -433,9 +548,9 @@
 }
 
 .authx__submit:hover {
-  background: #f9c4c4;
-  border-color: #f9c4c4;
-  box-shadow: 0 0 32px rgba(248, 178, 178, 0.5);
+  background: #fbcdd0;
+  border-color: #fbcdd0;
+  box-shadow: 0 0 36px rgba(248, 178, 178, 0.65), 0 6px 18px rgba(0, 0, 0, 0.3);
   transform: translateY(-1px);
 }
 
@@ -443,7 +558,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: rgba(227, 217, 229, 0.75);
+  color: #ffffff;
   font-size: var(--fs-sm);
   font-weight: 600;
   cursor: pointer;
@@ -464,7 +579,7 @@
 .authx__foot {
   margin: 0;
   font-size: var(--fs-sm);
-  color: rgba(227, 217, 229, 0.7);
+  color: #ffffff;
   text-align: center;
 }
 
@@ -511,27 +626,28 @@
 .authx__social {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 44px;
+  height: 44px;
   padding: 0;
-  border: 0;
+  border: 1px solid rgba(248, 178, 178, 0.35);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
+  background: #ffffff;
+  color: #403d88;
   cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
   transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
     transform var(--dur-fast) var(--ease);
 }
 
 .authx__social svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   display: block;
 }
 
 .authx__social:hover {
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow: 0 0 20px rgba(248, 178, 178, 0.4);
+  background: #f8b2b2;
+  box-shadow: 0 0 24px rgba(248, 178, 178, 0.55);
   transform: translateY(-2px);
 }
 
@@ -549,7 +665,9 @@
   padding: 0;
   border-radius: 12px;
   border: 1px solid rgba(248, 178, 178, 0.2);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(40, 37, 84, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   color: #ffffff;
   font-family: var(--font-display);
   font-size: 1.25rem;
@@ -562,7 +680,7 @@
 .authx__otp-box:focus {
   outline: none;
   border-color: #f8b2b2;
-  background: rgba(255, 255, 255, 0.11);
+  background: rgba(50, 46, 99, 0.75);
   box-shadow: 0 0 0 3px rgba(248, 178, 178, 0.25);
 }
 
@@ -579,6 +697,18 @@
 /* ------------------------------------------------------------ responsive */
 
 @media (max-width: 900px) {
+  .authx {
+    grid-template-columns: 1fr;
+  }
+
+  .authx__panel--form {
+    border-right: 0;
+  }
+
+  .authx__panel--art {
+    display: none;
+  }
+
   .art__candles--left {
     left: 2%;
   }
@@ -597,8 +727,13 @@
 }
 
 @media (max-width: 480px) {
-  .authx {
-    padding: 40px 16px 48px;
+  .authx__brand {
+    top: 16px;
+    left: 16px;
+  }
+
+  .authx__wrap {
+    padding: 80px 16px 32px;
   }
 
   .art__candles {
@@ -629,7 +764,8 @@
   .authx__body,
   .art__candles--left,
   .art__candles--right,
-  .art__chip {
+  .art__chip,
+  .art__engine {
     animation: none;
   }
 }
