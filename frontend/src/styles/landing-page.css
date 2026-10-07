@@ -6,6 +6,7 @@
    ========================================================================== */
 
 .lp {
+  position: relative;
   min-height: 100svh;
   flex: 1 0 auto;
   display: flex;
@@ -26,6 +27,18 @@
   background-size: 80px 80px, 80px 80px, 1400px 420px, 1200px 600px, 800px 600px, auto, auto, auto, auto;
   background-attachment: scroll;
   color: #ffffff;
+}
+
+/* Interactive dot-grid canvas: absolute background layer behind all content.
+   Negative z-index keeps it above the page background but below every
+   section; pointer events pass through content above and land here on empty
+   areas for the hover/shockwave interactions. */
+.lp__bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: auto;
 }
 
 /* --------------------------------------------------- header: icon / center / login */

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Icon from '../components/Icon.jsx'
+import DotGrid from '../components/DotGrid.jsx'
 import DocumentationContent from '../components/DocumentationContent.jsx'
 
 const FEATURES = [
@@ -49,6 +50,19 @@ export default function LandingPage() {
 
   return (
     <div className="lp">
+      <div className="lp__bg" aria-hidden="true">
+        <DotGrid
+          baseColor="#635E9B"
+          activeColor="#F8B2B2"
+          dotSize={4}
+          gap={28}
+          proximity={150}
+          resistance={750}
+          returnDuration={1.5}
+          shockRadius={300}
+          shockStrength={8}
+        />
+      </div>
       <a className="skip-link" href="#lp-main">
         Skip to content
       </a>
