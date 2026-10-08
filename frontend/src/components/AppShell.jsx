@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { readStrategies } from '../lib/storage.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import Icon from './Icon.jsx'
@@ -47,7 +47,6 @@ const SIDEBAR_ITEMS = [
 export default function AppShell() {
   const strategyCount = useStrategyCount()
   const { pathname } = useLocation()
-  const navigate = useNavigate()
   const { isAuthenticated, userName, logout } = useAuth()
   // Studio owns its own scroll container so the composer stays pinned to the
   // viewport; every other page scrolls as one document. /chat is the legacy
@@ -77,12 +76,11 @@ export default function AppShell() {
     activeMatches.sort((a, b) => (b.to || '').length - (a.to || '').length)[0] || {}
   const activeLabel = activeItem.label || ''
 
-  function handleLogout() {
-    // Navigate while still authenticated so no route guard can intercept
-    // with a redirect to /login, then clear the session once landing
-    // (a public route) has committed.
-    navigate('/', { replace: true })
-    setTimeout(() => logout(), 0)
+  async function handleLogout() {
+    // Wipe the session (AuthContext clears this user's entire browser cache),
+    // then hard-navigate home so no in-memory dashboard state survives.
+    await logout()
+    window.location.href = '/'
   }
 
   return (

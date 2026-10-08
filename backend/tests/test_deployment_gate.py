@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from app.database import SessionLocal
 from app.main import app
 from app.models import BacktestResult, Conversation, Strategy, StrategyStatus, User
-from conftest import db_reachable
+from conftest import TEST_USER_ID, db_reachable
 
 pytestmark = pytest.mark.skipif(
     not db_reachable(),
@@ -41,7 +41,9 @@ def client():
 def _seed(status=StrategyStatus.draft, code=CLEAN_CODE, backtest=None) -> str:
     """Insert a strategy, optionally with a backtest result row."""
     with SessionLocal() as session:
-        user = User(email="gate@local")
+        # Owned by the conftest auth-stub identity, else ownership checks 404.
+        existing = session.query(User).filter(User.id == TEST_USER_ID).first()
+        user = existing or User(id=TEST_USER_ID, email="gate@local")
         session.add(user)
         session.commit()
         session.refresh(user)

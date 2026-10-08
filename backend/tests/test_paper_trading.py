@@ -18,6 +18,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base, get_db
 from app.main import app
 from app.models import Conversation, Strategy, StrategyStatus, User
+from conftest import TEST_USER_ID
 from app.services import paper_bars, paper_engine
 from app.services.paper_bars import PaperBarsError
 from app.services.paper_engine import (
@@ -311,7 +312,8 @@ def sqlite_client(tmp_path, monkeypatch):
     client = TestClient(app)
     try:
         session = session_factory()
-        user = User(email="paper@local")
+        # Owned by the conftest auth-stub identity, else ownership checks 404.
+        user = User(id=TEST_USER_ID, email="paper@local")
         session.add(user)
         session.commit()
         session.refresh(user)

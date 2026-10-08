@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from app.database import SessionLocal
 from app.main import app
 from app.models import Conversation, Strategy, User
-from conftest import db_reachable
+from conftest import TEST_USER_ID, db_reachable
 
 pytestmark = pytest.mark.skipif(
     not db_reachable(),
@@ -26,7 +26,9 @@ def _seed_strategy(generated_code: str | None = None) -> str:
     default_code = (FIXTURES / "buy_hold.py").read_text()
     code = default_code if generated_code is None else generated_code
     with SessionLocal() as session:
-        user = User(email="test@local")
+        # Owned by the conftest auth-stub identity, else ownership checks 404.
+        existing = session.query(User).filter(User.id == TEST_USER_ID).first()
+        user = existing or User(id=TEST_USER_ID, email="test@local")
         session.add(user)
         session.commit()
         session.refresh(user)

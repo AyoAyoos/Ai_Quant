@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.auth import verify_user
-from app.models import DeploymentStatus, PaperDeployment, PaperPosition, PaperTrade
+from app.auth import AuthenticatedUser, verify_user
+from app.models import Conversation, DeploymentStatus, PaperDeployment, PaperPosition, PaperTrade
 from app.schemas import PaperDeploymentSummaryOut
 from app.services.paper_bars import PaperBarsError, load_bars
 from app.services.paper_engine import account_snapshot
@@ -41,10 +41,19 @@ def _snapshot_numbers(db: Session, dep: PaperDeployment) -> dict:
 
 
 @router.get("/deployments", response_model=list[PaperDeploymentSummaryOut])
-def list_all_deployments(db: Session = Depends(get_db)):
-    """Every paper deployment across strategies, newest first, with snapshot numbers."""
+def list_all_deployments(
+    db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
+    """The caller's paper deployments across their strategies, newest first,
+    with snapshot numbers. Other users' deployments are never listed."""
+    from app.models import Strategy
+
     rows = (
         db.query(PaperDeployment)
+        .join(Strategy, PaperDeployment.strategy_id == Strategy.id)
+        .join(Conversation, Strategy.conversation_id == Conversation.id)
+        .filter(Conversation.user_id == user.id)
         .order_by(PaperDeployment.deployed_at.desc())
         .all()
     )
@@ -81,6 +90,9 @@ def list_all_deployments(db: Session = Depends(get_db)):
 
 
 @router.get("/deployments/active", response_model=list[PaperDeploymentSummaryOut])
-def list_active_deployments(db: Session = Depends(get_db)):
-    """Only active paper deployments, newest first."""
-    return [s for s in list_all_deployments(db) if s.status == "active"]
+def list_active_deployments(
+    db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
+    """Only the caller's active paper deployments, newest first."""
+    return [s for s in list_all_deployments(db, user) if s.status == "active"]

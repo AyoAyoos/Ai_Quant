@@ -5,7 +5,7 @@ import smtplib
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.auth import verify_user
+from app.auth import AuthenticatedUser, verify_user
 from app.services.welcome_email import MailerNotConfigured, send_welcome_email
 
 router = APIRouter(
@@ -26,7 +26,7 @@ class WelcomeEmailOut(BaseModel):
 
 
 @router.post("/welcome-email", response_model=WelcomeEmailOut)
-def welcome_email(payload: WelcomeEmailIn, user_id: str = Depends(verify_user)):
+def welcome_email(payload: WelcomeEmailIn, user: AuthenticatedUser = Depends(verify_user)):
     """Send the new-account greeting. Fire-and-forget from the client's
     perspective: SMTP failures surface as 502 (mailer reachable but failed),
     never as auth errors. 503 while SMTP credentials are unconfigured."""

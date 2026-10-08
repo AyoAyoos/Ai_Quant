@@ -8,13 +8,33 @@ from app.database import Base, engine
 def _bypass_supabase_auth():
     """Existing API tests exercise business logic, not auth: stub the
     router-level verify_user dependency so they run without Supabase JWTs.
-    Auth itself is covered in test_auth.py against an un-overridden app."""
+    Auth itself is covered in test_auth.py against an un-overridden app.
+
+    The stub identity owns every seeded row: seed helpers must create their
+    User with id=TEST_USER_ID, otherwise ownership checks 404.
+    """
     from app import auth as auth_module
     from app.main import app
 
-    app.dependency_overrides[auth_module.verify_user] = lambda: "test-user"
+    app.dependency_overrides[auth_module.verify_user] = lambda: TEST_USER
     yield
     app.dependency_overrides.pop(auth_module.verify_user, None)
+
+
+#: Supabase UUID impersonated by the auth stub above. Valid-UUID-shaped so it
+#: fits the Postgres UUID primary key on users.id. The hex contains letters
+#: on purpose: the SQLite-backed tests store ids through the Postgres UUID
+#: type, and an all-digit hex would be coerced to REAL by SQLite affinity.
+TEST_USER_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+
+def _test_user():
+    from app.auth import AuthenticatedUser
+
+    return AuthenticatedUser(id=TEST_USER_ID, email="test@example.com")
+
+
+TEST_USER = _test_user()
 
 
 def db_reachable() -> bool:

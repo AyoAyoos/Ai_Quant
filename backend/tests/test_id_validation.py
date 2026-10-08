@@ -11,7 +11,7 @@ from app.database import SessionLocal
 from app.ids import MAX_ECHOED_ID
 from app.main import app
 from app.models import Conversation, Message, Strategy, User
-from conftest import db_reachable
+from conftest import TEST_USER_ID, db_reachable
 
 # Every endpoint that takes a strategy id, with a minimal valid body where one
 # is required.
@@ -94,7 +94,9 @@ class TestAgainstPostgres:
 
     def _seed_strategy(self) -> str:
         with SessionLocal() as session:
-            user = User(email="test@local")
+            # Owned by the conftest auth-stub identity, else ownership checks 404.
+            existing = session.query(User).filter(User.id == TEST_USER_ID).first()
+            user = existing or User(id=TEST_USER_ID, email="test@local")
             session.add(user)
             session.commit()
             session.refresh(user)

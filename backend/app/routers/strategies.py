@@ -7,10 +7,11 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.auth import verify_user
+from app.auth import AuthenticatedUser, get_or_create_user, verify_user
 from app.ids import canonical_uuid_or_404, strategy_not_found
 from app.models import (
     BacktestResult,
+    Conversation,
     DeploymentStatus,
     PaperDeployment,
     PaperOrder,
@@ -73,13 +74,17 @@ router = APIRouter(
 
 
 @router.post("/builder", response_model=StrategyGenerateResponse)
-async def generate_strategy(payload: StrategyBuilderRequest, db: Session = Depends(get_db)):
+async def generate_strategy(
+    payload: StrategyBuilderRequest,
+    db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
     """
     Generate a trading strategy from structured specification.
-    
+
     This endpoint accepts a fully structured strategy specification and uses
     the LLM to generate executable Backtrader-compatible Python code.
-    
+
     The generated strategy is saved as a draft and can be backtested,
     approved, and deployed via the existing workflow.
     """
@@ -88,9 +93,9 @@ async def generate_strategy(payload: StrategyBuilderRequest, db: Session = Depen
         param_errors = validate_indicator_parameters(payload)
         if param_errors:
             raise HTTPException(status_code=422, detail={"errors": param_errors})
-        
-        # Get or create a dev conversation (same as chat endpoint)
-        conversation = _get_or_create_dev_conversation(db)
+
+        # Per-user conversation: one user's specs never mix into another's.
+        conversation = _get_or_create_user_conversation(db, user)
         
         try:
             # Generate strategy using LLM
@@ -156,22 +161,24 @@ async def generate_strategy(payload: StrategyBuilderRequest, db: Session = Depen
         raise HTTPException(status_code=500, detail=f"CRASH: {str(e)}") from e
 
 
-def _get_or_create_dev_conversation(db: Session):
-    """Get or create a dev conversation for strategy builder (no chat history needed)."""
-    from app.models import Conversation, User
-    # Try to find existing dev conversation
-    conv = db.query(Conversation).filter(Conversation.title == "Strategy Builder").first()
+def _get_or_create_user_conversation(db: Session, user: AuthenticatedUser):
+    """Get or create the caller's Strategy Builder conversation.
+
+    Scoped by owner: every user gets their own builder thread instead of
+    sharing one global dev conversation.
+    """
+    current = get_or_create_user(db, user)
+    conv = (
+        db.query(Conversation)
+        .filter(
+            Conversation.user_id == current.id,
+            Conversation.title == "Strategy Builder",
+        )
+        .first()
+    )
     if conv:
         return conv
-    # Create dev user if needed
-    user = db.query(User).filter(User.email == "dev@local").first()
-    if not user:
-        user = User(email="dev@local")
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    # Create conversation
-    conv = Conversation(user_id=user.id, title="Strategy Builder")
+    conv = Conversation(user_id=current.id, title="Strategy Builder")
     db.add(conv)
     db.commit()
     db.refresh(conv)
@@ -179,9 +186,11 @@ def _get_or_create_dev_conversation(db: Session):
 
 
 @router.get("/{strategy_id}", response_model=StrategyDetailOut)
-def get_strategy(strategy_id: str, db: Session = Depends(get_db)):
+def get_strategy(strategy_id: str,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
     """Strategy detail for the UI's code viewer — no LLM round-trip needed."""
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     return StrategyDetailOut(
         strategy_id=strategy.id,
         name=strategy.name,
@@ -195,16 +204,26 @@ def get_strategy(strategy_id: str, db: Session = Depends(get_db)):
     )
 
 
-def _get_strategy_or_404(db: Session, strategy_id: str) -> Strategy:
-    """Load a strategy by id, 404-ing before the query when the id is malformed.
+def _get_strategy_or_404(db: Session, strategy_id: str, user_id: str) -> Strategy:
+    """Load the caller's strategy by id, 404-ing before the query when the id
+    is malformed.
 
     Validation comes first on purpose: a non-UUID id cast to `::UUID` by
     Postgres raises a DataError inside the query, which would escape as an
     opaque 500 instead of the 404 below.
+
+    Ownership second: a strategy owned by another user 404s exactly like a
+    missing one, so one user can never read, mutate, backtest, deploy, or
+    tick another user's strategies.
     """
     detail = strategy_not_found(strategy_id)
     canonical = canonical_uuid_or_404(strategy_id, detail)
-    strategy = db.query(Strategy).filter(Strategy.id == canonical).first()
+    strategy = (
+        db.query(Strategy)
+        .join(Conversation, Strategy.conversation_id == Conversation.id)
+        .filter(Strategy.id == canonical, Conversation.user_id == user_id)
+        .first()
+    )
     if strategy is None:
         raise HTTPException(status_code=404, detail=detail)
     return strategy
@@ -225,7 +244,9 @@ def _deployment_out(dep: PaperDeployment) -> DeploymentOut:
 
 
 @router.post("/{strategy_id}/approve", response_model=GateOut)
-def approve_strategy(strategy_id: str, db: Session = Depends(get_db)):
+def approve_strategy(strategy_id: str,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
     """backtested -> approved, when the quality gate passes.
 
     Takes no request body: the decision is derived entirely from the stored
@@ -233,7 +254,7 @@ def approve_strategy(strategy_id: str, db: Session = Depends(get_db)):
     validate and FastAPI ignores it. Failures here are gate refusals, not
     request-validation errors — 422 with `{"reasons": [...]}`.
     """
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     reasons = check_approval(strategy)
     if reasons:
         raise HTTPException(status_code=422, detail={"reasons": reasons})
@@ -244,9 +265,11 @@ def approve_strategy(strategy_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{strategy_id}/reject", response_model=GateOut)
-def reject_strategy(strategy_id: str, payload: RejectIn, db: Session = Depends(get_db)):
+def reject_strategy(strategy_id: str, payload: RejectIn,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
     """draft/backtested -> rejected, with a mandatory reason."""
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     if strategy.status == StrategyStatus.paper_trading:
         raise HTTPException(
             status_code=422,
@@ -268,14 +291,16 @@ def reject_strategy(strategy_id: str, payload: RejectIn, db: Session = Depends(g
 
 
 @router.post("/{strategy_id}/deploy", response_model=DeploymentOut)
-def deploy_strategy(strategy_id: str, payload: DeployIn, db: Session = Depends(get_db)):
+def deploy_strategy(strategy_id: str, payload: DeployIn,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
     """approved -> paper_trading, recording the deployment.
 
     This is the gate, not a live engine: it validates status, re-runs the
     guardrails over the current code, and refuses duplicate active
     deployments. No orders are placed anywhere.
     """
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     reasons = check_deploy(strategy)
     if reasons:
         raise HTTPException(status_code=422, detail={"reasons": reasons})
@@ -301,9 +326,11 @@ def deploy_strategy(strategy_id: str, payload: DeployIn, db: Session = Depends(g
 
 
 @router.post("/{strategy_id}/stop", response_model=DeploymentOut)
-def stop_deployment(strategy_id: str, payload: StopIn, db: Session = Depends(get_db)):
+def stop_deployment(strategy_id: str, payload: StopIn,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
     """Close the active deployment; the strategy returns to approved."""
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     dep = active_deployment(strategy)
     if dep is None:
         raise HTTPException(
@@ -320,9 +347,11 @@ def stop_deployment(strategy_id: str, payload: StopIn, db: Session = Depends(get
 
 
 @router.get("/{strategy_id}/deployments", response_model=list[DeploymentOut])
-def list_deployments(strategy_id: str, db: Session = Depends(get_db)):
+def list_deployments(strategy_id: str,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
     """Deployment history for audit, newest first."""
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     ordered = sorted(
         strategy.deployments, key=lambda d: d.deployed_at or datetime.min, reverse=True
     )
@@ -334,8 +363,9 @@ def backtest_strategy(
     strategy_id: str,
     params: BacktestRequest,
     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
 ):
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
 
     if not strategy.generated_code:
         raise HTTPException(
@@ -554,7 +584,9 @@ def _account_out(
 
 
 @router.post("/{strategy_id}/paper-tick", response_model=PaperTickOut)
-def paper_tick(strategy_id: str, payload: PaperTickIn | None = None, db: Session = Depends(get_db)):
+def paper_tick(strategy_id: str, payload: PaperTickIn | None = None,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
     """Advance ONE cached market bar through the deployed strategy's simulation.
 
     Without a bar date the oldest unprocessed cached bar is used. An explicit
@@ -563,7 +595,7 @@ def paper_tick(strategy_id: str, payload: PaperTickIn | None = None, db: Session
     tick; without it the active deployment ticks. Stopped deployments are
     history and never tick.
     """
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     requested_deployment = payload.deployment_id if payload else None
     if requested_deployment is None:
         dep = active_deployment(strategy)
@@ -595,19 +627,21 @@ def paper_tick(strategy_id: str, payload: PaperTickIn | None = None, db: Session
 
 @router.get("/{strategy_id}/paper-account", response_model=PaperAccountOut)
 def paper_account(
-    strategy_id: str, deployment_id: str | None = None, db: Session = Depends(get_db)
+    strategy_id: str, deployment_id: str | None = None,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
 ):
     """Authoritative virtual-account snapshot (active deployment, else latest)."""
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     return _account_out(db, strategy, _resolve_deployment(db, strategy, deployment_id))
 
 
 @router.get("/{strategy_id}/paper-positions", response_model=list[PaperPositionOut])
 def paper_positions(
-    strategy_id: str, deployment_id: str | None = None, db: Session = Depends(get_db)
+    strategy_id: str, deployment_id: str | None = None,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
 ):
     """Open simulated positions for a deployment (active, else latest)."""
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     dep = _resolve_deployment(db, strategy, deployment_id)
     rows = (
         db.query(PaperPosition)
@@ -621,10 +655,11 @@ def paper_positions(
 
 @router.get("/{strategy_id}/paper-orders", response_model=list[PaperOrderOut])
 def paper_orders(
-    strategy_id: str, deployment_id: str | None = None, db: Session = Depends(get_db)
+    strategy_id: str, deployment_id: str | None = None,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
 ):
     """Simulated order ledger, newest first — rejected orders included."""
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     dep = _resolve_deployment(db, strategy, deployment_id)
     rows = (
         db.query(PaperOrder)
@@ -637,10 +672,11 @@ def paper_orders(
 
 @router.get("/{strategy_id}/paper-trades", response_model=list[PaperTradeOut])
 def paper_trades(
-    strategy_id: str, deployment_id: str | None = None, db: Session = Depends(get_db)
+    strategy_id: str, deployment_id: str | None = None,     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
 ):
     """Completed simulated round-trips, newest first."""
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     dep = _resolve_deployment(db, strategy, deployment_id)
     rows = (
         db.query(PaperTrade)
@@ -657,6 +693,7 @@ def market_bars(
     deployment_id: str | None = None,
     limit: int = 2000,
     db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
 ):
     """Processed-period NIFTY OHLC bars for the paper-trading chart, oldest first.
 
@@ -664,7 +701,7 @@ def market_bars(
     (watermark-inclusive) from the SAME source the engine ticks. Never
     creates trades, never touches the account, never downloads data.
     """
-    strategy = _get_strategy_or_404(db, strategy_id)
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
     dep = _resolve_deployment(db, strategy, deployment_id)
     market = (strategy.market or "NIFTY50").strip().upper()
     try:

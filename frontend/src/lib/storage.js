@@ -11,6 +11,79 @@
 const THREAD_KEY = 'aiq.thread.v1'
 const STRATEGIES_KEY = 'aiq.strategies.v1'
 const BACKTESTS_KEY = 'aiq.backtests.v1'
+const SCOPED_KEYS = [THREAD_KEY, STRATEGIES_KEY, BACKTESTS_KEY]
+
+/** Legacy prototype flags from before Supabase auth. */
+const LEGACY_FLAGS = ['isLoggedIn', 'aiq.userName']
+
+/**
+ * Multi-tenant isolation: every key is namespaced by the active user's id
+ * (`aiq.strategies.v1.<userId>`), so two accounts on the same browser can
+ * never read each other's thread, strategy list, or cached backtests.
+ * With no active user (logged out) reads return empty and writes are
+ * dropped — nothing renders without an owner.
+ */
+let activeUserId = null
+
+export function setActiveUserId(userId) {
+  const next = userId || null
+  if (next === activeUserId) return
+  activeUserId = next
+  if (next) migrateLegacyKeys()
+}
+
+export function getActiveUserId() {
+  return activeUserId
+}
+
+function scopedKey(base) {
+  return activeUserId ? `${base}.${activeUserId}` : null
+}
+
+/**
+ * One-time upgrade: pre-isolation data lived under the bare keys. On the
+ * first login after this change, adopt it into the new owner's namespace
+ * instead of orphaning it, then delete the shared copy.
+ */
+function migrateLegacyKeys() {
+  const store = storage()
+  if (!store) return
+  for (const base of SCOPED_KEYS) {
+    try {
+      if (store.getItem(scopedKey(base)) !== null) continue
+      const legacy = store.getItem(base)
+      if (legacy === null) continue
+      store.setItem(scopedKey(base), legacy)
+      store.removeItem(base)
+    } catch {
+      /* storage unavailable — scoped reads simply start empty */
+    }
+  }
+}
+
+function removeKey(key) {
+  const store = storage()
+  if (!store) return
+  try {
+    store.removeItem(key)
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Logout wipe: delete the outgoing user's entire browser cache plus any
+ * legacy shared keys/flags, so the next login — by anyone — starts from a
+ * guaranteed-empty slate. Called by AuthContext.logout before sign-out.
+ */
+export function clearActiveUserData() {
+  if (activeUserId) {
+    for (const base of SCOPED_KEYS) removeKey(`${base}.${activeUserId}`)
+  }
+  for (const base of SCOPED_KEYS) removeKey(base)
+  for (const flag of LEGACY_FLAGS) removeKey(flag)
+  activeUserId = null
+}
 
 /** Chat transcript is trimmed to this many turns to survive tight quotas. */
 const MAX_THREAD_MESSAGES = 200
@@ -97,7 +170,9 @@ function sanitizeMessage(raw) {
 }
 
 export function readThread() {
-  const raw = readRaw(THREAD_KEY)
+  const key = scopedKey(THREAD_KEY)
+  if (!key) return { conversationId: null, messages: [] }
+  const raw = readRaw(key)
   if (!raw) return { conversationId: null, messages: [] }
   try {
     const parsed = JSON.parse(raw)
@@ -114,24 +189,22 @@ export function readThread() {
 }
 
 export function writeThread(thread) {
+  const key = scopedKey(THREAD_KEY)
+  if (!key) return false
   const messages = (thread.messages ?? []).slice(-MAX_THREAD_MESSAGES)
-  const ok = writeRaw(THREAD_KEY, { conversationId: thread.conversationId ?? null, messages })
+  const ok = writeRaw(key, { conversationId: thread.conversationId ?? null, messages })
   if (ok) return true
   // Quota hit: retry once with the oldest half of the transcript dropped.
-  return writeRaw(THREAD_KEY, {
+  return writeRaw(key, {
     conversationId: thread.conversationId ?? null,
     messages: messages.slice(Math.floor(messages.length / 2)),
   })
 }
 
 export function clearThread() {
-  const store = storage()
-  if (!store) return
-  try {
-    store.removeItem(THREAD_KEY)
-  } catch {
-    /* ignore */
-  }
+  const key = scopedKey(THREAD_KEY)
+  if (!key) return
+  removeKey(key)
 }
 
 /* -------------------------------------------------------------- strategies */
@@ -148,7 +221,9 @@ function sanitizeStrategyEntry(raw) {
 }
 
 export function readStrategies() {
-  const raw = readRaw(STRATEGIES_KEY)
+  const key = scopedKey(STRATEGIES_KEY)
+  if (!key) return []
+  const raw = readRaw(key)
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw)
@@ -172,6 +247,8 @@ export function readStrategies() {
  */
 export function registerStrategy({ id, name, description }) {
   if (!id) return readStrategies()
+  const key = scopedKey(STRATEGIES_KEY)
+  if (!key) return []
   const existing = readStrategies()
   const index = existing.findIndex((entry) => entry.id === id)
   const entry = {
@@ -181,18 +258,20 @@ export function registerStrategy({ id, name, description }) {
     createdAt: index >= 0 ? existing[index].createdAt : new Date().toISOString(),
   }
   const next = index >= 0 ? existing.map((e, i) => (i === index ? entry : e)) : [entry, ...existing]
-  const ok = writeRaw(STRATEGIES_KEY, next)
+  const ok = writeRaw(key, next)
   if (!ok) {
     // Retry after pruning cached backtests, which are the heaviest payload.
     pruneBacktests(5)
-    writeRaw(STRATEGIES_KEY, next)
+    writeRaw(key, next)
   }
   return next
 }
 
 export function removeStrategy(id) {
+  const key = scopedKey(STRATEGIES_KEY)
+  if (!key) return []
   const next = readStrategies().filter((entry) => entry.id !== id)
-  writeRaw(STRATEGIES_KEY, next)
+  writeRaw(key, next)
   return next
 }
 
@@ -211,7 +290,9 @@ function stripForCache(result) {
 }
 
 function readBacktests() {
-  const raw = readRaw(BACKTESTS_KEY)
+  const key = scopedKey(BACKTESTS_KEY)
+  if (!key) return {}
+  const raw = readRaw(key)
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw)
@@ -224,13 +305,15 @@ function readBacktests() {
 
 /** Oldest first, so `keep` implies dropping the least recently run ones. */
 function pruneBacktests(keep) {
+  const key = scopedKey(BACKTESTS_KEY)
+  if (!key) return
   const all = readBacktests()
   const ids = Object.keys(all).sort(
     (a, b) => new Date(all[a]?.ranAt ?? 0).getTime() - new Date(all[b]?.ranAt ?? 0).getTime(),
   )
   const next = {}
   for (const id of ids.slice(Math.max(0, ids.length - Math.max(0, keep)))) next[id] = all[id]
-  writeRaw(BACKTESTS_KEY, next)
+  writeRaw(key, next)
 }
 
 export function getCachedBacktest(strategyId) {
@@ -242,6 +325,8 @@ export function getCachedBacktest(strategyId) {
 
 export function setCachedBacktest(strategyId, result) {
   if (!strategyId || !result) return false
+  const key = scopedKey(BACKTESTS_KEY)
+  if (!key) return false
   const all = readBacktests()
   const next = {
     ...all,
@@ -254,12 +339,14 @@ export function setCachedBacktest(strategyId, result) {
     )
     for (const id of ordered.slice(MAX_CACHED_BACKTESTS)) delete next[id]
   }
-  return writeRaw(BACKTESTS_KEY, next)
+  return writeRaw(key, next)
 }
 
 export function removeCachedBacktest(strategyId) {
+  const key = scopedKey(BACKTESTS_KEY)
+  if (!key) return
   const all = readBacktests()
   if (!(strategyId in all)) return
   delete all[strategyId]
-  writeRaw(BACKTESTS_KEY, all)
+  writeRaw(key, all)
 }

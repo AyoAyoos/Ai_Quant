@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.auth import verify_user
+from app.auth import AuthenticatedUser, get_or_create_user, verify_user
 from app.ids import canonical_uuid_or_404
 from app.models import Conversation, Message, MessageRole, Strategy
 from app.schemas import ChatMessageIn, ChatMessageOut
@@ -18,22 +18,33 @@ router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(verify_u
 
 
 @router.post("", response_model=ChatMessageOut)
-async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
-    # 1. Get or create conversation
+async def send_message(
+    payload: ChatMessageIn,
+    db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
+    # 1. Get or create conversation — strictly owned by the caller. A
+    # conversation id belonging to another user 404s exactly like a
+    # missing one, so ownership is never leaked.
+    current = get_or_create_user(db, user)
     if payload.conversation_id is not None:
         # Validate before querying: a malformed id cast to `::UUID` by Postgres
         # would raise a DataError here instead of the 404 below.
         conversation_id = canonical_uuid_or_404(
             payload.conversation_id, "Conversation not found"
         )
-        conversation = db.query(Conversation).filter(
-            Conversation.id == conversation_id
-        ).first()
+        conversation = (
+            db.query(Conversation)
+            .filter(
+                Conversation.id == conversation_id,
+                Conversation.user_id == current.id,
+            )
+            .first()
+        )
         if conversation is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
     else:
-        # NOTE: NO real auth yet — single dev user. Replace when auth lands.
-        conversation = Conversation(user_id=_get_or_create_dev_user(db), title=payload.content[:50])
+        conversation = Conversation(user_id=current.id, title=payload.content[:50])
         db.add(conversation)
         db.commit()
         db.refresh(conversation)
@@ -123,14 +134,3 @@ async def send_message(payload: ChatMessageIn, db: Session = Depends(get_db)):
         "strategy_description": strategy_description,
     }
 
-
-def _get_or_create_dev_user(db: Session) -> str:
-    """Temporary single dev user until auth is built. Replace in a later phase."""
-    from app.models import User
-    user = db.query(User).filter(User.email == "dev@local").first()
-    if not user:
-        user = User(email="dev@local")
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    return user.id

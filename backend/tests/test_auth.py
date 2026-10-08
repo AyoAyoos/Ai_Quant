@@ -22,7 +22,12 @@ SECRET = "test-jwt-secret"
 
 def _token(**overrides) -> str:
     now = datetime.now(timezone.utc)
-    claims = {"sub": "user-uuid-123", "iat": now, "exp": now + timedelta(hours=1)}
+    claims = {
+        "sub": "user-uuid-123",
+        "email": "user@example.com",
+        "iat": now,
+        "exp": now + timedelta(hours=1),
+    }
     claims.update(overrides)
     return jwt.encode(claims, SECRET, algorithm="HS256")
 
@@ -37,8 +42,10 @@ def configured(monkeypatch):
     return SECRET
 
 
-def test_valid_token_returns_sub(configured):
-    assert verify_user(_creds(_token())) == "user-uuid-123"
+def test_valid_token_returns_identity(configured):
+    user = verify_user(_creds(_token()))
+    assert user.id == "user-uuid-123"
+    assert user.email == "user@example.com"
 
 
 def test_expired_token_rejected(configured):

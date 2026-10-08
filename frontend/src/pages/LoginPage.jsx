@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import Icon from '../components/Icon.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 
@@ -35,7 +35,6 @@ const RIGHT_CANDLES = [
  */
 export default function LoginPage() {
   const { isAuthenticated, login, signup, verifySignupOtp, resendSignupOtp } = useAuth()
-  const navigate = useNavigate()
   const location = useLocation()
 
   const [tab, setTab] = useState('signup')
@@ -59,7 +58,10 @@ export default function LoginPage() {
   const otpRefs = useRef([])
 
   const redirectAfterAuth = () => {
-    navigate(location.state?.from?.pathname || '/dashboard', { replace: true })
+    // Full reload, not a client-side navigate: every page holds user data in
+    // useState initialized once on mount, so only a fresh boot guarantees no
+    // stale state from a previous account survives the switch.
+    window.location.assign(location.state?.from?.pathname || '/dashboard')
   }
 
   // Move screen-reader + keyboard focus to the new heading on every transition.

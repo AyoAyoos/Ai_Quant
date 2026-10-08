@@ -1,6 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { postWelcomeEmail } from '../lib/api.js'
+import { clearActiveUserData, setActiveUserId } from '../lib/storage.js'
 import { supabase } from '../lib/supabaseClient.js'
+
+/** Storage namespace for the prototype session (no Supabase user id). */
+const PROTOTYPE_SCOPE_ID = 'local'
 
 const STORAGE_KEY = 'isLoggedIn'
 const NAME_KEY = 'aiq.userName'
@@ -77,6 +81,16 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  // Isolation: point the browser cache at the active user (or nobody when
+  // logged out), so reads/writes always land in that user's namespace.
+  useEffect(() => {
+    if (!supabase) {
+      setActiveUserId(prototypeAuthed ? PROTOTYPE_SCOPE_ID : null)
+      return
+    }
+    setActiveUserId(user?.id ?? null)
+  }, [user, prototypeAuthed])
+
   const login = useCallback(async (email, password) => {
     if (!supabase) {
       try {
@@ -148,6 +162,10 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(async () => {
+    // Wipe FIRST, while the scope still points at the outgoing user: their
+    // entire browser cache (thread, strategies, backtests, legacy keys) is
+    // deleted, so the next login — by anyone — starts with a clean slate.
+    clearActiveUserData()
     if (supabase) {
       await supabase.auth.signOut()
       setUser(null)
