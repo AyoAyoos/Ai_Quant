@@ -48,7 +48,7 @@ export default function AppShell() {
   const strategyCount = useStrategyCount()
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { isAuthenticated, logout } = useAuth()
+  const { isAuthenticated, userName, logout } = useAuth()
   // Studio owns its own scroll container so the composer stays pinned to the
   // viewport; every other page scrolls as one document. /chat is the legacy
   // alias of /studio and behaves the same.
@@ -150,6 +150,7 @@ export default function AppShell() {
               falloff="smooth"
               open={navOpen}
               showLogout={isAuthenticated}
+              userName={userName}
               onLogout={handleLogout}
               onNavigate={() => setNavOpen(false)}
               onItemClick={(index, label) => {

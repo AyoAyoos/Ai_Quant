@@ -54,6 +54,7 @@ export default function LineSidebar({
   onNavigate,
   onLogout,
   showLogout = false,
+  userName = '',
   id = 'app-sidebar',
 }) {
   const { pathname } = useLocation()
@@ -169,6 +170,13 @@ export default function LineSidebar({
     onLogout?.()
   }
 
+  const initials = (userName || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('')
+
   return (
     <>
       <div
@@ -247,6 +255,17 @@ export default function LineSidebar({
         </div>
         {showLogout && (
           <div className="ls__foot">
+            {userName && (
+              <div className="ls__profile">
+                <span className="ls__avatar" aria-hidden="true">
+                  {initials || '?'}
+                </span>
+                <span className="ls__profile-text">
+                  <span className="ls__profile-name">{userName}</span>
+                  <span className="ls__profile-sub">Active Trader</span>
+                </span>
+              </div>
+            )}
             <button
               type="button"
               className="ls__item ls__logout"

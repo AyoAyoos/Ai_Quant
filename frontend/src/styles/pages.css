@@ -963,6 +963,39 @@
   max-width: 320px;
 }
 
+/* Solid-purple Builder entry CTA: comfortable padding, quiet states. */
+.btn.chat-empty__builder-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: 1px solid #403d88;
+  background: #403d88;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
+  transition: all 200ms var(--ease);
+}
+
+.btn.chat-empty__builder-btn:hover:not(:disabled) {
+  background: #322f6d;
+  border-color: #322f6d;
+  color: #ffffff;
+  box-shadow: var(--shadow-2);
+}
+
+.btn.chat-empty__builder-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.chat-empty__builder-spin {
+  display: inline-flex;
+  line-height: 1;
+  animation: btn-spin 700ms linear infinite;
+}
+
 .chat-empty__builder-text {
   font-size: var(--fs-sm);
   color: var(--muted);

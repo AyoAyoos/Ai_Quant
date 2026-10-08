@@ -120,7 +120,7 @@ export default function LoginPage() {
     if (confirm !== password) next.confirm = 'Passwords do not match.'
     setErrors(next)
     if (Object.keys(next).length > 0) return
-    login(email.trim(), password)
+    login(email.trim(), password, fullName.trim())
     redirectAfterAuth()
   }
 

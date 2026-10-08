@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { generateStrategy, isNetworkError, isNotFound } from '../../lib/api.js'
 import { registerStrategy } from '../../lib/storage.js'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import MarketSection from './MarketSection.jsx'
 import TradingStyleSection from './TradingStyleSection.jsx'
 import TimeframeSection from './TimeframeSection.jsx'
@@ -35,9 +35,56 @@ const DEFAULT_CONFIG = {
   },
 }
 
+/**
+ * Best-effort parse of a chat "Transfer to Builder" seed into Builder form
+ * state. The chat only carries {name, description}, so each field is set
+ * only on an explicit keyword match — otherwise the Builder default stands.
+ */
+function parseBuilderSeed(seed) {
+  if (!seed || typeof seed !== 'object') return null
+  const text = `${seed.name || ''} ${seed.description || ''}`.toLowerCase()
+  if (!text.trim()) return null
+  const patch = {}
+
+  const style = ['scalping', 'intraday', 'swing', 'positional'].find((s) => text.includes(s))
+  if (style) patch.tradingStyle = style
+
+  const timeframe = [
+    ['5m', /\b5\s?(m|min|minutes?)\b/],
+    ['15m', /\b15\s?(m|min|minutes?)\b/],
+    ['30m', /\b30\s?(m|min|minutes?)\b/],
+    ['1h', /\b(1\s?(h|hour|hours?)|hourly)\b/],
+    ['1d', /\b(1\s?d|daily|day)\b/],
+  ].find(([, re]) => re.test(text))
+  if (timeframe) patch.timeframe = timeframe[0]
+
+  const indicators = [
+    ['EMA', /\bema\b/],
+    ['SMA', /\bsma\b/],
+    ['RSI', /\brsi\b/],
+    ['MACD', /\bmacd\b/],
+    ['BOLLINGER_BANDS', /\bbollinger\b/],
+    ['VOLUME', /\bvolume\b/],
+  ]
+    .filter(([, re]) => re.test(text))
+    .map(([id]) => id)
+  if (indicators.length > 0) patch.indicators = indicators
+
+  if (/\bbank\s?nifty\b/.test(text)) patch.market = 'BANKNIFTY'
+  else if (/\bsensex\b/.test(text)) patch.market = 'SENSEX'
+
+  return patch
+}
+
 export default function StrategyBuilder() {
   const navigate = useNavigate()
-  const [config, setConfig] = useState(DEFAULT_CONFIG)
+  const location = useLocation()
+  // Best-effort parse of a chat "Transfer to Builder" seed ({name,
+  // description}): only overrides a default when the text names it outright.
+  const [config, setConfig] = useState(() => ({
+    ...DEFAULT_CONFIG,
+    ...parseBuilderSeed(location.state?.builderSeed),
+  }))
   const [generationStatus, setGenerationStatus] = useState('idle')
   const [generationError, setGenerationError] = useState(null)
   const [generatedStrategy, setGeneratedStrategy] = useState(null)
