@@ -1093,6 +1093,19 @@
   color: var(--code-muted);
 }
 
+/* Copy button sits on the dark header bar: keep it white, pink on hover. */
+.code-viewer__bar .btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: #ffffff;
+}
+
+.code-viewer__bar .btn--ghost:hover:not(:disabled) {
+  background: rgba(248, 178, 178, 0.14);
+  border-color: rgba(248, 178, 178, 0.45);
+  color: #f8b2b2;
+}
+
 .code-viewer__pre {
   margin: 0;
   padding: var(--sp-4);
