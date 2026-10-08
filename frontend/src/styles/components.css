@@ -1123,6 +1123,21 @@
   font-family: inherit;
 }
 
+/* Standalone raw-metrics dump: the dark code surface without a header bar. */
+.raw-metrics {
+  background: #1a183b;
+  border: 1px solid rgba(139, 99, 155, 0.3);
+  border-radius: 12px;
+  padding: 16px;
+  overflow-x: auto;
+  color: #ffffff;
+}
+
+.raw-metrics code {
+  background: transparent;
+  color: inherit;
+}
+
 /* ------------------------------------------------------------ inline prose */
 
 .prose {
@@ -2044,8 +2059,89 @@
 }
 
 .generation-state--loading {
-  background: var(--surface-container);
-  border: 1px solid var(--border);
+  background: #ffffff;
+  border: 1px solid rgba(139, 99, 155, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(64, 61, 136, 0.08), 0 8px 24px rgba(139, 99, 155, 0.12);
+}
+
+.generation-state--loading .generation-state__title {
+  color: #403d88;
+  margin-bottom: var(--sp-6);
+}
+
+/* Two-tone brand ring: deep purple melting into soft pink. */
+.generation-state__ring {
+  width: 56px;
+  height: 56px;
+  animation: btn-spin 900ms linear infinite;
+}
+
+.generation-state--loading .generation-state__steps {
+  position: relative;
+  align-self: center;
+  align-items: flex-start;
+  text-align: left;
+  margin-top: 0;
+  padding-left: 4px;
+}
+
+/* Vertical connector running behind the step icons. */
+.generation-state--loading .generation-state__steps::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 13px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgba(139, 99, 155, 0.2);
+}
+
+.generation-state--loading .generation-state__step {
+  position: relative;
+  z-index: 1;
+  padding: 7px 0;
+  font-size: var(--fs-base);
+}
+
+.generation-state--loading .generation-state__step-icon {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: #ffffff;
+  line-height: 1;
+}
+
+.generation-state--loading .generation-state__step-icon::before {
+  content: none;
+}
+
+.generation-state__step--done {
+  color: #8b639b;
+}
+
+.generation-state__step--done .generation-state__step-icon {
+  color: #22c55e;
+}
+
+.generation-state__step--active {
+  color: #403d88;
+  font-weight: 600;
+}
+
+.generation-state__step--active .generation-state__step-icon {
+  color: #403d88;
+  animation: btn-spin 900ms linear infinite;
+}
+
+.generation-state__step--todo {
+  color: rgba(139, 99, 155, 0.6);
+}
+
+.generation-state__step--todo .generation-state__step-icon {
+  color: rgba(139, 99, 155, 0.4);
 }
 
 .generation-state--success {
@@ -2074,15 +2170,6 @@
 .generation-state--error {
   background: var(--negative-soft);
   border: 1px solid var(--negative-bd);
-}
-
-.generation-state__spinner {
-  width: 48px;
-  height: 48px;
-  border: 3px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: btn-spin 700ms linear infinite;
 }
 
 .generation-state__success-icon,

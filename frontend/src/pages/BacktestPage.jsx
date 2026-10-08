@@ -344,7 +344,7 @@ export default function BacktestPage() {
                 {showRaw ? 'Hide' : 'Show'} raw metrics JSON
               </button>
               {showRaw && (
-                <pre className="code-viewer__pre" style={{ marginTop: 'var(--sp-3)' }}>
+                <pre className="code-viewer__pre raw-metrics" style={{ marginTop: 'var(--sp-3)' }}>
                   <code>{JSON.stringify(shown.raw_metrics, null, 2)}</code>
                 </pre>
               )}
