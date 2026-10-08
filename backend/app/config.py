@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     # Paper-trading approval gate: a backtest must show at least this many
     # closed trades and stay within this max-drawdown cap (percent).
-    approval_min_trades: int = 1
+    approval_min_trades: int = 10
     approval_max_drawdown_pct: float = 50.0
 
     # Comma-separated browser origins allowed by CORS, or "*" for any.

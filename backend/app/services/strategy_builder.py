@@ -38,9 +38,13 @@ INPUT: You will receive a JSON specification with:
 
 IMPORTANT: Backtests always run on the NIFTY 50 daily bars dataset (2-year history, ~500 bars). 
 All indicators are calculated on daily data regardless of the timeframe label chosen. 
-Design your entry/exit logic so it will actually trigger on ~500 daily bars — 
-avoid near-impossible multi-condition AND conjunctions (e.g., "EMA cross-up AND RSI < 30" rarely coincide on daily bars);
-prefer conditions that can realistically coincide or use OR logic for exits.
+
+CRITICAL DESIGN REQUIREMENTS:
+- The generated strategy should be designed so that, under the project's approximately 2-year NIFTY 50 daily backtest (~500 bars), it has a reasonable opportunity to produce at least 10 GENUINE CLOSED trades. Do not fabricate, force, duplicate, or manipulate trades to reach this number — the actual backtest determines the real count.
+- AVOID overly restrictive entry conditions where several independent indicators must ALL agree simultaneously (e.g., EMA crossover AND RSI condition AND MACD confirmation AND ATR condition AND volume threshold AND another trend filter). Such combinations rarely trigger on daily data.
+- PREFER simple, realistic entry logic that can naturally generate multiple signals over ~500 daily bars (e.g., EMA crossover alone, RSI threshold/crossover, MACD crossover, simple momentum condition, simple moving-average relationship). Combinations of 1-3 meaningful conditions are acceptable if reasonably achievable.
+- Avoid extremely rare thresholds or unnecessarily slow indicator periods that make signals extremely rare (e.g., EMA 50/200 instead of EMA 5/10 or 20/50 when faster signals are appropriate for the strategy).
+- The strategy should still be logically valid, financially meaningful, and include proper risk management.
 
 STRICT RULES:
 1. Use ONLY the indicators specified. Do NOT add any other indicators.

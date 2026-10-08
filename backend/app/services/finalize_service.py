@@ -23,6 +23,16 @@ no commentary, nothing before or after it — matching exactly this shape:
   "code": "<complete Python code as a single string, with \\n for newlines>"
 }
 
+CRITICAL DESIGN REQUIREMENTS (for the code you generate):
+- Backtests run on approximately 2 years of NIFTY 50 daily OHLCV data (~500 daily bars).
+- The generated strategy should be designed to have a reasonable opportunity to produce at least 10 GENUINE CLOSED trades during this backtest. Do NOT fabricate, force, duplicate, or manipulate trades to reach this number.
+- AVOID overly restrictive entry conditions requiring several independent indicators to ALL agree simultaneously (e.g., EMA crossover AND RSI condition AND MACD confirmation AND ATR condition AND volume threshold AND another trend filter all at once).
+- PREFER simple, realistic entry logic that can naturally generate multiple signals over ~500 daily bars (e.g., EMA crossover alone, RSI threshold/crossover, MACD crossover, simple momentum condition, simple moving-average relationship).
+- Combinations are allowed but should remain reasonably achievable — prefer 1–3 meaningful entry conditions rather than stacking many restrictive filters.
+- Avoid extremely rare thresholds or unnecessarily slow indicator periods that make signals extremely rare (e.g., EMA 50/200 instead of EMA 5/10 or 20/50 when faster signals are appropriate).
+- The strategy should still be logically valid, financially meaningful, and include proper risk management.
+- Ensure positions can actually exit — exit conditions must be achievable.
+
 Rules for the "code" field:
 - Must contain: "import backtrader as bt" followed by a class named exactly GeneratedStrategy
   that subclasses bt.Strategy, fully implementing the strategy discussed in the conversation.
