@@ -6,7 +6,6 @@ import { formatElapsed } from '../lib/format.js'
 import { useElapsedTimer } from '../lib/useElapsedTimer.js'
 import Markdown from '../components/Markdown.jsx'
 import Note from '../components/Note.jsx'
-import ElapsedTimer from '../components/ElapsedTimer.jsx'
 import StrategyMiniCard from '../components/StrategyMiniCard.jsx'
 
 const EXAMPLES = [
@@ -34,17 +33,51 @@ const EXAMPLES = [
   },
 ]
 
+function AssistantAvatar() {
+  return (
+    <span className="row-avatar" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+        <path
+          d="M12 2.5 13.8 8.6 20 10.4 13.8 12.2 12 18.3 10.2 12.2 4 10.4 10.2 8.6 12 2.5Z"
+          fill="#8B639B"
+        />
+        <path
+          d="M18.6 15.2l.9 2.5 2.5.9-2.5.9-.9 2.5-.9-2.5-2.5-.9 2.5-.9.9-2.5Z"
+          fill="#AF719D"
+        />
+      </svg>
+    </span>
+  )
+}
+
 function Bubble({ message }) {
   const isUser = message.role === 'user'
-  return (
-    <div className={`turn${isUser ? ' turn--user' : ''}`}>
-      <div className={`bubble bubble--${isUser ? 'user' : 'assistant'}`}>
-        <div className="bubble__meta">
-          <span>{isUser ? 'You' : 'Assistant'}</span>
+  if (isUser) {
+    return (
+      <div className="turn turn--user">
+        <div className="row row--user">
+          <span className="row-badge">You</span>
+          <div className="row__body">
+            {message.attachmentName && (
+              <span className="row-attach" title={message.attachmentName}>
+                &#128206; {message.attachmentName}
+              </span>
+            )}
+            <p className="row__text">{message.content}</p>
+          </div>
         </div>
-        {isUser ? <p>{message.content}</p> : <Markdown text={message.content} />}
       </div>
-      {!isUser && message.strategy && <StrategyMiniCard strategy={message.strategy} />}
+    )
+  }
+  return (
+    <div className="turn">
+      <div className="row row--assistant">
+        <AssistantAvatar />
+        <div className="row__body">
+          <Markdown text={message.content} />
+        </div>
+      </div>
+      {message.strategy && <StrategyMiniCard strategy={message.strategy} />}
     </div>
   )
 }
@@ -55,17 +88,27 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
+  const [attachment, setAttachment] = useState(null)
   const elapsed = useElapsedTimer(loading)
 
   const scrollRef = useRef(null)
   const abortRef = useRef(null)
   const inputRef = useRef(null)
+  const fileRef = useRef(null)
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [thread.messages.length, loading])
+
+  // Auto-resize the composer textarea as the user types.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 180)}px`
+  }, [input])
 
   const persist = useCallback((next) => {
     setThread(next)
@@ -81,11 +124,14 @@ export default function ChatPage() {
       role: 'user',
       content: text.trim(),
       createdAt: new Date().toISOString(),
+      attachmentName: attachment?.name ?? null,
     }
 
     const base = { conversationId: thread.conversationId, messages: [...thread.messages, userMessage] }
     persist(base)
     setInput('')
+    setAttachment(null)
+    if (fileRef.current) fileRef.current.value = ''
     setLoading(true)
     setError(null)
     setNotice(null)
@@ -153,13 +199,49 @@ export default function ChatPage() {
     setError(null)
     setNotice(null)
     setLoading(false)
+    setAttachment(null)
+    if (fileRef.current) fileRef.current.value = ''
     inputRef.current?.focus()
   }
+
+  function handleFileChange(event) {
+    const file = event.target.files?.[0]
+    if (file) setAttachment({ name: file.name, size: file.size, type: file.type })
+  }
+
+  const canSend = !loading && input.trim() !== ''
 
   const isEmpty = thread.messages.length === 0
 
   return (
     <div className="chat-page">
+      <div className="studio-head">
+        <button
+          type="button"
+          className="new-chat-btn"
+          onClick={newConversation}
+          disabled={loading}
+          title="New chat"
+          aria-label="Start a new chat"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+            <path
+              d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M18.375 2.625a2.828 2.828 0 1 1 3 3L11.5 15.5l-4 1 1-4Z"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
       <div className="chat-page__scroll">
         {isEmpty ? (
           <div className="chat-empty">
@@ -208,6 +290,7 @@ export default function ChatPage() {
 
             {loading && (
               <div className="thinking" role="status" aria-live="polite">
+                <AssistantAvatar />
                 <span className="spinner-inline" aria-hidden="true" />
                 <span className="thinking__label">Thinking…</span>
                 <span className="thinking__timer">{formatElapsed(elapsed)}</span>
@@ -241,47 +324,97 @@ export default function ChatPage() {
       </div>
 
       <div className="composer">
-        <form
-          className="composer__box"
-          onSubmit={(event) => {
-            event.preventDefault()
-            sendMessage()
-          }}
-        >
-          <textarea
-            ref={inputRef}
-            className="composer__input"
-            rows={2}
-            value={input}
-            disabled={loading}
-            placeholder="Describe your strategy idea…"
-            aria-label="Message the strategy assistant"
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                sendMessage()
-              }
-            }}
-          />
-          <button type="submit" className="btn btn--primary" disabled={loading || input.trim() === ''}>
-            {loading ? <span className="btn__spinner" aria-hidden="true" /> : null}
-            {loading ? 'Sending…' : 'Send'}
-          </button>
-        </form>
-
-        <div className="composer__foot">
-          <span>
-            <kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line
-          </span>
-          <div className="row">
-            {!isEmpty && <ElapsedTimer seconds={elapsed} />}
-            {isEmpty ? null : (
-              <button type="button" className="btn btn--ghost btn--sm" onClick={newConversation} disabled={loading}>
-                New conversation
+        <div className="composer__inner">
+          {attachment && (
+            <div className="composer__chip">
+              <span className="composer__chip-icon" aria-hidden="true">&#128206;</span>
+              <span className="composer__chip-name" title={attachment.name}>
+                {attachment.name}
+              </span>
+              <button
+                type="button"
+                className="composer__chip-remove"
+                aria-label={`Remove ${attachment.name}`}
+                onClick={() => {
+                  setAttachment(null)
+                  if (fileRef.current) fileRef.current.value = ''
+                  inputRef.current?.focus()
+                }}
+              >
+                &times;
               </button>
-            )}
-          </div>
+            </div>
+          )}
+          <form
+            className="composer__bar"
+            onSubmit={(event) => {
+              event.preventDefault()
+              sendMessage()
+            }}
+          >
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,.pdf,.csv,.txt"
+              className="visually-hidden"
+              aria-label="Attach a strategy screenshot or document"
+              onChange={handleFileChange}
+            />
+            <button
+              type="button"
+              className="composer__attach"
+              aria-label="Attach a file"
+              title="Attach a screenshot or document (image, PDF, CSV, TXT)"
+              disabled={loading}
+              onClick={() => fileRef.current?.click()}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+                <path
+                  d="M12 5v14M5 12h14"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            <textarea
+              ref={inputRef}
+              className="composer__input"
+              rows={1}
+              value={input}
+              disabled={loading}
+              placeholder="Describe your strategy idea..."
+              aria-label="Message the strategy assistant"
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault()
+                  sendMessage()
+                }
+              }}
+            />
+            <button
+              type="submit"
+              className={`composer__send${canSend ? ' composer__send--active' : ''}`}
+              disabled={!canSend}
+              aria-label={loading ? 'Sending message' : 'Send message'}
+              title="Send"
+            >
+              {loading ? (
+                <span className="btn__spinner" aria-hidden="true" />
+              ) : (
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
+                  <path
+                    d="M12 19V5m-6 6 6-6 6 6"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </button>
+          </form>
         </div>
       </div>
     </div>
