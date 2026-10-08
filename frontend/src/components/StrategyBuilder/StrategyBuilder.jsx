@@ -266,7 +266,7 @@ export default function StrategyBuilder() {
               onClick={handleGenerate}
               disabled={hasErrors}
             >
-              ✨ GENERATE STRATEGY
+              GENERATE STRATEGY
             </button>
           )}
         </div>

@@ -1,3 +1,5 @@
+import { Activity, ArrowDownRight, ArrowUpRight, ShieldAlert } from 'lucide-react'
+
 export default function StrategyPreview({ config }) {
   const { market, tradingStyle, timeframe, indicators, entryConditions, exitConditions, riskManagement, indicatorParams } = config
 
@@ -62,6 +64,18 @@ export default function StrategyPreview({ config }) {
     return parts.length > 0 ? parts.join(', ') : 'Not configured'
   }
 
+  const indicatorsText =
+    indicators && indicators.length > 0
+      ? indicators.map((ind) => formatIndicator(ind)).join(', ')
+      : null
+
+  const SECTIONS = [
+    { id: 'indicators', label: 'Indicators', Icon: Activity, value: indicatorsText, empty: 'None selected' },
+    { id: 'entry', label: 'Entry', Icon: ArrowDownRight, value: formatEntry() },
+    { id: 'exit', label: 'Exit', Icon: ArrowUpRight, value: formatExit() },
+    { id: 'risk', label: 'Risk', Icon: ShieldAlert, value: formatRisk() },
+  ]
+
   return (
     <section className="strategy-section strategy-preview" aria-labelledby="preview-heading">
       <div className="strategy-section__head">
@@ -76,29 +90,20 @@ export default function StrategyPreview({ config }) {
             <span className="preview-card__timeframe">{formatTimeframe(timeframe)}</span>
           </div>
 
-          <div className="preview-card__section">
-            <h4 className="preview-card__section-title">Indicators</h4>
-            <ul className="preview-card__list">
-              {(indicators || []).map((ind) => (
-                <li key={ind}><code>{formatIndicator(ind)}</code></li>
-              ))}
-              {(!indicators || indicators.length === 0) && <li className="preview-card__empty">None selected</li>}
-            </ul>
-          </div>
-
-          <div className="preview-card__section">
-            <h4 className="preview-card__section-title">Entry</h4>
-            <p className="preview-card__text">{formatEntry()}</p>
-          </div>
-
-          <div className="preview-card__section">
-            <h4 className="preview-card__section-title">Exit</h4>
-            <p className="preview-card__text">{formatExit()}</p>
-          </div>
-
-          <div className="preview-card__section">
-            <h4 className="preview-card__section-title">Risk</h4>
-            <p className="preview-card__text">{formatRisk()}</p>
+          <div className="preview-card__grid">
+            {SECTIONS.map(({ id, label, Icon, value, empty }) => (
+              <div key={id} className="preview-card__pane">
+                <h4 className="preview-card__section-title">
+                  <Icon size={15} aria-hidden="true" />
+                  <span>{label}</span>
+                </h4>
+                {value ? (
+                  <p className="preview-card__text">{value}</p>
+                ) : (
+                  <p className="preview-card__empty">{empty}</p>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
