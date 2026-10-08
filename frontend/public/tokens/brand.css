@@ -1,0 +1,10 @@
+:root {
+  --qn-primary: #403d88;
+  --qn-accent: #8b639b;
+  --qn-highlight: #f8b2b2;
+  --qn-bg: #f9f8fc;
+  --qn-card: #ffffff;
+  --qn-text: #1e1636;
+  --qn-gradient: linear-gradient(135deg, #403d88 0%, #8b639b 55%, #f8b2b2 100%);
+  --qn-font: 'Sora', system-ui, sans-serif;
+}

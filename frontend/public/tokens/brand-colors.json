@@ -1,0 +1,18 @@
+{
+  "brand": {
+    "primary-indigo": "#403d88",
+    "accent-amethyst": "#8b639b",
+    "highlight-pink": "#f8b2b2"
+  },
+  "neutrals": {
+    "bg-lavender": "#f9f8fc",
+    "card-white": "#ffffff",
+    "text-dark": "#1e1636"
+  },
+  "logo-on-dark-background": "#1e1636",
+  "font": {
+    "family": "Sora",
+    "weight": 700,
+    "source": "https://fonts.google.com/specimen/Sora"
+  }
+}
