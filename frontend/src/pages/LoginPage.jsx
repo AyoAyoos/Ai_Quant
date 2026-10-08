@@ -34,7 +34,7 @@ const RIGHT_CANDLES = [
  * real APIs exist.
  */
 export default function LoginPage() {
-  const { isAuthenticated, login, signup } = useAuth()
+  const { isAuthenticated, login, signup, verifySignupOtp, resendSignupOtp } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -48,6 +48,7 @@ export default function LoginPage() {
   const [confirm, setConfirm] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [recoveryEmail, setRecoveryEmail] = useState('')
+  const [signupEmail, setSignupEmail] = useState('')
   const [otp, setOtp] = useState(() => Array(OTP_LEN).fill(''))
   const [cooldown, setCooldown] = useState(0)
   const [notice, setNotice] = useState('')
@@ -68,7 +69,7 @@ export default function LoginPage() {
 
   // Resend-code cooldown ticker.
   useEffect(() => {
-    if (stage !== 'forgot-otp' || cooldown <= 0) return undefined
+    if ((stage !== 'forgot-otp' && stage !== 'signup-otp') || cooldown <= 0) return undefined
     const timer = window.setTimeout(() => setCooldown((s) => s - 1), 1000)
     return () => window.clearTimeout(timer)
   }, [stage, cooldown])
@@ -134,7 +135,19 @@ export default function LoginPage() {
       setErrors({ form: result.message || 'Sign-up failed. Try again.' })
       return
     }
-    redirectAfterAuth()
+    if (result.session) {
+      // Confirm-email OFF (or prototype): instant session, straight in.
+      redirectAfterAuth()
+      return
+    }
+    // Confirm-email ON: Supabase mailed a 6-digit OTP — stay on the page
+    // and show the verification step instead of redirecting.
+    setSignupEmail(email.trim())
+    setOtp(Array(OTP_LEN).fill(''))
+    setErrors({})
+    setNotice('')
+    setCooldown(0)
+    setStage('signup-otp')
   }
 
   const handleSendOtp = (event) => {
@@ -215,6 +228,38 @@ export default function LoginPage() {
     focusOtp(0)
   }
 
+  const handleVerifySignupOtp = async (event) => {
+    event.preventDefault()
+    if (otp.some((d) => !d)) {
+      setErrors({ otp: 'Enter all 6 digits of the verification code.' })
+      return
+    }
+    setAuthBusy(true)
+    const result = await verifySignupOtp(signupEmail, otp.join(''))
+    setAuthBusy(false)
+    if (!result.ok) {
+      setErrors({ otp: result.message || 'That code didn’t work. Check it and try again.' })
+      return
+    }
+    redirectAfterAuth()
+  }
+
+  const handleResendSignupOtp = async () => {
+    if (cooldown > 0) return
+    setAuthBusy(true)
+    const result = await resendSignupOtp(signupEmail)
+    setAuthBusy(false)
+    if (!result.ok) {
+      setErrors({ otp: result.message || 'Could not resend the code. Try again.' })
+      return
+    }
+    setOtp(Array(OTP_LEN).fill(''))
+    setErrors({})
+    setNotice('A new code was sent to your email.')
+    setCooldown(RESEND_SECONDS)
+    focusOtp(0)
+  }
+
   const stateHeading =
     // eslint-disable-next-line no-nested-ternary
     stage === 'forgot-email'
@@ -222,11 +267,13 @@ export default function LoginPage() {
       : // eslint-disable-next-line no-nested-ternary
         stage === 'forgot-otp'
         ? 'Enter Verification Code'
-        : stage === 'reset-done'
-          ? "You're Verified"
-          : tab === 'signup'
-            ? 'Create Account'
-            : 'Sign In'
+        : stage === 'signup-otp'
+          ? 'Verify Your Email'
+          : stage === 'reset-done'
+            ? "You're Verified"
+            : tab === 'signup'
+              ? 'Create Account'
+              : 'Sign In'
 
   return (
     <div className="authx">
@@ -253,6 +300,12 @@ export default function LoginPage() {
           {stage === 'forgot-otp' && (
             <p className="authx__sub">
               We&apos;ve sent a code to <strong>{recoveryEmail.trim()}</strong>.
+            </p>
+          )}
+          {stage === 'signup-otp' && (
+            <p className="authx__sub">
+              We sent a 6-digit code to <strong>{signupEmail}</strong>. Enter
+              it below to verify your account.
             </p>
           )}
           {stage === 'reset-done' && (
@@ -588,6 +641,79 @@ export default function LoginPage() {
                 </button>
                 <button type="button" className="authx__link" onClick={backToLogin}>
                   Back to Log In
+                </button>
+              </p>
+            </form>
+          )}
+
+          {stage === 'signup-otp' && (
+            <form className="authx__form" onSubmit={handleVerifySignupOtp} noValidate>
+              <div className="authx__field">
+                <span className="authx__label" id="signup-otp-label">
+                  Verification code
+                </span>
+                <div
+                  className="authx__otp"
+                  role="group"
+                  aria-labelledby="signup-otp-label"
+                  aria-describedby={errors.otp ? 'auth-signup-otp-err' : undefined}
+                  onPaste={handleOtpPaste}
+                >
+                  {otp.map((digit, i) => (
+                    <input
+                      key={i}
+                      ref={(el) => {
+                        otpRefs.current[i] = el
+                      }}
+                      className={`authx__otp-box${errors.otp ? ' authx__otp-box--error' : ''}`}
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete={i === 0 ? 'one-time-code' : 'off'}
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(i, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                      aria-label={`Digit ${i + 1} of ${OTP_LEN}`}
+                      aria-invalid={Boolean(errors.otp)}
+                    />
+                  ))}
+                </div>
+                {errors.otp && (
+                  <p className="authx__error" id="auth-signup-otp-err" role="alert">
+                    {errors.otp}
+                  </p>
+                )}
+              </div>
+
+              <button className="authx__submit" type="submit" disabled={authBusy}>
+                {authBusy ? 'Verifying…' : 'Verify Account'}
+              </button>
+
+              {notice && (
+                <p className="authx__notice" role="status">
+                  {notice}
+                </p>
+              )}
+
+              <p className="authx__foot authx__foot--split">
+                <button
+                  type="button"
+                  className="authx__link"
+                  onClick={handleResendSignupOtp}
+                  disabled={cooldown > 0 || authBusy}
+                >
+                  {cooldown > 0 ? `Resend Code (${cooldown}s)` : 'Resend Code'}
+                </button>
+                <button
+                  type="button"
+                  className="authx__link"
+                  onClick={() => {
+                    setStage('form')
+                    setErrors({})
+                    setNotice('')
+                  }}
+                >
+                  Back to Sign Up
                 </button>
               </p>
             </form>

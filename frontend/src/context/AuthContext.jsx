@@ -14,6 +14,16 @@ function nameOf(user) {
 }
 
 /**
+ * Passive welcome email: background only — a mail failure must never block
+ * the sign-up -> login -> dashboard flow.
+ */
+function sendWelcome(email, name) {
+  postWelcomeEmail({ email, name: name || '' }).catch((err) => {
+    console.warn('Welcome email could not be sent:', err?.message || err)
+  })
+}
+
+/**
  * Auth state, backed by Supabase when configured (VITE_SUPABASE_URL +
  * VITE_SUPABASE_ANON_KEY). Supabase persists its own session; the context
  * mirrors it so route guards re-render on sign-in/out (including sessions
@@ -96,19 +106,44 @@ export function AuthProvider({ children }) {
       }
       if (name) setPrototypeName(name)
       setPrototypeAuthed(true)
-      return { ok: true }
+      return { ok: true, session: true }
     }
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: { data: { full_name: name } },
     })
     if (error) return { ok: false, message: error.message }
-    // Passive welcome email: background only — a mail failure must never
-    // block the seamless sign-up -> auto-login -> dashboard flow.
-    postWelcomeEmail({ email: email.trim(), name }).catch((err) => {
-      console.warn('Welcome email could not be sent:', err?.message || err)
+    if (data.session) {
+      // Confirm-email OFF: instant session — greet right away.
+      sendWelcome(email.trim(), name)
+      return { ok: true, session: true }
+    }
+    // Confirm-email ON (OTP): no session yet — the greeting fires after
+    // the code is verified in verifySignupOtp.
+    return { ok: true, session: false }
+  }, [])
+
+  const verifySignupOtp = useCallback(async (email, code) => {
+    if (!supabase) return { ok: true }
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: code,
+      type: 'signup',
     })
+    if (error) return { ok: false, message: error.message }
+    const name = data.user?.user_metadata?.full_name || ''
+    sendWelcome(email.trim(), name)
+    return { ok: true }
+  }, [])
+
+  const resendSignupOtp = useCallback(async (email) => {
+    if (!supabase) return { ok: true }
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim(),
+    })
+    if (error) return { ok: false, message: error.message }
     return { ok: true }
   }, [])
 
@@ -136,6 +171,8 @@ export function AuthProvider({ children }) {
         authReady,
         login,
         signup,
+        verifySignupOtp,
+        resendSignupOtp,
         logout,
       }
     : {
@@ -145,6 +182,8 @@ export function AuthProvider({ children }) {
         authReady: true,
         login,
         signup,
+        verifySignupOtp,
+        resendSignupOtp,
         logout,
       }
 
