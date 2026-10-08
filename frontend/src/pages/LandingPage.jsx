@@ -68,9 +68,14 @@ export default function LandingPage() {
       </a>
 
       <header className="lp__header">
-        <span className="lp__brand" aria-label="AI Quant home">
-          <img className="lp__logo" src="/favicon.svg" alt="" width={34} height={34} />
-          <span className="lp__name">AI Quant</span>
+        <span className="lp__brand" aria-label="QuantNiti home">
+          <img
+            className="lp__logo"
+            src="/svg/logo-horizontal/logo-horizontal-on-dark.svg"
+            alt="QuantNiti"
+            width={140}
+            height={34}
+          />
         </span>
         <nav className="lp__nav" aria-label="Primary">
           <a className="lp__nav-link" href="#features" onClick={scrollToSection('features')}>
@@ -137,11 +142,16 @@ export default function LandingPage() {
       <footer className="lp__footer">
         <div className="lp__footer-grid">
           <div className="lp__footer-col">
-            <span className="lp__footer-brand" aria-label="AI Quant home">
-              <img className="lp__logo" src="/favicon.svg" alt="" width={30} height={30} />
-              <span className="lp__name">AI Quant</span>
+            <span className="lp__footer-brand" aria-label="QuantNiti home">
+              <img
+                className="lp__logo"
+                src="/svg/logo-horizontal/logo-horizontal-on-dark.svg"
+                alt="QuantNiti"
+                width={124}
+                height={30}
+              />
             </span>
-            <p className="lp__footer-text">© 2026 AI Quant. All rights reserved.</p>
+            <p className="lp__footer-text">© 2026 QuantNiti. All rights reserved.</p>
           </div>
           <div className="lp__footer-col">
             <h2 className="lp__footer-heading">Support</h2>

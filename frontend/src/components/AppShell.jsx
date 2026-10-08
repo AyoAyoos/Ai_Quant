@@ -39,7 +39,7 @@ const SIDEBAR_ITEMS = [
 /**
  * Persistent chrome: top bar + (guarded pages) fixed left sidebar.
  *
- * Top bar: favicon + "AI Quant" left, Login right (logged-out only).
+ * Top bar: QuantNiti lockup left, Login right (logged-out only).
  * Logout lives at the bottom of the left LineSidebar as a nav-styled item.
  * The login view renders chromeless (no outer brand bar) so the integrated
  * brand inside the split-screen form panel is the single logo on the page.
@@ -110,9 +110,14 @@ export default function AppShell() {
                 >
                   <Icon name={navOpen ? 'close' : 'menu'} size={22} />
                 </button>
-                <Link className="brand-auth" to="/" aria-label="AI Quant home">
-                  <img className="brand-auth__logo" src="/favicon.svg" alt="" width={30} height={30} />
-                  <span className="brand-auth__name">AI Quant</span>
+                <Link className="brand-auth" to="/" aria-label="QuantNiti home">
+                  <img
+                    className="brand-auth__logo"
+                    src="/svg/logo-horizontal/logo-horizontal-on-dark.svg"
+                    alt="QuantNiti"
+                    width={124}
+                    height={30}
+                  />
                 </Link>
               </div>
               {activeLabel && (

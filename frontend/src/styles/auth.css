@@ -64,9 +64,8 @@
 
 .authx__brand-logo {
   display: block;
-  width: 30px;
+  width: auto;
   height: 30px;
-  border-radius: 8px;
 }
 
 .authx__brand-name {

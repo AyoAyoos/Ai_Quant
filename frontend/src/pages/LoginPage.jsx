@@ -218,9 +218,14 @@ export default function LoginPage() {
   return (
     <div className="authx">
       <div className="authx__panel authx__panel--form">
-        <Link className="authx__brand" to="/" aria-label="AI Quant home">
-          <img className="authx__brand-logo" src="/favicon.svg" alt="" width={30} height={30} />
-          <span className="authx__brand-name">AI Quant</span>
+        <Link className="authx__brand" to="/" aria-label="QuantNiti home">
+          <img
+            className="authx__brand-logo"
+            src="/svg/logo-horizontal/logo-horizontal-on-dark.svg"
+            alt="QuantNiti"
+            width={124}
+            height={30}
+          />
         </Link>
 
         <div className="authx__wrap">

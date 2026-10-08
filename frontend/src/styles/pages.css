@@ -187,9 +187,8 @@
 
 .brand-auth__logo {
   display: block;
-  width: 30px;
+  width: auto;
   height: 30px;
-  border-radius: 7px;
 }
 
 .brand-auth__name {
