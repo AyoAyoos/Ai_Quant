@@ -7,8 +7,27 @@
  */
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseUrl = normalizeSupabaseUrl(import.meta.env.VITE_SUPABASE_URL)
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+/**
+ * Reduce any pasted value to the bare project origin
+ * (https://<ref>.supabase.co). The dashboard also shows the REST endpoint
+ * (.../rest/v1); using that here makes supabase-js build doubled paths and
+ * every call fails with "Invalid path specified in request URL" (PGRST125).
+ */
+function normalizeSupabaseUrl(raw) {
+  if (!raw) return raw
+  const trimmed = raw.trim()
+  const withoutPath = trimmed.replace(/^(https?:\/\/[^/]+).*/, '$1')
+  if (withoutPath !== trimmed) {
+    console.warn(
+      'VITE_SUPABASE_URL should be the bare project URL (no /rest/v1 path); using',
+      withoutPath,
+    )
+  }
+  return withoutPath
+}
 
 /**
  * Null when the env vars are missing (local prototype mode): AuthContext
