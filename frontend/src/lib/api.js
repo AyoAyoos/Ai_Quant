@@ -12,6 +12,8 @@
 // allows the deployed frontend origin).
 // VITE_API_BASE_URL is the deploy-time override (Vercel/Render);
 // VITE_API_BASE is the Dockerfile build-arg name.
+import { getAccessToken } from './supabaseClient.js'
+
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_BASE ||
@@ -71,10 +73,16 @@ const NETWORK_MESSAGE = 'Error reaching the backend. Is it running?'
 async function request(path, { method = 'GET', body, signal } = {}) {
   let response
   try {
+    // Prove the Supabase session to the backend: FastAPI verifies this JWT
+    // (app/auth.py) and rejects missing/invalid tokens with a 401.
+    const token = await getAccessToken()
+    const headers = {}
+    if (body !== undefined) headers['Content-Type'] = 'application/json'
+    if (token) headers['Authorization'] = `Bearer ${token}`
     response = await fetch(`${API_BASE}${path}`, {
       method,
       signal,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch (err) {

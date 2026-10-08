@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.auth import verify_user
 from app.ids import canonical_uuid_or_404
 from app.models import Conversation, Message, MessageRole, Strategy
 from app.schemas import ChatMessageIn, ChatMessageOut
@@ -13,7 +14,7 @@ from app.services.strategy_extractor import (
     looks_like_final_strategy,
 )
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(verify_user)])
 
 
 @router.post("", response_model=ChatMessageOut)

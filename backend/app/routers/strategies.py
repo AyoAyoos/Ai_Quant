@@ -7,6 +7,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.auth import verify_user
 from app.ids import canonical_uuid_or_404, strategy_not_found
 from app.models import (
     BacktestResult,
@@ -64,7 +65,11 @@ from app.services.strategy_builder import (
 )
 
 
-router = APIRouter(prefix="/strategies", tags=["strategies"])
+router = APIRouter(
+    prefix="/strategies",
+    tags=["strategies"],
+    dependencies=[Depends(verify_user)],
+)
 
 
 @router.post("/builder", response_model=StrategyGenerateResponse)

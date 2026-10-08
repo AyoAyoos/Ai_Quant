@@ -7,12 +7,17 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.auth import verify_user
 from app.models import DeploymentStatus, PaperDeployment, PaperPosition, PaperTrade
 from app.schemas import PaperDeploymentSummaryOut
 from app.services.paper_bars import PaperBarsError, load_bars
 from app.services.paper_engine import account_snapshot
 
-router = APIRouter(prefix="/paper", tags=["paper-trading"])
+router = APIRouter(
+    prefix="/paper",
+    tags=["paper-trading"],
+    dependencies=[Depends(verify_user)],
+)
 
 
 def _snapshot_numbers(db: Session, dep: PaperDeployment) -> dict:

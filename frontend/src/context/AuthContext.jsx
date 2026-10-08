@@ -1,17 +1,31 @@
-import { createContext, useCallback, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { supabase } from '../lib/supabaseClient.js'
 
 const STORAGE_KEY = 'isLoggedIn'
 const NAME_KEY = 'aiq.userName'
 
 const AuthContext = createContext(null)
 
+function nameOf(user) {
+  const metaName = user?.user_metadata?.full_name
+  if (typeof metaName === 'string' && metaName.trim()) return metaName.trim()
+  return user?.email || ''
+}
+
 /**
- * Frontend-prototype auth state. Any credentials pass; persistence is a
- * single localStorage flag so a reload keeps the session, plus the display
- * name captured at account creation for the sidebar profile.
+ * Auth state, backed by Supabase when configured (VITE_SUPABASE_URL +
+ * VITE_SUPABASE_ANON_KEY). Supabase persists its own session; the context
+ * mirrors it so route guards re-render on sign-in/out (including sessions
+ * restored on reload via onAuthStateChange).
+ *
+ * Without Supabase env vars the old prototype session applies instead: any
+ * credentials pass and persistence is a single localStorage flag.
  */
 export function AuthProvider({ children }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+  const [user, setUser] = useState(null)
+  const [authReady, setAuthReady] = useState(!supabase)
+
+  const [prototypeAuthed, setPrototypeAuthed] = useState(() => {
     try {
       return localStorage.getItem(STORAGE_KEY) === 'true'
     } catch {
@@ -19,7 +33,7 @@ export function AuthProvider({ children }) {
     }
   })
 
-  const [userName, setUserName] = useState(() => {
+  const [prototypeName, setPrototypeName] = useState(() => {
     try {
       return localStorage.getItem(NAME_KEY) || ''
     } catch {
@@ -27,39 +41,108 @@ export function AuthProvider({ children }) {
     }
   })
 
-  const login = useCallback((email, password, fullName) => {
-    void email
-    void password
-    try {
-      localStorage.setItem(STORAGE_KEY, 'true')
-      // Sign-in has no name field: keep whatever name is already stored.
-      if (fullName && fullName.trim()) {
-        const name = fullName.trim()
-        localStorage.setItem(NAME_KEY, name)
-        setUserName(name)
-      }
-    } catch {
-      // Storage unavailable (private mode) — session simply won't persist.
+  useEffect(() => {
+    if (!supabase) return undefined
+    let mounted = true
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (mounted) {
+          setUser(session?.user ?? null)
+          setAuthReady(true)
+        }
+      })
+      .catch(() => {
+        if (mounted) setAuthReady(true)
+      })
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) setUser(session?.user ?? null)
+    })
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
     }
-    setIsAuthenticated(true)
   }, [])
 
-  const logout = useCallback(() => {
+  const login = useCallback(async (email, password) => {
+    if (!supabase) {
+      try {
+        localStorage.setItem(STORAGE_KEY, 'true')
+      } catch {
+        // Storage unavailable (private mode) — session simply won't persist.
+      }
+      setPrototypeAuthed(true)
+      return { ok: true }
+    }
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
+    if (error) return { ok: false, message: error.message }
+    return { ok: true }
+  }, [])
+
+  const signup = useCallback(async (email, password, fullName) => {
+    const name = fullName?.trim() || ''
+    if (!supabase) {
+      try {
+        localStorage.setItem(STORAGE_KEY, 'true')
+        if (name) localStorage.setItem(NAME_KEY, name)
+      } catch {
+        // Storage unavailable (private mode) — session simply won't persist.
+      }
+      if (name) setPrototypeName(name)
+      setPrototypeAuthed(true)
+      return { ok: true }
+    }
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { full_name: name } },
+    })
+    if (error) return { ok: false, message: error.message }
+    return { ok: true }
+  }, [])
+
+  const logout = useCallback(async () => {
+    if (supabase) {
+      await supabase.auth.signOut()
+      setUser(null)
+      return
+    }
     try {
       localStorage.removeItem(STORAGE_KEY)
       localStorage.removeItem(NAME_KEY)
     } catch {
       // Nothing to clean up.
     }
-    setUserName('')
-    setIsAuthenticated(false)
+    setPrototypeName('')
+    setPrototypeAuthed(false)
   }, [])
 
-  return (
-    <AuthContext.Provider value={{ isAuthenticated, userName, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  const value = supabase
+    ? {
+        isAuthenticated: user !== null,
+        userName: nameOf(user),
+        user,
+        authReady,
+        login,
+        signup,
+        logout,
+      }
+    : {
+        isAuthenticated: prototypeAuthed,
+        userName: prototypeName,
+        user: null,
+        authReady: true,
+        login,
+        signup,
+        logout,
+      }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # Read from the ALLOWED_ORIGINS env var (set on Render). Empty = dev defaults.
     allowed_origins: str = ""
 
+    # Supabase project JWT secret (Dashboard -> Project Settings -> Data API
+    # -> JWT Secret). Used to verify the frontend's Bearer tokens in
+    # app/auth.py. Empty = auth unconfigured (protected routes answer 503).
+    supabase_jwt_secret: str = ""
+
     class Config:
         env_file = ".env"
 

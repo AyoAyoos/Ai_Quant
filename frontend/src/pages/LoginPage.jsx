@@ -34,7 +34,7 @@ const RIGHT_CANDLES = [
  * real APIs exist.
  */
 export default function LoginPage() {
-  const { isAuthenticated, login } = useAuth()
+  const { isAuthenticated, login, signup } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -52,6 +52,7 @@ export default function LoginPage() {
   const [cooldown, setCooldown] = useState(0)
   const [notice, setNotice] = useState('')
   const [errors, setErrors] = useState({})
+  const [authBusy, setAuthBusy] = useState(false)
 
   const headingRef = useRef(null)
   const otpRefs = useRef([])
@@ -99,18 +100,24 @@ export default function LoginPage() {
     setNotice('')
   }
 
-  const handleSignIn = (event) => {
+  const handleSignIn = async (event) => {
     event.preventDefault()
     const next = {}
     if (!EMAIL_RE.test(email.trim())) next.email = 'Enter a valid email address.'
     if (!password) next.password = 'Enter your password.'
     setErrors(next)
     if (Object.keys(next).length > 0) return
-    login(email.trim(), password)
+    setAuthBusy(true)
+    const result = await login(email.trim(), password)
+    setAuthBusy(false)
+    if (!result.ok) {
+      setErrors({ form: result.message || 'Sign-in failed. Check your credentials.' })
+      return
+    }
     redirectAfterAuth()
   }
 
-  const handleSignUp = (event) => {
+  const handleSignUp = async (event) => {
     event.preventDefault()
     const next = {}
     if (!fullName.trim()) next.fullName = 'Enter your full name.'
@@ -120,7 +127,13 @@ export default function LoginPage() {
     if (confirm !== password) next.confirm = 'Passwords do not match.'
     setErrors(next)
     if (Object.keys(next).length > 0) return
-    login(email.trim(), password, fullName.trim())
+    setAuthBusy(true)
+    const result = await signup(email.trim(), password, fullName.trim())
+    setAuthBusy(false)
+    if (!result.ok) {
+      setErrors({ form: result.message || 'Sign-up failed. Try again.' })
+      return
+    }
     redirectAfterAuth()
   }
 
@@ -314,8 +327,13 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <button className="authx__submit" type="submit">
-                Sign In
+              {errors.form && (
+                <p className="authx__error" role="alert">
+                  {errors.form}
+                </p>
+              )}
+              <button className="authx__submit" type="submit" disabled={authBusy}>
+                {authBusy ? 'Signing In…' : 'Sign In'}
               </button>
 
               <p className="authx__foot">
@@ -455,8 +473,13 @@ export default function LoginPage() {
                 )}
               </div>
 
-              <button className="authx__submit" type="submit">
-                Create Account
+              {errors.form && (
+                <p className="authx__error" role="alert">
+                  {errors.form}
+                </p>
+              )}
+              <button className="authx__submit" type="submit" disabled={authBusy}>
+                {authBusy ? 'Creating Account…' : 'Create Account'}
               </button>
 
               <p className="authx__foot">

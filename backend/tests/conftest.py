@@ -4,6 +4,19 @@ from sqlalchemy import text
 from app.database import Base, engine
 
 
+@pytest.fixture(autouse=True)
+def _bypass_supabase_auth():
+    """Existing API tests exercise business logic, not auth: stub the
+    router-level verify_user dependency so they run without Supabase JWTs.
+    Auth itself is covered in test_auth.py against an un-overridden app."""
+    from app import auth as auth_module
+    from app.main import app
+
+    app.dependency_overrides[auth_module.verify_user] = lambda: "test-user"
+    yield
+    app.dependency_overrides.pop(auth_module.verify_user, None)
+
+
 def db_reachable() -> bool:
     """True when the configured Postgres (docker compose up -d db) accepts connections."""
     try:
