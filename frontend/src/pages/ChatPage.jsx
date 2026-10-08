@@ -89,14 +89,32 @@ export default function ChatPage() {
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
   const [attachment, setAttachment] = useState(null)
+  const [listening, setListening] = useState(false)
+  const [toast, setToast] = useState(null)
   const elapsed = useElapsedTimer(loading)
 
   const scrollRef = useRef(null)
   const abortRef = useRef(null)
   const inputRef = useRef(null)
   const fileRef = useRef(null)
+  const recognitionRef = useRef(null)
+  const voiceBaseRef = useRef('')
+  const toastTimerRef = useRef(null)
 
   useEffect(() => () => abortRef.current?.abort(), [])
+
+  // Stop any active dictation when leaving the page.
+  useEffect(
+    () => () => {
+      try {
+        recognitionRef.current?.abort()
+      } catch {
+        /* recognition is best-effort */
+      }
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    },
+    [],
+  )
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -115,9 +133,79 @@ export default function ChatPage() {
     writeThread(next)
   }, [])
 
+  function showToast(message) {
+    setToast(message)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setToast(null), 2600)
+  }
+
+  function stopVoice() {
+    const recognition = recognitionRef.current
+    recognitionRef.current = null
+    if (recognition) {
+      try {
+        recognition.stop()
+      } catch {
+        /* already stopped */
+      }
+    }
+    setListening(false)
+  }
+
+  function toggleVoice() {
+    if (listening) {
+      stopVoice()
+      inputRef.current?.focus()
+      return
+    }
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      showToast('Speech recognition is not supported in this browser')
+      return
+    }
+    const recognition = new SpeechRecognition()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
+    voiceBaseRef.current = input
+    recognition.onresult = (event) => {
+      let finalText = ''
+      let interimText = ''
+      for (const result of event.results) {
+        if (result.isFinal) finalText += result[0].transcript
+        else interimText += result[0].transcript
+      }
+      const base = voiceBaseRef.current.trim()
+      const spoken = `${finalText} ${interimText}`.trim()
+      const next = base ? (spoken ? `${base} ${spoken}` : base) : spoken
+      setInput(next.replace(/\s+/g, ' '))
+    }
+    recognition.onerror = (event) => {
+      if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+        showToast('Microphone access was denied')
+      }
+      stopVoice()
+    }
+    recognition.onend = () => {
+      // Fires on manual stop too; stopVoice is idempotent.
+      recognitionRef.current = null
+      setListening(false)
+    }
+    try {
+      recognition.start()
+    } catch {
+      showToast('Speech recognition is not supported in this browser')
+      return
+    }
+    recognitionRef.current = recognition
+    setListening(true)
+  }
+
   async function sendMessage(content) {
     const text = typeof content === 'string' ? content : input
     if (loading || !text.trim()) return
+    stopVoice()
 
     const userMessage = {
       id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -194,6 +282,7 @@ export default function ChatPage() {
 
   function newConversation() {
     abortRef.current?.abort()
+    stopVoice()
     clearThread()
     setThread({ conversationId: null, messages: [] })
     setError(null)
@@ -325,6 +414,11 @@ export default function ChatPage() {
 
       <div className="composer">
         <div className="composer__inner">
+          {toast && (
+            <div className="composer__toast" role="status" aria-live="polite">
+              {toast}
+            </div>
+          )}
           {attachment && (
             <div className="composer__chip">
               <span className="composer__chip-icon" aria-hidden="true">&#128206;</span>
@@ -393,6 +487,38 @@ export default function ChatPage() {
                 }
               }}
             />
+            <button
+              type="button"
+              className={`composer__mic${listening ? ' composer__mic--active' : ''}`}
+              aria-label={listening ? 'Stop voice input' : 'Start voice input'}
+              title={listening ? 'Stop listening' : 'Dictate your strategy idea'}
+              aria-pressed={listening}
+              disabled={loading}
+              onClick={toggleVoice}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+                <path
+                  d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M19 10v2a7 7 0 0 1-14 0v-2"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M12 19v3"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
             <button
               type="submit"
               className={`composer__send${canSend ? ' composer__send--active' : ''}`}

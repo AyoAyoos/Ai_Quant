@@ -1088,6 +1088,61 @@
   cursor: not-allowed;
 }
 
+/* Voice-to-text button: mirrors the `+` attach button, pink pulse live. */
+.composer__mic {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: #8b639b;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.composer__mic:hover:not(:disabled) {
+  background: rgba(139, 99, 155, 0.12);
+  color: #403d88;
+}
+
+.composer__mic:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.composer__mic--active {
+  background: #f8b2b2;
+  color: #403d88;
+  animation: mic-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(248, 178, 178, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(248, 178, 178, 0);
+  }
+}
+
+/* Subtle toast for voice-input fallback messages. */
+.composer__toast {
+  align-self: center;
+  max-width: 100%;
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(139, 99, 155, 0.3);
+  background: #ffffff;
+  box-shadow: var(--shadow-1);
+  color: #403d88;
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
 .composer__input {
   flex: 1;
   min-width: 0;
