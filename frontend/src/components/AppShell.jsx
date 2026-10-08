@@ -39,9 +39,8 @@ const SIDEBAR_ITEMS = [
 /**
  * Persistent chrome: top bar + (guarded pages) fixed left sidebar.
  *
- * Top bar: favicon + "AI Quant" left, Login/Logout right, deep purple.
- * The old horizontal pill nav is gone; guarded pages navigate via the
- * left LineSidebar and render untouched in the right content container.
+ * Top bar: favicon + "AI Quant" left, Login right (logged-out only).
+ * Logout lives at the bottom of the left LineSidebar as a nav-styled item.
  * The login view renders chromeless (no outer brand bar) so the integrated
  * brand inside the split-screen form panel is the single logo on the page.
  */
@@ -78,6 +77,14 @@ export default function AppShell() {
     activeMatches.sort((a, b) => (b.to || '').length - (a.to || '').length)[0] || {}
   const activeLabel = activeItem.label || ''
 
+  function handleLogout() {
+    // Navigate while still authenticated so no route guard can intercept
+    // with a redirect to /login, then clear the session once landing
+    // (a public route) has committed.
+    navigate('/', { replace: true })
+    setTimeout(() => logout(), 0)
+  }
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main">
@@ -113,18 +120,7 @@ export default function AppShell() {
                   {activeLabel}
                 </span>
               )}
-              {isAuthenticated ? (
-                <button
-                  className="login-btn login-btn--app"
-                  type="button"
-                  onClick={() => {
-                    logout()
-                    navigate('/', { replace: true })
-                  }}
-                >
-                  Logout
-                </button>
-              ) : (
+              {isAuthenticated ? null : (
                 <Link className="login-btn login-btn--app" to="/login">
                   Login
                 </Link>
@@ -153,6 +149,8 @@ export default function AppShell() {
               scaleTick={false}
               falloff="smooth"
               open={navOpen}
+              showLogout={isAuthenticated}
+              onLogout={handleLogout}
               onNavigate={() => setNavOpen(false)}
               onItemClick={(index, label) => {
                 // TODO: Hook this up to your routing logic (e.g., react-router useNavigate)

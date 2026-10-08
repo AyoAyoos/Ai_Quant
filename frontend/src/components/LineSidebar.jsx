@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { LogOut } from 'lucide-react'
 import Icon from './Icon.jsx'
 
 /**
@@ -51,6 +52,8 @@ export default function LineSidebar({
   onItemClick,
   open = false,
   onNavigate,
+  onLogout,
+  showLogout = false,
   id = 'app-sidebar',
 }) {
   const { pathname } = useLocation()
@@ -161,6 +164,11 @@ export default function LineSidebar({
     if (item.to) navigate(item.to)
   }
 
+  const handleLogout = () => {
+    onNavigate?.()
+    onLogout?.()
+  }
+
   return (
     <>
       <div
@@ -237,6 +245,22 @@ export default function LineSidebar({
             )
           })}
         </div>
+        {showLogout && (
+          <div className="ls__foot">
+            <button
+              type="button"
+              className="ls__item ls__logout"
+              style={{ color: textColor }}
+              onClick={handleLogout}
+              aria-label="Logout"
+            >
+              <span className="ls__icon" aria-hidden="true">
+                <LogOut size={19} />
+              </span>
+              <span className="ls__label">Logout</span>
+            </button>
+          </div>
+        )}
       </nav>
     </>
   )

@@ -181,11 +181,11 @@ export default function EntryConditionsSection({
             />
             <button
               type="button"
-              className="btn btn--primary btn--sm"
+              className="btn btn--primary btn--sm entry-ai-input__btn"
               onClick={handleAIInterpret}
               disabled={!aiInput.trim()}
             >
-              ✨ Understand with AI
+              UNDERSTAND WITH AI
             </button>
           </div>
         </div>
