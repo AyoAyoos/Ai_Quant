@@ -110,6 +110,18 @@ export async function fetchHealth({ signal } = {}) {
 }
 
 /**
+ * POST /auth/welcome-email — passive greeting after sign-up. Best-effort:
+ * callers should `.catch()` and never block login on a mail failure.
+ */
+export function postWelcomeEmail({ email, name, signal } = {}) {
+  return request('/auth/welcome-email', {
+    method: 'POST',
+    body: { email, name: name ?? '' },
+    signal,
+  })
+}
+
+/**
  * POST /chat. First message of a thread sends conversation_id: null;
  * every later message echoes back the id the backend returned.
  */

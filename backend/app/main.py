@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.middleware import CORS_ALLOW_ORIGINS, JsonErrorMiddleware
+from app.routers import auth
 from app.routers import chat
 from app.routers import paper
 from app.routers import strategies
@@ -48,6 +49,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(paper.router)
 app.include_router(strategies.router)

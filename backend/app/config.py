@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     # app/auth.py. Empty = auth unconfigured (protected routes answer 503).
     supabase_jwt_secret: str = ""
 
+    # Outbound mail for passive notifications (welcome email). Gmail SMTP
+    # with an App Password (Google Account -> Security -> 2-Step Verification
+    # -> App passwords). Empty password = mailer disabled (endpoint 503s).
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+
     class Config:
         env_file = ".env"
 

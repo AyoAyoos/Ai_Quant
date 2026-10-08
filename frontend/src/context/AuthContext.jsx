@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { postWelcomeEmail } from '../lib/api.js'
 import { supabase } from '../lib/supabaseClient.js'
 
 const STORAGE_KEY = 'isLoggedIn'
@@ -103,6 +104,11 @@ export function AuthProvider({ children }) {
       options: { data: { full_name: name } },
     })
     if (error) return { ok: false, message: error.message }
+    // Passive welcome email: background only — a mail failure must never
+    // block the seamless sign-up -> auto-login -> dashboard flow.
+    postWelcomeEmail({ email: email.trim(), name }).catch((err) => {
+      console.warn('Welcome email could not be sent:', err?.message || err)
+    })
     return { ok: true }
   }, [])
 
