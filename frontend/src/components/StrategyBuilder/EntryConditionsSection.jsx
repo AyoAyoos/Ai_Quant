@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 const INDICATORS_FOR_CONDITIONS = [
   { value: 'EMA 20', label: 'EMA 20' },
@@ -38,6 +39,10 @@ export default function EntryConditionsSection({
   // value: array of condition objects { left, operator, right, logicalOp }
   // availableIndicators: array of selected indicator names from IndicatorsSection
 
+  const navigate = useNavigate()
+  // onAIInterpret is the legacy inline-suggestion hook; the button now hands
+  // the description off to the Studio chat instead (see handleAIInterpret).
+  void onAIInterpret
   const [aiInput, setAiInput] = useState('')
 
   const addCondition = () => {
@@ -57,9 +62,16 @@ export default function EntryConditionsSection({
     onChange(updated)
   }
 
-  const handleAIInterpret = async () => {
-    if (!aiInput.trim()) return
-    await onAIInterpret(aiInput)
+  const handleAIInterpret = () => {
+    const text = aiInput.trim()
+    // Always route directly to Studio so the button is actionable via
+    // mouse, touch, and keyboard. Carry the description when present so
+    // the Studio composer can prefill it.
+    if (text) {
+      navigate('/studio', { state: { entryPrompt: text } })
+    } else {
+      navigate('/studio')
+    }
   }
 
   const addAISuggestions = () => {
@@ -70,13 +82,13 @@ export default function EntryConditionsSection({
   }
 
   return (
-    <section className="strategy-section" aria-labelledby="entry-heading">
+    <section className="strategy-section entry-card" aria-labelledby="entry-heading">
       <div className="strategy-section__head">
-        <h2 id="entry-heading" className="strategy-section__title">When should the strategy ENTER?</h2>
+        <h2 id="entry-heading" className="strategy-section__title entry-card__title">When should the strategy ENTER?</h2>
       </div>
 
       <div className="entry-conditions" role="group" aria-label="Entry conditions">
-        <div className="entry-conditions__label">BUY WHEN</div>
+        <div className="entry-conditions__label entry-buy-label">BUY WHEN</div>
 
         {value.length === 0 ? (
           <div className="entry-conditions__empty">
@@ -92,7 +104,7 @@ export default function EntryConditionsSection({
                 {index > 0 && (
                   <div className="condition-logical">
                     <select
-                      className="field__input"
+                      className="field__input condition-select"
                       value={condition.logicalOp}
                       onChange={(e) => updateCondition(index, 'logicalOp', e.target.value)}
                       aria-label={`Logical operator for condition ${index + 1}`}
@@ -107,7 +119,7 @@ export default function EntryConditionsSection({
                 <div className="condition-fields">
                   <div className="field condition-field">
                     <select
-                      className="field__input"
+                      className="field__input condition-select"
                       value={condition.left}
                       onChange={(e) => updateCondition(index, 'left', e.target.value)}
                       aria-label={`Left operand for condition ${index + 1}`}
@@ -121,7 +133,7 @@ export default function EntryConditionsSection({
 
                   <div className="field condition-field">
                     <select
-                      className="field__input"
+                      className="field__input condition-select"
                       value={condition.operator}
                       onChange={(e) => updateCondition(index, 'operator', e.target.value)}
                       aria-label={`Operator for condition ${index + 1}`}
@@ -134,7 +146,7 @@ export default function EntryConditionsSection({
 
                   <div className="field condition-field">
                     <select
-                      className="field__input"
+                      className="field__input condition-select"
                       value={condition.right}
                       onChange={(e) => updateCondition(index, 'right', e.target.value)}
                       aria-label={`Right operand for condition ${index + 1}`}
@@ -161,7 +173,7 @@ export default function EntryConditionsSection({
               </div>
             ))}
 
-            <button type="button" className="btn btn--ghost btn--sm" onClick={addCondition}>
+            <button type="button" className="btn entry-add-btn" onClick={addCondition}>
               + Add Condition
             </button>
           </>
@@ -172,7 +184,7 @@ export default function EntryConditionsSection({
           <div className="entry-ai-input__divider">Or describe your entry condition</div>
           <div className="entry-ai-input__field">
             <textarea
-              className="field__input"
+              className="field__input entry-describe"
               rows={2}
               value={aiInput}
               onChange={(e) => setAiInput(e.target.value)}
@@ -183,9 +195,10 @@ export default function EntryConditionsSection({
               type="button"
               className="btn btn--primary btn--sm entry-ai-input__btn"
               onClick={handleAIInterpret}
-              disabled={!aiInput.trim()}
+              aria-label="Understand strategy entry conditions with AI"
+              title="Understand strategy entry conditions with AI"
             >
-              UNDERSTAND WITH AI
+              <span>UNDERSTAND WITH AI</span>
             </button>
           </div>
         </div>

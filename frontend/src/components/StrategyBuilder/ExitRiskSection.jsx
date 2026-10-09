@@ -143,7 +143,6 @@ export default function ExitRiskSection({ value: rawValue, onChange, error }) {
             </label>
             {value.stopLoss.enabled && (
               <div className="field risk-field">
-                <label className="field__label">%</label>
                 <div className="field__control">
                   <input
                     type="number"
@@ -171,7 +170,6 @@ export default function ExitRiskSection({ value: rawValue, onChange, error }) {
             </label>
             {value.takeProfit.enabled && (
               <div className="field risk-field">
-                <label className="field__label">%</label>
                 <div className="field__control">
                   <input
                     type="number"
@@ -199,7 +197,6 @@ export default function ExitRiskSection({ value: rawValue, onChange, error }) {
             </label>
             {value.trailingStop.enabled && (
               <div className="field risk-field">
-                <label className="field__label">%</label>
                 <div className="field__control">
                   <input
                     type="number"

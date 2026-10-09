@@ -1286,8 +1286,8 @@
 .strategy-builder__header {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-  padding-bottom: var(--sp-4);
+  gap: 0;
+  padding-bottom: var(--sp-3);
   border-bottom: 1px solid var(--border);
 }
 
@@ -1798,6 +1798,101 @@
 
 .btn.entry-ai-input__btn:active:not(:disabled) {
   transform: scale(0.98);
+}
+
+/* Visible keyboard focus: keep the light-purple bg + white text theme. */
+.btn.entry-ai-input__btn:focus-visible {
+  background: #403d88;
+  border-color: #403d88;
+  color: #ffffff;
+  outline: 2px solid #403d88;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(64, 61, 136, 0.35);
+}
+
+/* Entry card modernization — pristine card in the deep purple + pink theme. */
+
+.strategy-section.entry-card {
+  background: #ffffff;
+  border: 1px solid rgba(139, 99, 155, 0.2);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-1);
+}
+
+.strategy-section__title.entry-card__title {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #403d88;
+}
+
+.entry-conditions__label.entry-buy-label {
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8b639b;
+}
+
+.field__input.condition-select {
+  border: 1px solid rgba(139, 99, 155, 0.3);
+  border-radius: 0.75rem;
+  color: #403d88;
+  background: #ffffff;
+}
+
+.field__input.condition-select:focus {
+  border-color: #403d88;
+}
+
+.btn.entry-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border: 1px dashed rgba(139, 99, 155, 0.4);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: #8b639b;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition: color 200ms var(--ease), border-color 200ms var(--ease),
+    background 200ms var(--ease);
+}
+
+.btn.entry-add-btn:hover:not(:disabled) {
+  border-color: #403d88;
+  color: #403d88;
+  background: rgba(64, 61, 136, 0.04);
+}
+
+.entry-ai-input__divider {
+  text-transform: uppercase;
+}
+
+.field__input.entry-describe {
+  padding: 10px 14px;
+  font-size: var(--fs-sm);
+}
+
+.field__input.entry-describe::placeholder {
+  color: rgba(139, 99, 155, 0.5);
+  font-size: var(--fs-sm);
+}
+
+.btn.entry-ai-input__btn {
+  gap: 8px;
+  padding: 10px 20px;
+  background: #403d88;
+  border-color: #403d88;
+}
+
+.btn.entry-ai-input__btn:hover:not(:disabled) {
+  background: #322f6d;
+  border-color: #322f6d;
 }
 
 /* AI Suggestions */

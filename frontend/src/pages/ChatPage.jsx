@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { CHAT_TIMEOUT_MS, postChat } from '../lib/api.js'
 import { clearThread, readThread, registerStrategy, writeThread } from '../lib/storage.js'
@@ -8,31 +8,6 @@ import { useElapsedTimer } from '../lib/useElapsedTimer.js'
 import Markdown from '../components/Markdown.jsx'
 import Note from '../components/Note.jsx'
 import StrategyMiniCard from '../components/StrategyMiniCard.jsx'
-
-const EXAMPLES = [
-  {
-    title: 'Vague idea — the assistant should ask',
-    text: 'Starts with a bare indicator mention so the assistant asks about timeframe, thresholds and sizing instead of writing code.',
-    content: 'I want to build a mean reversion strategy using the RSI indicator.',
-  },
-  {
-    title: 'Fully specified — should finalize immediately',
-    text: 'Names the indicator, the period, the deviation, the exit rule and the position size, then says finalize.',
-    content:
-      'Write a complete Backtrader strategy using a Bollinger Bands breakout. Go long when the price closes above the upper band, and exit when it crosses below the middle band. Use a 20-day period and 2 standard deviations for the bands, and invest 10% of portfolio cash per trade. I have no more requirements, please finalize the code.',
-  },
-  {
-    title: 'Two indicators combined',
-    text: 'Checks the strategy handles multi-indicator conditions without breaking the output format.',
-    content:
-      'I need a trend-following Backtrader script. The rules are: only take long trades if the current close is above the 200-day SMA AND the 14-period RSI drops below 30. Exit the position when the RSI crosses above 70. Please finalize the code.',
-  },
-  {
-    title: 'Start a conversation, refine later',
-    text: 'Opens a thread. Answer the follow-up questions to finish the strategy inside the same conversation.',
-    content: "Let's build a MACD crossover strategy.",
-  },
-]
 
 function AssistantAvatar() {
   return (
@@ -102,8 +77,25 @@ export default function ChatPage() {
   const recognitionRef = useRef(null)
   const voiceBaseRef = useRef('')
   const toastTimerRef = useRef(null)
+  const location = useLocation()
+  const entryPromptConsumedRef = useRef(false)
 
   useEffect(() => () => abortRef.current?.abort(), [])
+
+  // Handoff from the Strategy Builder ("Understand with AI"): prefill the
+  // composer with the builder's description text, once per navigation.
+  useEffect(() => {
+    const prompt = location.state?.entryPrompt
+    if (
+      typeof prompt === 'string' &&
+      prompt.trim() &&
+      !entryPromptConsumedRef.current
+    ) {
+      entryPromptConsumedRef.current = true
+      setInput(prompt.trim())
+      inputRef.current?.focus()
+    }
+  }, [location.state])
 
   // Stop any active dictation when leaving the page.
   useEffect(
@@ -304,6 +296,143 @@ export default function ChatPage() {
 
   const isEmpty = thread.messages.length === 0
 
+  // Single composer instance content — rendered in the visual center when
+  // the Studio is empty, and docked at the bottom once a thread exists.
+  // Styling, colors, and behavior are identical in both positions.
+  const composerNode = (
+    <div className={isEmpty ? 'composer composer--center' : 'composer'}>
+      <div className="composer__inner">
+        {toast && (
+          <div className="composer__toast" role="status" aria-live="polite">
+            {toast}
+          </div>
+        )}
+        {attachment && (
+          <div className="composer__chip">
+            <span className="composer__chip-icon" aria-hidden="true">&#128206;</span>
+            <span className="composer__chip-name" title={attachment.name}>
+              {attachment.name}
+            </span>
+            <button
+              type="button"
+              className="composer__chip-remove"
+              aria-label={`Remove ${attachment.name}`}
+              onClick={() => {
+                setAttachment(null)
+                if (fileRef.current) fileRef.current.value = ''
+                inputRef.current?.focus()
+              }}
+            >
+              &times;
+            </button>
+          </div>
+        )}
+        <form
+          className="composer__bar"
+          onSubmit={(event) => {
+            event.preventDefault()
+            sendMessage()
+          }}
+        >
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,.pdf,.csv,.txt"
+            className="visually-hidden"
+            aria-label="Attach a strategy screenshot or document"
+            onChange={handleFileChange}
+          />
+          <button
+            type="button"
+            className="composer__attach"
+            aria-label="Attach a file"
+            title="Attach a screenshot or document (image, PDF, CSV, TXT)"
+            disabled={loading}
+            onClick={() => fileRef.current?.click()}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+              <path
+                d="M12 5v14M5 12h14"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+          <textarea
+            ref={inputRef}
+            className="composer__input"
+            rows={1}
+            value={input}
+            disabled={loading}
+            placeholder="Describe your strategy idea..."
+            aria-label="Message the strategy assistant"
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                sendMessage()
+              }
+            }}
+          />
+          <button
+            type="button"
+            className={`composer__mic${listening ? ' composer__mic--active' : ''}`}
+            aria-label={listening ? 'Stop voice input' : 'Start voice input'}
+            title={listening ? 'Stop listening' : 'Dictate your strategy idea'}
+            aria-pressed={listening}
+            disabled={loading}
+            onClick={toggleVoice}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+              <path
+                d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M19 10v2a7 7 0 0 1-14 0v-2"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M12 19v3"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+          <button
+            type="submit"
+            className={`composer__send${canSend ? ' composer__send--active' : ''}`}
+            disabled={!canSend}
+            aria-label={loading ? 'Sending message' : 'Send message'}
+            title="Send"
+          >
+            {loading ? (
+              <span className="btn__spinner" aria-hidden="true" />
+            ) : (
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
+                <path
+                  d="M12 19V5m-6 6 6-6 6 6"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+
   return (
     <div className="chat-page">
       <div className="studio-head">
@@ -335,36 +464,15 @@ export default function ChatPage() {
       </div>
       <div className="chat-page__scroll">
         {isEmpty ? (
-          <div className="chat-empty">
-            <div className="chat-empty__hero">
-              <h1 className="chat-empty__title">Design a NIFTY 50 strategy by conversation</h1>
-              <p className="chat-empty__text">
-                Describe the idea in plain language. The assistant asks for anything missing — timeframe,
-                thresholds, holding period, risk — and only writes Backtrader code once the rules are
-                complete. Nothing here places real orders.
-              </p>
-            </div>
-
-            <div className="stack stack--tight">
-              <span className="section-title">Try one of these</span>
-              <div className="example-grid">
-                {EXAMPLES.map((example, index) => (
-                  <button
-                    key={example.title}
-                    type="button"
-                    className="example-card"
-                    onClick={() => sendMessage(example.content)}
-                    disabled={loading}
-                  >
-                    <span className="example-card__index">0{index + 1}</span>
-                    <span className="example-card__title">{example.title}</span>
-                    <span className="example-card__text">{example.text}</span>
-                  </button>
-                ))}
+          <div className="chat-empty chat-empty--center-focus">
+            <div className="chat-empty__main">
+              <div className="chat-empty__hero">
+                <h1 className="chat-empty__title">Design a NIFTY 50 strategy by conversation</h1>
               </div>
+              {composerNode}
             </div>
 
-            <div className="chat-empty__builder">
+            <div className="chat-empty__builder chat-empty__builder--bottom">
               <Link
                 to="/studio/builder"
                 className="btn btn--primary chat-empty__builder-btn"
@@ -428,137 +536,7 @@ export default function ChatPage() {
         <div ref={scrollRef} />
       </div>
 
-      <div className="composer">
-        <div className="composer__inner">
-          {toast && (
-            <div className="composer__toast" role="status" aria-live="polite">
-              {toast}
-            </div>
-          )}
-          {attachment && (
-            <div className="composer__chip">
-              <span className="composer__chip-icon" aria-hidden="true">&#128206;</span>
-              <span className="composer__chip-name" title={attachment.name}>
-                {attachment.name}
-              </span>
-              <button
-                type="button"
-                className="composer__chip-remove"
-                aria-label={`Remove ${attachment.name}`}
-                onClick={() => {
-                  setAttachment(null)
-                  if (fileRef.current) fileRef.current.value = ''
-                  inputRef.current?.focus()
-                }}
-              >
-                &times;
-              </button>
-            </div>
-          )}
-          <form
-            className="composer__bar"
-            onSubmit={(event) => {
-              event.preventDefault()
-              sendMessage()
-            }}
-          >
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*,.pdf,.csv,.txt"
-              className="visually-hidden"
-              aria-label="Attach a strategy screenshot or document"
-              onChange={handleFileChange}
-            />
-            <button
-              type="button"
-              className="composer__attach"
-              aria-label="Attach a file"
-              title="Attach a screenshot or document (image, PDF, CSV, TXT)"
-              disabled={loading}
-              onClick={() => fileRef.current?.click()}
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-                <path
-                  d="M12 5v14M5 12h14"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-            <textarea
-              ref={inputRef}
-              className="composer__input"
-              rows={1}
-              value={input}
-              disabled={loading}
-              placeholder="Describe your strategy idea..."
-              aria-label="Message the strategy assistant"
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  sendMessage()
-                }
-              }}
-            />
-            <button
-              type="button"
-              className={`composer__mic${listening ? ' composer__mic--active' : ''}`}
-              aria-label={listening ? 'Stop voice input' : 'Start voice input'}
-              title={listening ? 'Stop listening' : 'Dictate your strategy idea'}
-              aria-pressed={listening}
-              disabled={loading}
-              onClick={toggleVoice}
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-                <path
-                  d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M19 10v2a7 7 0 0 1-14 0v-2"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M12 19v3"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-            <button
-              type="submit"
-              className={`composer__send${canSend ? ' composer__send--active' : ''}`}
-              disabled={!canSend}
-              aria-label={loading ? 'Sending message' : 'Send message'}
-              title="Send"
-            >
-              {loading ? (
-                <span className="btn__spinner" aria-hidden="true" />
-              ) : (
-                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
-                  <path
-                    d="M12 19V5m-6 6 6-6 6 6"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-            </button>
-          </form>
-        </div>
-      </div>
+      {!isEmpty && composerNode}
     </div>
   )
 }

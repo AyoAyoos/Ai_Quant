@@ -239,9 +239,6 @@ export default function StrategyBuilder() {
     <div className="strategy-builder-page">
       <header className="strategy-builder__header">
         <h1 className="strategy-builder__title">Create Your Trading Strategy</h1>
-        <p className="strategy-builder__subtitle">
-          Configure your strategy requirements and let AI generate the executable strategy.
-        </p>
       </header>
 
       <form className="strategy-builder__form" onSubmit={(e) => e.preventDefault()}>
