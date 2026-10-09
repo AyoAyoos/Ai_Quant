@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 import jwt
 from jwt import PyJWKClient
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -43,8 +43,8 @@ class AuthenticatedUser:
 
 
 def verify_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
-) -> AuthenticatedUser:
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     """Decode a Supabase access token, returning the caller's identity.
 
     Raises:
@@ -56,46 +56,47 @@ def verify_user(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication is not configured on the server (missing SUPABASE_URL)",
         )
-    if credentials is None or not credentials.credentials:
+    if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing authentication token",
         )
-    token = credentials.credentials
+        
     try:
         # Dynamically grab the public key that matches the token's signature
-        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        signing_key = jwks_client.get_signing_key_from_jwt(credentials.credentials)
         
         # Decode using the public key and ES256 algorithm
         payload = jwt.decode(
-            token,
+            credentials.credentials,
             signing_key.key,
-            algorithms=["ES256"],
-            options={"verify_aud": False},
+            algorithms=["ES256", "HS256"], # Accepts both new and old tokens
+            options={"verify_aud": False} 
         )
+        user_id = payload.get("sub")
+        if not user_id:
+            logger.warning("auth rejected: token missing sub claim")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token",
+            )
+        return AuthenticatedUser(id=user_id, email=payload.get("email"))
+        
     except jwt.ExpiredSignatureError:
         logger.info("auth rejected: token expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
+            detail="Token has expired. Please log in again.",
         ) from None
-    except jwt.PyJWTError as exc:
-        logger.warning("auth rejected: invalid token (%s): %s", type(exc).__name__, exc)
+    except Exception as e:
+        logger.warning("auth rejected: invalid token (%s): %s", type(e).__name__, e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid authentication token: {str(exc)}",
+            detail=f"Authentication failed: {str(e)}",
         ) from None
-    user_id = payload.get("sub")
-    if not user_id:
-        logger.warning("auth rejected: token missing sub claim")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
-        )
-    return AuthenticatedUser(id=user_id, email=payload.get("email"))
 
 
-def get_or_create_user(db: Session, user: AuthenticatedUser):
+def get_or_create_user(db: Session, user: AuthenticatedUser | dict):
     """Row for this Supabase identity, creating it on first sight.
 
     The Supabase UUID is reused as the primary key so ownership checks are a
@@ -103,10 +104,19 @@ def get_or_create_user(db: Session, user: AuthenticatedUser):
     """
     from app.models import User
 
-    row = db.query(User).filter(User.id == user.id).first()
+    if isinstance(user, AuthenticatedUser):
+        user_id = user.id
+        email = user.email
+    else:
+        user_id = user.get("sub")
+        if not user_id:
+            raise ValueError("Token missing 'sub' claim")
+        email = user.get("email")
+    
+    row = db.query(User).filter(User.id == user_id).first()
     if row is not None:
         return row
-    row = User(id=user.id, email=user.email or f"{user.id}@supabase.local")
+    row = User(id=user_id, email=email or f"{user_id}@supabase.local")
     db.add(row)
     db.commit()
     db.refresh(row)
