@@ -1,0 +1,222 @@
+/* LiveAlgoChart — dark-mode simulated Nifty 50 algo execution chart. */
+
+.algo-chart {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(139, 99, 155, 0.55);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 28px rgba(255, 179, 186, 0.1), 0 18px 44px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 18px 18px 12px;
+  font-family: var(--font-brand);
+}
+
+.algo-chart__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.algo-chart__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.algo-chart__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 179, 186, 0.6);
+  background: rgba(255, 179, 186, 0.12);
+  color: #ffb3ba;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-shadow: 0 0 14px rgba(255, 179, 186, 0.6);
+}
+
+.algo-chart__pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffb3ba;
+  box-shadow: 0 0 12px rgba(255, 179, 186, 0.9);
+  animation: algo-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes algo-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.65);
+    opacity: 0.55;
+  }
+}
+
+.algo-chart__pair {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+/* Live strategy status indicator (replaces the static BUY/SELL legend). */
+.algo-chart__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(38, 208, 124, 0.45);
+  background: rgba(38, 208, 124, 0.08);
+  color: #e3d9e5;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.algo-chart__status-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: #26d07c;
+  box-shadow: 0 0 12px rgba(38, 208, 124, 0.9);
+  animation: algo-pulse 1.6s ease-in-out infinite;
+}
+
+.algo-chart__body {
+  position: relative;
+  width: 100%;
+}
+
+.algo-chart__canvas {
+  width: 100%;
+  height: 340px;
+}
+
+.algo-chart__canvas canvas {
+  border-radius: 8px;
+}
+
+/* Frosted HUD strip docked top-left inside the chart. Pointer-transparent
+   so it never blocks crosshair / price-scale interaction. */
+.algo-chart__hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 24px);
+  padding: 9px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 179, 186, 0.22);
+  background: rgba(15, 11, 26, 0.75);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.algo-chart__hud-price {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.algo-chart__hud-chg {
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.algo-chart__hud-chg.is-up {
+  color: #26d07c;
+  text-shadow: 0 0 12px rgba(38, 208, 124, 0.6);
+}
+
+.algo-chart__hud-chg.is-down {
+  color: #ff5c5c;
+  text-shadow: 0 0 12px rgba(255, 92, 92, 0.6);
+}
+
+.algo-chart__hud-sep {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(255, 179, 186, 0.25);
+}
+
+.algo-chart__hud-stat {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(227, 217, 229, 0.7);
+  white-space: nowrap;
+}
+
+.algo-chart__hud-stat strong {
+  margin-left: 4px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.algo-chart__hud-stat strong.is-up {
+  color: #26d07c;
+  text-shadow: 0 0 12px rgba(38, 208, 124, 0.55);
+}
+
+.algo-chart__hud-stat strong.is-down {
+  color: #ff5c5c;
+  text-shadow: 0 0 12px rgba(255, 92, 92, 0.55);
+}
+
+.algo-chart__note {
+  margin: 10px 2px 2px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: rgba(227, 217, 229, 0.6);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .algo-chart {
+    padding: 14px 12px 10px;
+  }
+
+  .algo-chart__hud {
+    gap: 6px 10px;
+    padding: 8px 12px;
+  }
+
+  .algo-chart__hud-price {
+    font-size: 0.95rem;
+  }
+
+  .algo-chart__canvas {
+    height: 280px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .algo-chart__pulse,
+  .algo-chart__status-dot {
+    animation: none;
+  }
+}

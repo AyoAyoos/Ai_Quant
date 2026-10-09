@@ -159,8 +159,10 @@
   --fs-2xl: var(--fs-headline-md);
 
   --font-sans: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-  --font-display: 'Space Grotesk', 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    Arial, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Space Grotesk', 'Hanken Grotesk', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, Arial, sans-serif;
+  --font-brand: 'Plus Jakarta Sans', 'Space Grotesk', 'Hanken Grotesk', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, Arial, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
   /* ------------------------------------------------------------- spacing */
@@ -253,6 +255,14 @@ figure,
 ul,
 ol {
   margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+.display {
+  font-family: var(--font-display);
 }
 
 ul,
