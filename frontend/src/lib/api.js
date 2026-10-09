@@ -14,6 +14,8 @@
 // VITE_API_BASE is the Dockerfile build-arg name.
 import { getValidAccessToken, refreshAccessToken, supabase } from './supabaseClient.js'
 
+const SB_PREFIX = 'sb-'
+
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_BASE ||
@@ -122,6 +124,10 @@ async function request(path, { method = 'GET', body, signal, auth = true } = {})
 
   let response
   try {
+    // DEBUG: Log the token being sent
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log("DEBUG - Token being sent:", session?.access_token ? "Bearer " + session.access_token.substring(0, 15) + "..." : "NO TOKEN FOUND");
+    
     response = await doFetch(path, { method, body, signal, token })
   } catch (err) {
     if (err?.name === 'AbortError') throw err
@@ -132,14 +138,27 @@ async function request(path, { method = 'GET', body, signal, auth = true } = {})
   // server check — refresh once and replay, then fall through to the
   // normal error mapping so a dead session prompts re-login.
   if (response.status === 401 && auth && supabase) {
+    console.log("DEBUG - 401 received, attempting session refresh...");
     const refreshed = await refreshAccessToken()
     if (refreshed && refreshed !== token) {
       try {
+        // DEBUG: Log the new token being sent
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log("DEBUG - Retry token being sent:", session?.access_token ? "Bearer " + session.access_token.substring(0, 15) + "..." : "NO TOKEN FOUND");
+        
         response = await doFetch(path, { method, body, signal, token: refreshed })
       } catch (err) {
         if (err?.name === 'AbortError') throw err
         throw new ApiError(NETWORK_MESSAGE, { status: 0 })
       }
+    } else {
+      // Refresh failed or returned same token — wipe stale Supabase keys and redirect to login
+      console.warn("DEBUG - Session refresh failed or returned same token, clearing localStorage and redirecting to /login");
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(SB_PREFIX)) localStorage.removeItem(key)
+      })
+      window.location.href = '/login'
+      throw new ApiError(SESSION_EXPIRED_MESSAGE, { status: 401 })
     }
   }
 
