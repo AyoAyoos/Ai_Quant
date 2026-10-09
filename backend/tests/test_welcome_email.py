@@ -122,7 +122,11 @@ def test_endpoint_502_on_smtp_failure(smtp_configured, monkeypatch):
     assert res.status_code == 502
 
 
-def test_endpoint_requires_auth():
+def test_endpoint_requires_auth(monkeypatch):
+    # Pin a secret so the result is deterministic: without this the test
+    # returns 401 locally (backend/.env supplies a secret) but 503 in CI
+    # (no secret -> "Authentication is not configured").
+    monkeypatch.setattr(settings, "supabase_jwt_secret", "test-jwt-secret")
     mini = FastAPI()
     mini.include_router(router)
     res = TestClient(mini, raise_server_exceptions=False).post(
