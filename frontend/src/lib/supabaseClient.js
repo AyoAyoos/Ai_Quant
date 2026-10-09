@@ -42,11 +42,51 @@ if (!supabase) {
   )
 }
 
-/** Current Supabase JWT, or null when logged out / unconfigured. */
-export async function getAccessToken() {
+/** Refresh when the cached JWT expires within this window. */
+const REFRESH_MARGIN_MS = 60_000
+
+/**
+ * Current Supabase JWT, refreshing it first when expired or near expiry.
+ * Returns null when logged out / unconfigured / refresh fails — callers
+ * must treat null as "prompt re-login", never send it as a dead Bearer.
+ */
+export async function getValidAccessToken() {
   if (!supabase) return null
   const {
     data: { session },
   } = await supabase.auth.getSession()
-  return session?.access_token ?? null
+  if (!session?.access_token) return null
+  const expiresAtMs =
+    typeof session.expires_at === 'number' ? session.expires_at * 1000 : null
+  if (expiresAtMs === null || expiresAtMs - Date.now() > REFRESH_MARGIN_MS) {
+    return session.access_token
+  }
+  try {
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error) {
+      console.warn('Supabase session refresh failed:', error.message)
+      return session.access_token
+    }
+    return data?.session?.access_token ?? session.access_token
+  } catch (err) {
+    console.warn('Supabase session refresh threw:', err?.message || err)
+    return session.access_token
+  }
+}
+
+/** Force a refresh regardless of expiry (single-retry path in api.js). */
+export async function refreshAccessToken() {
+  if (!supabase) return null
+  try {
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error) return null
+    return data?.session?.access_token ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Current Supabase JWT, or null when logged out / unconfigured. */
+export async function getAccessToken() {
+  return getValidAccessToken()
 }

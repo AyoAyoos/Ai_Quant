@@ -128,4 +128,4 @@ def test_endpoint_requires_auth():
     res = TestClient(mini, raise_server_exceptions=False).post(
         "/auth/welcome-email", json={"email": "new@example.com"}
     )
-    assert res.status_code == 403
+    assert res.status_code == 401

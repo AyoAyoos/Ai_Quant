@@ -12,7 +12,7 @@
 // allows the deployed frontend origin).
 // VITE_API_BASE_URL is the deploy-time override (Vercel/Render);
 // VITE_API_BASE is the Dockerfile build-arg name.
-import { getAccessToken } from './supabaseClient.js'
+import { getValidAccessToken, refreshAccessToken, supabase } from './supabaseClient.js'
 
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
@@ -69,25 +69,78 @@ export function describeError(body, status) {
 }
 
 const NETWORK_MESSAGE = 'Error reaching the backend. Is it running?'
+export const AUTH_REQUIRED_MESSAGE = 'Not signed in. Please log in again.'
+export const SESSION_EXPIRED_MESSAGE = 'Session expired. Please log in again.'
 
-async function request(path, { method = 'GET', body, signal } = {}) {
+function buildHeaders(token, body) {
+  const headers = {}
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
+}
+
+async function doFetch(path, { method, body, signal, token }) {
+  return fetch(`${API_BASE}${path}`, {
+    method,
+    signal,
+    headers: buildHeaders(token, body),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+}
+
+function authErrorMessage(payload, status) {
+  // Backend 401 details are "Invalid authentication token" /
+  // "Token has expired" / "Missing authentication token"; all mean the
+  // session cannot be used — prompt re-login instead of surfacing the raw
+  // token verdict. 403 is the legacy missing-header shape; map it too.
+  if (status === 401 || status === 403) {
+    const detail = payload?.detail
+    if (typeof detail === 'string' && /expir/i.test(detail)) return SESSION_EXPIRED_MESSAGE
+    return SESSION_EXPIRED_MESSAGE
+  }
+  return null
+}
+
+async function request(path, { method = 'GET', body, signal, auth = true } = {}) {
+  // Dynamically grab the active Supabase session token right before the
+  // request (getValidAccessToken refreshes near-expiry JWTs in place).
+  let token = null
+  if (auth) {
+    try {
+      token = await getValidAccessToken()
+    } catch {
+      token = null
+    }
+    if (!token) throw new ApiError(AUTH_REQUIRED_MESSAGE, { status: 401 })
+  } else {
+    try {
+      token = await getValidAccessToken()
+    } catch {
+      token = null
+    }
+  }
+
   let response
   try {
-    // Prove the Supabase session to the backend: FastAPI verifies this JWT
-    // (app/auth.py) and rejects missing/invalid tokens with a 401.
-    const token = await getAccessToken()
-    const headers = {}
-    if (body !== undefined) headers['Content-Type'] = 'application/json'
-    if (token) headers['Authorization'] = `Bearer ${token}`
-    response = await fetch(`${API_BASE}${path}`, {
-      method,
-      signal,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    })
+    response = await doFetch(path, { method, body, signal, token })
   } catch (err) {
     if (err?.name === 'AbortError') throw err
     throw new ApiError(NETWORK_MESSAGE, { status: 0 })
+  }
+
+  // Single retry: the token may have expired between getSession and the
+  // server check — refresh once and replay, then fall through to the
+  // normal error mapping so a dead session prompts re-login.
+  if (response.status === 401 && auth && supabase) {
+    const refreshed = await refreshAccessToken()
+    if (refreshed && refreshed !== token) {
+      try {
+        response = await doFetch(path, { method, body, signal, token: refreshed })
+      } catch (err) {
+        if (err?.name === 'AbortError') throw err
+        throw new ApiError(NETWORK_MESSAGE, { status: 0 })
+      }
+    }
   }
 
   let payload = null
@@ -98,6 +151,8 @@ async function request(path, { method = 'GET', body, signal } = {}) {
   }
 
   if (!response.ok) {
+    const friendly = authErrorMessage(payload, response.status)
+    if (friendly) throw new ApiError(friendly, { status: response.status })
     const { message, reasons } = describeError(payload, response.status)
     throw new ApiError(message, { status: response.status, reasons })
   }
@@ -106,7 +161,7 @@ async function request(path, { method = 'GET', body, signal } = {}) {
 
 /** GET /health -> { status: "ok" }. Used by the header connectivity dot. */
 export async function fetchHealth({ signal } = {}) {
-  return request('/health', { signal })
+  return request('/health', { signal, auth: false })
 }
 
 /**
@@ -310,4 +365,9 @@ export function isNotFound(err) {
 /** True when the server could not be reached at all. */
 export function isNetworkError(err) {
   return err instanceof ApiError && err.status === 0
+}
+
+/** True when the failure means the session is missing/expired/invalid. */
+export function isAuthError(err) {
+  return err instanceof ApiError && (err.status === 401 || err.status === 403)
 }

@@ -10,6 +10,7 @@ Multi-tenant rule: every router MUST scope its database reads/writes to
 dev user or return rows owned by another user.
 """
 
+import logging
 from dataclasses import dataclass
 
 import jwt
@@ -19,7 +20,11 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 
-security = HTTPBearer(auto_error=True)
+logger = logging.getLogger(__name__)
+
+# auto_error=False so a missing header becomes our own 401 (consistent with
+# invalid/expired tokens) instead of Starlette's default 403 shape.
+security = HTTPBearer(auto_error=False)
 
 
 @dataclass(frozen=True)
@@ -31,7 +36,7 @@ class AuthenticatedUser:
 
 
 def verify_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> AuthenticatedUser:
     """Decode a Supabase access token, returning the caller's identity.
 
@@ -45,28 +50,38 @@ def verify_user(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication is not configured on the server",
         )
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication token",
+        )
     token = credentials.credentials
     try:
         # Supabase signs JWTs with HS256; `aud` varies by token type, so it
         # is not verified here (same as the Supabase docs' backend examples).
+        # leeway absorbs small clock skew between Supabase and this host.
         payload = jwt.decode(
             token,
             secret,
             algorithms=["HS256"],
             options={"verify_aud": False},
+            leeway=10,
         )
     except jwt.ExpiredSignatureError:
+        logger.info("auth rejected: token expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired",
         ) from None
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as exc:
+        logger.warning("auth rejected: invalid token (%s)", type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
         ) from None
     user_id = payload.get("sub")
     if not user_id:
+        logger.warning("auth rejected: token missing sub claim")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",

@@ -51,8 +51,9 @@ def test_valid_token_returns_identity(configured):
 def test_expired_token_rejected(configured):
     from fastapi import HTTPException
 
+    # Expired well beyond the 10s clock-skew leeway.
     with pytest.raises(HTTPException) as exc:
-        verify_user(_creds(_token(exp=datetime.now(timezone.utc) - timedelta(seconds=1))))
+        verify_user(_creds(_token(exp=datetime.now(timezone.utc) - timedelta(seconds=60))))
     assert exc.value.status_code == 401
     assert exc.value.detail == "Token has expired"
 
@@ -95,9 +96,10 @@ def _mini_app() -> TestClient:
 
 
 def test_http_no_header_is_rejected(configured):
-    # HTTPBearer(auto_error=True): no Authorization header -> 403.
+    # Missing Authorization header -> 401 (consistent with invalid tokens).
     res = _mini_app().get("/locked")
-    assert res.status_code == 403
+    assert res.status_code == 401
+    assert res.json()["detail"] == "Missing authentication token"
 
 
 def test_http_bad_token_is_401(configured):
