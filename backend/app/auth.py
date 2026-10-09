@@ -1,9 +1,9 @@
 """Supabase JWT verification for protected routes.
 
 The frontend attaches its session token as `Authorization: Bearer <jwt>`
-(see frontend/src/lib/api.js); this dependency decodes it with the project's
-JWT secret and returns the caller's identity. Missing, expired, or forged
-tokens are rejected with a 401 before the handler runs.
+(see frontend/src/lib/api.js); this dependency decodes it using Supabase's
+public JWKS (ES256) and returns the caller's identity. Missing, expired, or
+forged tokens are rejected with a 401 before the handler runs.
 
 Multi-tenant rule: every router MUST scope its database reads/writes to
 `user.id` (via get_or_create_user). No endpoint may fall back to a shared
@@ -11,9 +11,11 @@ dev user or return rows owned by another user.
 """
 
 import logging
+import os
 from dataclasses import dataclass
 
 import jwt
+from jwt import PyJWKClient
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -25,6 +27,11 @@ logger = logging.getLogger(__name__)
 # auto_error=False so a missing header becomes our own 401 (consistent with
 # invalid/expired tokens) instead of Starlette's default 403 shape.
 security = HTTPBearer(auto_error=False)
+
+# Supabase JWKS endpoint for ES256 public keys
+SUPABASE_URL = os.getenv("SUPABASE_URL") or getattr(settings, "supabase_url", None)
+jwks_url = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else None
+jwks_client = PyJWKClient(jwks_url) if jwks_url else None
 
 
 @dataclass(frozen=True)
@@ -41,14 +48,13 @@ def verify_user(
     """Decode a Supabase access token, returning the caller's identity.
 
     Raises:
-        HTTPException(503): auth is not configured (no SUPABASE_JWT_SECRET).
+        HTTPException(503): auth is not configured (no SUPABASE_URL).
         HTTPException(401): token missing, expired, or invalid.
     """
-    secret = settings.supabase_jwt_secret
-    if not secret:
+    if not jwks_client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication is not configured on the server",
+            detail="Authentication is not configured on the server (missing SUPABASE_URL)",
         )
     if credentials is None or not credentials.credentials:
         raise HTTPException(
@@ -57,15 +63,15 @@ def verify_user(
         )
     token = credentials.credentials
     try:
-        # Supabase signs JWTs with HS256; `aud` varies by token type, so it
-        # is not verified here (same as the Supabase docs' backend examples).
-        # leeway absorbs small clock skew between Supabase and this host.
+        # Dynamically grab the public key that matches the token's signature
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        
+        # Decode using the public key and ES256 algorithm
         payload = jwt.decode(
             token,
-            secret,
-            algorithms=["HS256"],
+            signing_key.key,
+            algorithms=["ES256"],
             options={"verify_aud": False},
-            leeway=10,
         )
     except jwt.ExpiredSignatureError:
         logger.info("auth rejected: token expired")
@@ -73,11 +79,11 @@ def verify_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired",
         ) from None
-    except jwt.InvalidTokenError as exc:
-        logger.warning("auth rejected: invalid token (%s)", type(exc).__name__)
+    except jwt.PyJWTError as exc:
+        logger.warning("auth rejected: invalid token (%s): %s", type(exc).__name__, exc)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
+            detail=f"Invalid authentication token: {str(exc)}",
         ) from None
     user_id = payload.get("sub")
     if not user_id:
