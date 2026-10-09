@@ -139,6 +139,7 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   color: #ffffff;
+  font-variant-numeric: tabular-nums;
 }
 
 .algo-chart__hud-chg {
