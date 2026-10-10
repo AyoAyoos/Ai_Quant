@@ -14,6 +14,7 @@ import httpx
 
 from app.config import settings
 from app.services.finalize_service import finalize_strategy
+from app.services.llm_errors import LLMNotConfiguredError
 from app.services.strategy_extractor import extract_strategy, clean_reply_for_display
 from app.schemas import (
     StrategyBuilderRequest,
@@ -320,7 +321,7 @@ async def generate_structured_strategy(spec: StrategyBuilderRequest) -> dict:
     """
     api_key = (settings.groq_api_key or "").strip()
     if not api_key:
-        raise ValueError(
+        raise LLMNotConfiguredError(
             "LLM API key is not configured. Set GROQ_API_KEY in backend/.env "
             "and restart the backend."
         )

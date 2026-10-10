@@ -7,7 +7,10 @@ without an Authorization header.
 
 from dataclasses import dataclass
 
+from fastapi import Depends
 from sqlalchemy.orm import Session
+
+from app.database import get_db
 
 DEV_USER_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 DEV_EMAIL = "dev@local"
@@ -24,9 +27,32 @@ class AuthenticatedUser:
 DEV_USER = AuthenticatedUser(id=DEV_USER_ID, email=DEV_EMAIL)
 
 
-def verify_user() -> AuthenticatedUser:
-    """Dependency returning the single local user — never raises."""
+def resolve_local_user(db: Session) -> AuthenticatedUser:
+    """The single local identity every request runs as.
+
+    Auth was removed, so no token identifies the caller. Rows may already
+    exist from before removal — created under a former login identity — and
+    they are owned by *that* id, not by ``DEV_USER_ID``. Reusing the existing
+    row keeps saved strategies, deployments, and conversations reachable
+    instead of 404-ing on data the local user actually owns. Only when no user
+    exists yet (a fresh database) does it fall back to ``DEV_USER_ID``, which
+    ``get_or_create_user`` then creates.
+    """
+    from app.models import User
+
+    existing = (
+        db.query(User)
+        .order_by(User.created_at.asc(), User.id.asc())
+        .first()
+    )
+    if existing is not None:
+        return AuthenticatedUser(id=str(existing.id), email=existing.email)
     return DEV_USER
+
+
+def verify_user(db: Session = Depends(get_db)) -> AuthenticatedUser:
+    """Dependency returning the single local user — never raises."""
+    return resolve_local_user(db)
 
 
 def get_or_create_user(db: Session, user: AuthenticatedUser | dict | None = None):

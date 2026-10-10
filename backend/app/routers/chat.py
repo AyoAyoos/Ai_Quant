@@ -7,6 +7,7 @@ from app.ids import canonical_uuid_or_404
 from app.models import Conversation, Message, MessageRole, Strategy
 from app.schemas import ChatMessageIn, ChatMessageOut
 from app.services.llm_service import chat_completion
+from app.services.llm_errors import LLMNotConfiguredError
 from app.services.finalize_service import finalize_strategy
 from app.services.strategy_extractor import (
     clean_reply_for_display,
@@ -65,8 +66,13 @@ async def send_message(
     # 4. Call LLM
     try:
         reply = await chat_completion(history)
+    except LLMNotConfiguredError as exc:
+        # Missing GROQ_API_KEY (fail-fast validation in llm_service): a setup
+        # problem the operator can fix, so surface it as 503 with the
+        # actionable message rather than a generic upstream 502.
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
-        # Missing GROQ_API_KEY (fail-fast validation in llm_service).
+        # Any other value error raised while calling the LLM.
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(

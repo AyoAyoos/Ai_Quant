@@ -9,6 +9,7 @@ a local Ollama server by changing base_url + model in config.py.
 import httpx
 
 from app.config import settings
+from app.services.llm_errors import LLMNotConfiguredError
 
 SYSTEM_PROMPT = """You are a quantitative trading strategy assistant embedded in an app.
 
@@ -85,7 +86,7 @@ async def chat_completion(messages: list[dict]) -> str:
     """
     api_key = (settings.groq_api_key or "").strip()
     if not api_key:
-        raise ValueError(
+        raise LLMNotConfiguredError(
             "LLM API key is not configured. Set GROQ_API_KEY in backend/.env "
             "and restart the backend."
         )

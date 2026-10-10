@@ -59,6 +59,7 @@ from app.services.paper_engine import (
     balance_of,
     run_paper_tick,
 )
+from app.services.llm_errors import LLMNotConfiguredError
 from app.services.strategy_builder import (
     generate_structured_strategy,
     validate_indicator_parameters,
@@ -109,6 +110,11 @@ async def generate_strategy(
                 status_code=502,
                 detail=f"LLM returned invalid JSON: {exc}",
             ) from exc
+        except LLMNotConfiguredError as exc:
+            # Operator setup problem, not an upstream/validation failure:
+            # 503 + the actionable message so the UI can tell the user exactly
+            # which variable to set. The message never contains the key value.
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(
                 status_code=502,
