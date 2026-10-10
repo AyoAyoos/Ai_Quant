@@ -16,7 +16,6 @@ from app.services.paper_engine import account_snapshot
 router = APIRouter(
     prefix="/paper",
     tags=["paper-trading"],
-    dependencies=[Depends(verify_user)],
 )
 
 

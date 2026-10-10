@@ -69,7 +69,6 @@ from app.services.strategy_builder import (
 router = APIRouter(
     prefix="/strategies",
     tags=["strategies"],
-    dependencies=[Depends(verify_user)],
 )
 
 

@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { generateStrategy, isAuthError, isNetworkError, isNotFound } from '../../lib/api.js'
-import { supabase } from '../../lib/supabaseClient.js'
+import { generateStrategy, isNetworkError, isNotFound } from '../../lib/api.js'
 import { registerStrategy } from '../../lib/storage.js'
 import { useLocation, useNavigate } from 'react-router-dom'
 import MarketSection from './MarketSection.jsx'
@@ -175,11 +174,7 @@ export default function StrategyBuilder() {
       setGenerationStatus('success')
     } catch (err) {
       setGenerationStatus('error')
-      if (!supabase) {
-        setGenerationError('Sign-in is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then log in and retry.')
-      } else if (isAuthError(err)) {
-        setGenerationError('Session expired. Please log in again, then press Try Again.')
-      } else if (isNetworkError(err)) {
+      if (isNetworkError(err)) {
         setGenerationError('Cannot reach the backend. Is it running?')
       } else if (isNotFound(err)) {
         setGenerationError('Strategy endpoint not found')

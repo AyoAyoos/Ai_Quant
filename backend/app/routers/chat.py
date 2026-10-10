@@ -14,7 +14,7 @@ from app.services.strategy_extractor import (
     looks_like_final_strategy,
 )
 
-router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(verify_user)])
+router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("", response_model=ChatMessageOut)

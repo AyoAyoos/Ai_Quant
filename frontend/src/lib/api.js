@@ -1,5 +1,5 @@
 /**
- * API client for the Ai_Quant FastAPI backend.
+ * API client for the Ai_Quant FastAPI backend (auth removed — open API).
  *
  * Every response shape here is taken verbatim from the backend contract:
  *   app/routers/chat.py, app/routers/strategies.py, app/schemas.py
@@ -12,9 +12,6 @@
 // allows the deployed frontend origin).
 // VITE_API_BASE_URL is the deploy-time override (Vercel/Render);
 // VITE_API_BASE is the Dockerfile build-arg name.
-import { getValidAccessToken, refreshAccessToken, supabase } from './supabaseClient.js'
-
-const SB_PREFIX = 'sb-'
 
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
@@ -71,95 +68,29 @@ export function describeError(body, status) {
 }
 
 const NETWORK_MESSAGE = 'Error reaching the backend. Is it running?'
-export const AUTH_REQUIRED_MESSAGE = 'Not signed in. Please log in again.'
-export const SESSION_EXPIRED_MESSAGE = 'Session expired. Please log in again.'
 
-function buildHeaders(token, body) {
+function buildHeaders(body) {
   const headers = {}
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  if (token) headers['Authorization'] = `Bearer ${token}`
   return headers
 }
 
-async function doFetch(path, { method, body, signal, token }) {
+async function doFetch(path, { method, body, signal }) {
   return fetch(`${API_BASE}${path}`, {
     method,
     signal,
-    headers: buildHeaders(token, body),
+    headers: buildHeaders(body),
     body: body === undefined ? undefined : JSON.stringify(body),
   })
 }
 
-function authErrorMessage(payload, status) {
-  // Backend 401 details are "Invalid authentication token" /
-  // "Token has expired" / "Missing authentication token"; all mean the
-  // session cannot be used — prompt re-login instead of surfacing the raw
-  // token verdict. 403 is the legacy missing-header shape; map it too.
-  if (status === 401 || status === 403) {
-    const detail = payload?.detail
-    if (typeof detail === 'string' && /expir/i.test(detail)) return SESSION_EXPIRED_MESSAGE
-    return SESSION_EXPIRED_MESSAGE
-  }
-  return null
-}
-
-async function request(path, { method = 'GET', body, signal, auth = true } = {}) {
-  // Dynamically grab the active Supabase session token right before the
-  // request (getValidAccessToken refreshes near-expiry JWTs in place).
-  let token = null
-  if (auth) {
-    try {
-      token = await getValidAccessToken()
-    } catch {
-      token = null
-    }
-    if (!token) throw new ApiError(AUTH_REQUIRED_MESSAGE, { status: 401 })
-  } else {
-    try {
-      token = await getValidAccessToken()
-    } catch {
-      token = null
-    }
-  }
-
+async function request(path, { method = 'GET', body, signal } = {}) {
   let response
   try {
-    // DEBUG: Log the token being sent
-    const { data: { session } } = await supabase.auth.getSession();
-    console.log("DEBUG - Token being sent:", session?.access_token ? "Bearer " + session.access_token.substring(0, 15) + "..." : "NO TOKEN FOUND");
-    
-    response = await doFetch(path, { method, body, signal, token })
+    response = await doFetch(path, { method, body, signal })
   } catch (err) {
     if (err?.name === 'AbortError') throw err
     throw new ApiError(NETWORK_MESSAGE, { status: 0 })
-  }
-
-  // Single retry: the token may have expired between getSession and the
-  // server check — refresh once and replay, then fall through to the
-  // normal error mapping so a dead session prompts re-login.
-  if (response.status === 401 && auth && supabase) {
-    console.log("DEBUG - 401 received, attempting session refresh...");
-    const refreshed = await refreshAccessToken()
-    if (refreshed && refreshed !== token) {
-      try {
-        // DEBUG: Log the new token being sent
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log("DEBUG - Retry token being sent:", session?.access_token ? "Bearer " + session.access_token.substring(0, 15) + "..." : "NO TOKEN FOUND");
-        
-        response = await doFetch(path, { method, body, signal, token: refreshed })
-      } catch (err) {
-        if (err?.name === 'AbortError') throw err
-        throw new ApiError(NETWORK_MESSAGE, { status: 0 })
-      }
-    } else {
-      // Refresh failed or returned same token — wipe stale Supabase keys and redirect to login
-      console.warn("DEBUG - Session refresh failed or returned same token, clearing localStorage and redirecting to /login");
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith(SB_PREFIX)) localStorage.removeItem(key)
-      })
-      window.location.href = '/login'
-      throw new ApiError(SESSION_EXPIRED_MESSAGE, { status: 401 })
-    }
   }
 
   let payload = null
@@ -170,8 +101,6 @@ async function request(path, { method = 'GET', body, signal, auth = true } = {})
   }
 
   if (!response.ok) {
-    const friendly = authErrorMessage(payload, response.status)
-    if (friendly) throw new ApiError(friendly, { status: response.status })
     const { message, reasons } = describeError(payload, response.status)
     throw new ApiError(message, { status: response.status, reasons })
   }
@@ -180,19 +109,7 @@ async function request(path, { method = 'GET', body, signal, auth = true } = {})
 
 /** GET /health -> { status: "ok" }. Used by the header connectivity dot. */
 export async function fetchHealth({ signal } = {}) {
-  return request('/health', { signal, auth: false })
-}
-
-/**
- * POST /auth/welcome-email — passive greeting after sign-up. Best-effort:
- * callers should `.catch()` and never block login on a mail failure.
- */
-export function postWelcomeEmail({ email, name, signal } = {}) {
-  return request('/auth/welcome-email', {
-    method: 'POST',
-    body: { email, name: name ?? '' },
-    signal,
-  })
+  return request('/health', { signal })
 }
 
 /**
@@ -386,7 +303,7 @@ export function isNetworkError(err) {
   return err instanceof ApiError && err.status === 0
 }
 
-/** True when the failure means the session is missing/expired/invalid. */
-export function isAuthError(err) {
-  return err instanceof ApiError && (err.status === 401 || err.status === 403)
+/** Kept for old imports — the open API never answers 401/403. */
+export function isAuthError() {
+  return false
 }

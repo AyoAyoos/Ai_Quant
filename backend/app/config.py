@@ -1,7 +1,8 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     database_url: str = "postgresql://quant_user:quant_pass@localhost:5432/quant_trading"
 
     # LLM provider config (Groq recommended: fast, free tier, Llama/Qwen models)
@@ -35,22 +36,7 @@ class Settings(BaseSettings):
     # Read from the ALLOWED_ORIGINS env var (set on Render). Empty = dev defaults.
     allowed_origins: str = ""
 
-    # Supabase project JWT secret (Dashboard -> Project Settings -> Data API
-    # -> JWT Secret). Used to verify the frontend's Bearer tokens in
-    # app/auth.py. Empty = auth unconfigured (protected routes answer 503).
-    supabase_jwt_secret: str = ""
-
-    # Outbound mail for passive notifications (welcome email). Gmail SMTP
-    # with an App Password (Google Account -> Security -> 2-Step Verification
-    # -> App passwords). Empty password = mailer disabled (endpoint 503s).
-    smtp_host: str = "smtp.gmail.com"
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-    smtp_from: str = ""
-
-    class Config:
-        env_file = ".env"
+    # Single local user (auth removed): every request runs as dev@local.
 
 
 settings = Settings()
