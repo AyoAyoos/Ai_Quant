@@ -127,5 +127,6 @@ def select_next_bar(
 def processed_bars(bars: list[dict], last_bar_date: str | None) -> list[dict]:
     """Bars the engine has actually processed (watermark-inclusive), oldest first."""
     if last_bar_date is None:
-        return []
+        # Return full historical cache for chart rendering before any tick
+        return bars
     return [b for b in bars if b["date"] <= last_bar_date]

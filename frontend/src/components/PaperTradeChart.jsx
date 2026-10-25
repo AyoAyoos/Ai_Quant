@@ -31,7 +31,7 @@ function cleanBar(entry) {
  * A marker renders on its execution bar: BUY ▲ below the low, SELL ▼ above
  * the high. Rejected orders and HOLDs never reach this component.
  */
-export default function PaperTradeChart({ bars, markers }) {
+export default function PaperTradeChart({ bars, markers, mode = 'line' }) {
   const [hover, setHover] = useState(null)
   const svgRef = useRef(null)
 
@@ -77,6 +77,18 @@ export default function PaperTradeChart({ bars, markers }) {
     return { xFor, yFor, step, bodyWidth, gridLevels, count: cleanBars.length }
   }, [cleanBars])
 
+  const lineData = useMemo(() => {
+    if (!geometry || cleanBars.length === 0) return null
+    const points = cleanBars.map((bar, i) => {
+      const x = geometry.xFor(i)
+      const y = geometry.yFor(bar.close)
+      return { x, y }
+    })
+    const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+    const areaPath = `${linePath} L ${points[points.length - 1].x},${PAD.top + PLOT_H} L ${points[0].x},${PAD.top + PLOT_H} Z`
+    return { linePath, areaPath }
+  }, [cleanBars, geometry])
+
   const indexFromClientX = useCallback(
     (clientX) => {
       const svg = svgRef.current
@@ -99,8 +111,8 @@ export default function PaperTradeChart({ bars, markers }) {
   return (
     <figure className="candle-chart">
       <figcaption className="candle-chart__head">
-        <span className="candle-chart__title">NIFTY 50 — simulated paper trading activity</span>
-        <span className="candle-chart__badge">Simulated paper trading — no real money</span>
+        <span className="candle-chart__title">{mode === 'line' ? 'NIFTY 50 — HISTORICAL PRICE' : 'NIFTY 50 — HISTORICAL OHLC'}</span>
+        <span className="candle-chart__badge">Historical market data — independent of paper trading</span>
       </figcaption>
 
       <svg
@@ -149,57 +161,67 @@ export default function PaperTradeChart({ bars, markers }) {
           </text>
         ))}
 
-        {cleanBars.map((bar, i) => {
-          const up = bar.close >= bar.open
-          const tone = up ? 'up' : 'down'
-          const x = geometry.xFor(i)
-          const barMarkers = markerByIndex.get(i) ?? []
-          const hasBuy = barMarkers.some((m) => m.side === 'BUY')
-          const hasSell = barMarkers.some((m) => m.side === 'SELL')
-          return (
-            <g key={`${bar.date}-${i}`}>
-              <line
-                className={`candle-chart__wick candle-chart__wick--${tone}`}
-                x1={x}
-                x2={x}
-                y1={geometry.yFor(bar.high)}
-                y2={geometry.yFor(bar.low)}
-              />
-              <rect
-                className={`candle-chart__body candle-chart__body--${tone}`}
-                x={x - geometry.bodyWidth / 2}
-                y={geometry.yFor(Math.max(bar.open, bar.close))}
-                width={geometry.bodyWidth}
-                height={Math.max(1.5, Math.abs(geometry.yFor(bar.open) - geometry.yFor(bar.close)))}
-              />
-              {hasBuy && (
-                <polygon
-                  className="candle-chart__marker candle-chart__marker--buy"
-                  points={`${x},${geometry.yFor(bar.low) + 13} ${x - 6},${geometry.yFor(bar.low) + 4} ${x + 6},${geometry.yFor(bar.low) + 4}`}
-                >
-                  <title>Simulated BUY marker</title>
-                </polygon>
-              )}
-              {hasSell && (
-                <polygon
-                  className="candle-chart__marker candle-chart__marker--sell"
-                  points={`${x},${geometry.yFor(bar.high) - 13} ${x - 6},${geometry.yFor(bar.high) - 4} ${x + 6},${geometry.yFor(bar.high) - 4}`}
-                >
-                  <title>Simulated SELL marker</title>
-                </polygon>
-              )}
-              {active === i && (
+        {mode === 'line' && lineData ? (
+          <>
+            <path d={lineData.areaPath} fill="#dc2626" fillOpacity="0.08" />
+            <path d={lineData.linePath} fill="none" stroke="#dc2626" strokeWidth="2.3" strokeLinejoin="round" strokeLinecap="round" />
+            {active !== null && (
+              <line className="candle-chart__crosshair" x1={geometry.xFor(active)} x2={geometry.xFor(active)} y1={PAD.top} y2={PAD.top + PLOT_H} />
+            )}
+          </>
+        ) : (
+          cleanBars.map((bar, i) => {
+            const up = bar.close >= bar.open
+            const tone = up ? 'up' : 'down'
+            const x = geometry.xFor(i)
+            const barMarkers = markerByIndex.get(i) ?? []
+            const hasBuy = barMarkers.some((m) => m.side === 'BUY')
+            const hasSell = barMarkers.some((m) => m.side === 'SELL')
+            return (
+              <g key={`${bar.date}-${i}`}>
                 <line
-                  className="candle-chart__crosshair"
+                  className={`candle-chart__wick candle-chart__wick--${tone}`}
                   x1={x}
                   x2={x}
-                  y1={PAD.top}
-                  y2={PAD.top + PLOT_H}
+                  y1={geometry.yFor(bar.high)}
+                  y2={geometry.yFor(bar.low)}
                 />
-              )}
-            </g>
-          )
-        })}
+                <rect
+                  className={`candle-chart__body candle-chart__body--${tone}`}
+                  x={x - geometry.bodyWidth / 2}
+                  y={geometry.yFor(Math.max(bar.open, bar.close))}
+                  width={geometry.bodyWidth}
+                  height={Math.max(1.5, Math.abs(geometry.yFor(bar.open) - geometry.yFor(bar.close)))}
+                />
+                {hasBuy && (
+                  <polygon
+                    className="candle-chart__marker candle-chart__marker--buy"
+                    points={`${x},${geometry.yFor(bar.low) + 13} ${x - 6},${geometry.yFor(bar.low) + 4} ${x + 6},${geometry.yFor(bar.low) + 4}`}
+                  >
+                    <title>Simulated BUY marker</title>
+                  </polygon>
+                )}
+                {hasSell && (
+                  <polygon
+                    className="candle-chart__marker candle-chart__marker--sell"
+                    points={`${x},${geometry.yFor(bar.high) - 13} ${x - 6},${geometry.yFor(bar.high) - 4} ${x + 6},${geometry.yFor(bar.high) - 4}`}
+                  >
+                    <title>Simulated SELL marker</title>
+                  </polygon>
+                )}
+                {active === i && (
+                  <line
+                    className="candle-chart__crosshair"
+                    x1={x}
+                    x2={x}
+                    y1={PAD.top}
+                    y2={PAD.top + PLOT_H}
+                  />
+                )}
+              </g>
+            )
+          })
+        )}
       </svg>
 
       {activeBar && (
@@ -209,8 +231,9 @@ export default function PaperTradeChart({ bars, markers }) {
         >
           <div className="candle-chart__tooltip-date">{formatDate(activeBar.date)}</div>
           <div className="candle-chart__tooltip-row">
-            O {formatMoney(activeBar.open)} · H {formatMoney(activeBar.high)} · L{' '}
-            {formatMoney(activeBar.low)} · C {formatMoney(activeBar.close)}
+            {mode === 'line'
+              ? `C ${formatMoney(activeBar.close)}`
+              : `O ${formatMoney(activeBar.open)} · H ${formatMoney(activeBar.high)} · L ${formatMoney(activeBar.low)} · C ${formatMoney(activeBar.close)}`}
           </div>
           {activeMarkers.map((marker, k) => (
             <div className="candle-chart__tooltip-trade" key={k}>

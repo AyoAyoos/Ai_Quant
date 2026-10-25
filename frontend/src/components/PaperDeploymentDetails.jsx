@@ -48,7 +48,10 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
   const [orders, setOrders] = useState([])
   const [trades, setTrades] = useState([])
   const [bars, setBars] = useState([])
-  const [barsTruncated, setBarsTruncated] = useState(false)
+  const [chartMode, setChartMode] = useState('line')
+  const [viewStart, setViewStart] = useState(0)
+  const [viewSize, setViewSize] = useState(200)
+  const [chartRevealed, setChartRevealed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sectionErrors, setSectionErrors] = useState({})
   const [tickBusy, setTickBusy] = useState(false)
@@ -58,32 +61,28 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
   const load = useCallback(
     async (signal) => {
       setLoading(true)
-      const opts = { deploymentId, signal }
-      const [accountRes, positionsRes, ordersRes, tradesRes, barsRes] = await Promise.all([
-        settled(fetchPaperAccount(strategyId, opts)),
-        settled(fetchPaperPositions(strategyId, opts)),
-        settled(fetchPaperOrders(strategyId, opts)),
-        settled(fetchPaperTrades(strategyId, opts)),
-        settled(fetchMarketBars(strategyId, opts)),
-      ])
-      if (signal?.aborted) return
-      const errors = {}
-      if (accountRes.ok) setAccount(accountRes.value)
-      else errors.account = errorMessage(accountRes.error)
-      if (positionsRes.ok) setPositions(Array.isArray(positionsRes.value) ? positionsRes.value : [])
-      else errors.positions = errorMessage(positionsRes.error)
-      if (ordersRes.ok) setOrders(Array.isArray(ordersRes.value) ? ordersRes.value : [])
-      else errors.orders = errorMessage(ordersRes.error)
-      if (tradesRes.ok) setTrades(Array.isArray(tradesRes.value) ? tradesRes.value : [])
-      else errors.trades = errorMessage(tradesRes.error)
-      if (barsRes.ok) {
-        setBars(Array.isArray(barsRes.value?.bars) ? barsRes.value.bars : [])
-        setBarsTruncated(Boolean(barsRes.value?.truncated))
-      } else {
-        errors.bars = errorMessage(barsRes.error)
+      try {
+        const opts = { deploymentId, signal }
+        const [accountRes, positionsRes, ordersRes, tradesRes] = await Promise.all([
+          settled(fetchPaperAccount(strategyId, opts)),
+          settled(fetchPaperPositions(strategyId, opts)),
+          settled(fetchPaperOrders(strategyId, opts)),
+          settled(fetchPaperTrades(strategyId, opts)),
+        ])
+        if (signal?.aborted) return
+        const errors = {}
+        if (accountRes.ok) setAccount(accountRes.value)
+        else errors.account = errorMessage(accountRes.error)
+        if (positionsRes.ok) setPositions(Array.isArray(positionsRes.value) ? positionsRes.value : [])
+        else errors.positions = errorMessage(positionsRes.error)
+        if (ordersRes.ok) setOrders(Array.isArray(ordersRes.value) ? ordersRes.value : [])
+        else errors.orders = errorMessage(ordersRes.error)
+        if (tradesRes.ok) setTrades(Array.isArray(tradesRes.value) ? tradesRes.value : [])
+        else errors.trades = errorMessage(tradesRes.error)
+        setSectionErrors(errors)
+      } finally {
+        if (!signal?.aborted) setLoading(false)
       }
-      setSectionErrors(errors)
-      setLoading(false)
     },
     [strategyId, deploymentId],
   )
@@ -94,6 +93,40 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
     return () => controller.abort()
   }, [load])
 
+  useEffect(() => {
+    const ctrl = new AbortController()
+    let cancelled = false
+    async function fetchBars() {
+      try {
+        const data = await fetchMarketBars(strategyId, { signal: ctrl.signal })
+        if (!cancelled && data) {
+          setBars(Array.isArray(data.bars) ? data.bars : [])
+        }
+      } catch {}
+    }
+    fetchBars()
+    return () => { cancelled = true; ctrl.abort() }
+  }, [strategyId])
+
+  useEffect(() => {
+    if (bars.length > 0 && viewSize === 200) {
+      setViewSize(bars.length)
+      setViewStart(0)
+    }
+  }, [bars.length, viewSize])
+
+  useEffect(() => {
+    if (bars.length === 0) return
+    setViewSize(size => {
+      const clamped = Math.max(1, Math.min(size, bars.length))
+      return clamped
+    })
+    setViewStart(start => {
+      const maxStart = Math.max(0, bars.length - viewSize)
+      return Math.min(Math.max(0, start), maxStart)
+    })
+  }, [bars.length])
+
   async function handleTick() {
     if (tickBusy || !isActive) return
     setTickBusy(true)
@@ -102,6 +135,7 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
     try {
       const result = await runPaperTick(strategyId, { deploymentId })
       setTickResult(result)
+      setChartRevealed(true)
       await load()
       if (typeof onChanged === 'function') {
         try {
@@ -138,6 +172,17 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
     () => orders.filter((order) => order?.status === 'rejected').length,
     [orders],
   )
+
+  const visibleBars = useMemo(() => {
+    const start = Math.max(0, viewStart)
+    const size = Math.max(1, Math.min(viewSize, bars.length))
+    return bars.slice(start, start + size)
+  }, [bars, viewStart, viewSize])
+
+  const visibleMarkers = useMemo(() => {
+    const dates = new Set(visibleBars.map(b => b.date))
+    return markers.filter(m => dates.has(m.bar_date))
+  }, [markers, visibleBars])
 
   return (
     <div className="paper-details">
@@ -389,7 +434,11 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
 
           <section aria-label="NIFTY paper trading chart">
             <h4 className="paper-details__heading">NIFTY 50 — simulated paper trading activity</h4>
-            {sectionErrors.bars ? (
+            {!chartRevealed ? (
+              <p className="disclaimer-text">
+                Run paper tick to view historical chart. Chart remains hidden until a tick is processed.
+              </p>
+            ) : sectionErrors.bars ? (
               <Note tone="danger" title="Chart data failed to load">
                 <span>
                   {sectionErrors.bars}{' '}
@@ -400,7 +449,7 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
               </Note>
             ) : bars.length === 0 ? (
               <p className="disclaimer-text">
-                No processed market bars yet — run a paper tick to start the simulation.
+                No historical market bars available.
               </p>
             ) : (
               <>
@@ -462,15 +511,49 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
                     </span>
                   </div>
                 </dl>
-                <PaperTradeChart bars={bars} markers={markers} />
-                {barsTruncated && (
-                  <Note tone="warning" title="Chart range truncated">
-                    <span>
-                      The backend capped the returned bars; markers beyond the shown range are
-                      still stored and listed under Orders.
-                    </span>
-                  </Note>
-                )}
+                <div className="paper-details__chart-controls" style={{display:'flex', flexDirection:'column', gap:'8px', margin:'12px 0'}}>
+                  <div style={{display:'flex', gap:'8px'}}>
+                    <button type="button" className={`btn btn--sm ${chartMode==='line'?'btn--primary':'btn--outline'}`} onClick={()=>setChartMode('line')}>Line (Close)</button>
+                    <button type="button" className={`btn btn--sm ${chartMode==='candle'?'btn--primary':'btn--outline'}`} onClick={()=>setChartMode('candle')}>Candles (OHLC)</button>
+                  </div>
+                  <div style={{display:'flex', gap:'6px', flexWrap:'wrap'}}>
+                    <button type="button" className="btn btn--sm btn--outline" onClick={()=>{
+                      const newSize = Math.max(1, Math.min(bars.length, Math.floor(viewSize*0.7)))
+                      const delta = Math.floor((viewSize - newSize)/2)
+                      const maxStart = Math.max(0, bars.length - newSize)
+                      const newStart = Math.max(0, Math.min(viewStart + delta, maxStart))
+                      setViewSize(newSize)
+                      setViewStart(newStart)
+                    }}>Zoom In</button>
+                    <button type="button" className="btn btn--sm btn--outline" onClick={()=>{
+                      const newSize = Math.min(bars.length, Math.max(1, Math.ceil(viewSize*1.4)))
+                      const delta = Math.floor((newSize - viewSize)/2)
+                      const maxStart = Math.max(0, bars.length - newSize)
+                      const newStart = Math.max(0, Math.min(viewStart - delta, maxStart))
+                      setViewSize(newSize)
+                      setViewStart(newStart)
+                    }}>Zoom Out</button>
+                    <button type="button" className="btn btn--sm btn--outline" onClick={()=>{
+                      setViewSize(bars.length)
+                      setViewStart(0)
+                    }}>Reset</button>
+                    <button type="button" className="btn btn--sm btn--outline" onClick={()=>setViewStart(0)} disabled={viewStart===0}>Oldest</button>
+                    <button type="button" className="btn btn--sm btn--outline" onClick={()=>{
+                      const step = Math.max(1, Math.floor(viewSize*0.2))
+                      setViewStart(prev=>{
+                        const next = Math.max(0, prev - step)
+                        return next === prev ? prev : next
+                      })
+                    }} disabled={viewStart===0}>Previous</button>
+                    <button type="button" className="btn btn--sm btn--outline" onClick={()=>{
+                      setViewStart(prev=>Math.min(Math.max(0, bars.length - viewSize), prev + Math.floor(viewSize*0.2)))
+                    }} disabled={viewStart+viewSize>=bars.length}>Next</button>
+                    <button type="button" className="btn btn--sm btn--outline" onClick={()=>{
+                      setViewStart(Math.max(0, bars.length - viewSize))
+                    }} disabled={viewStart+viewSize>=bars.length}>Newest</button>
+                  </div>
+                </div>
+                <PaperTradeChart bars={visibleBars} markers={visibleMarkers} mode={chartMode} />
                 {filledCount === 0 && (
                   <p className="disclaimer-text">
                     No filled simulated executions yet — HOLD-only history shows no markers.
