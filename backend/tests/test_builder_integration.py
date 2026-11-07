@@ -17,15 +17,6 @@ def client():
     return TestClient(app)
 
 
-@pytest.fixture()
-def db():
-    Base.metadata.create_all(bind=engine)
-    yield
-    with engine.begin() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            conn.execute(table.delete())
-
-
 def _mock_llm_success(monkeypatch):
     """Mock the LLM to return a valid strategy."""
     # Test-only dummy key: HTTP is fully mocked below, so no real LLM call

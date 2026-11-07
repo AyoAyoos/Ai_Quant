@@ -74,6 +74,7 @@ def _delete_rows_added_by_the_test(existing: dict[str, set[tuple]]) -> None:
             "paper_orders",
             "paper_positions",
             "paper_trades",
+            "paper_equity_snapshots",
             "paper_deployments",
             "messages",
             "backtest_results",
