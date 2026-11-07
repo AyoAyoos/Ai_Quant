@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { approveStrategy, rejectStrategy } from '../lib/api.js'
+import { approveStrategy, fetchBacktestResults, rejectStrategy } from '../lib/api.js'
 import { canPerform, explainUnavailable } from '../lib/actions.js'
-import { useCachedBacktest, useStrategyDetail } from '../lib/useStrategy.js'
+import { useStrategyDetail } from '../lib/useStrategy.js'
 import BenchmarkVerdict from '../components/BenchmarkVerdict.jsx'
 import MetricGrid from '../components/MetricGrid.jsx'
 import Note from '../components/Note.jsx'
@@ -11,11 +11,9 @@ import StrategyTabs from '../components/StrategyTabs.jsx'
 import LoadingBlock, { SkeletonBlock, SkeletonTitle } from '../components/Skeletons.jsx'
 
 /**
- * The criteria below are this page's own decision thresholds — the backend
- * does not know about them. The backend runs its own gate: it refuses when the
- * latest backtest is missing, when it closed too few trades to judge, or when
- * the drawdown breaches its cap, and those refusals come back as 422 with
- * `detail.reasons` rendered under the Approve button.
+ * The criteria below are enforced by the backend. The backend approval gate
+ * requires at least 10 closed trades and at least 2 of 4 criteria to pass.
+ * Refusals come back as 422 with `detail.reasons` rendered under the Approve button.
  */
 const CRITERIA = [
   {
@@ -86,7 +84,7 @@ function CriteriaList({ metrics }) {
         <span>
           {passed === rows.length
             ? 'The backtest clears this list, and it clears the backend’s gate too — approving it will succeed.'
-            : 'These thresholds are yours, not the backend’s, so the backend will still approve if its own gate passes. That gate only blocks on a missing backtest, too few trades to judge, or a drawdown over its cap — those come back as a reason under the button.'}
+            : 'These thresholds are now enforced by the backend. Approval requires at least 10 closed trades and at least 2 of 4 criteria to pass. The backend will refuse approval with reasons displayed under the Approve button.'}
         </span>
       </Note>
     </div>
@@ -96,8 +94,40 @@ function CriteriaList({ metrics }) {
 export default function ApprovalPage() {
   const { id } = useParams()
   const { detail, status, loading, notFound, refresh } = useStrategyDetail(id)
-  const cached = useCachedBacktest(id)
-  const metrics = cached?.result ?? null
+  const [backtestResults, setBacktestResults] = useState([])
+  const [backtestLoading, setBacktestLoading] = useState(false)
+  const [backtestError, setBacktestError] = useState(null)
+
+  /* eslint-disable react-hooks/exhaustive-deps */
+  useEffect(() => {
+    if (!detail) return
+    let cancelled = false
+    setBacktestLoading(true)
+    setBacktestError(null)
+    fetchBacktestResults(id).then(list => {
+      if (!cancelled) {
+        setBacktestResults(Array.isArray(list) ? list : [])
+        setBacktestLoading(false)
+      }
+    }).catch(err => {
+      if (!cancelled) {
+        setBacktestError(err)
+        setBacktestResults([])
+        setBacktestLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [id, detail?.id, detail?.status])
+
+  const approvedId = detail?.approved_backtest_id ?? null
+  const isHistoricalApproval = status === 'approved' && !approvedId
+  const selectedResult = approvedId
+    ? backtestResults.find(r => r.id === approvedId) ?? null
+    : isHistoricalApproval
+    ? null
+    : backtestResults[0] ?? null
+  const latestResult = backtestResults[0] ?? null
+  const metrics = selectedResult?.raw_metrics ?? selectedResult ?? null
 
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(null)
@@ -202,6 +232,12 @@ export default function ApprovalPage() {
         </Note>
       )}
 
+      {status === 'approved' && !detail.approved_backtest_id && (
+        <Note tone="warning" title="Historical approval — no linked backtest">
+          <span>This strategy was approved before backtest linkage was introduced. The exact backtest that passed the gate is not recorded.</span>
+        </Note>
+      )}
+
       {done && (
         <Note tone="success" title={done.status === 'rejected' ? 'Strategy rejected' : 'Strategy approved'}>
           <span>
@@ -219,16 +255,28 @@ export default function ApprovalPage() {
         </Note>
       )}
 
-      {!metrics ? (
+      {backtestLoading && (
+        <p className="disclaimer-text">Loading backtest results…</p>
+      )}
+
+      {backtestError && (
+        <Note tone="danger" title="Failed to load backtest">
+          <span>{backtestError.message}</span>
+        </Note>
+      )}
+
+      {!backtestLoading && !backtestError && !metrics ? (
         <div className="empty-state">
           <span className="empty-state__icon" aria-hidden="true">
             ⌕
           </span>
-          <span className="empty-state__title">No backtest to review</span>
+          <span className="empty-state__title">
+            {isHistoricalApproval ? 'No linked backtest for historical approval' : 'No backtest to review'}
+          </span>
           <p className="empty-state__text">
-            The backend stores backtests but exposes no endpoint to read one back, and this browser has no
-            cached copy — most likely a different browser or device. Run the backtest here to review the
-            numbers.
+            {isHistoricalApproval
+              ? 'This strategy was approved historically before backtest linkage was introduced. The exact backtest that passed the gate is not recorded. The backtest results below are the current/latest runs and are not shown as the basis for the historical approval.'
+              : 'No backtest results found for this strategy in the backend. Run a backtest to review the numbers.'}
           </p>
           <div className="empty-state__actions">
             <Link className="btn btn--primary" to={`/strategies/${id}/backtest`}>
@@ -236,11 +284,31 @@ export default function ApprovalPage() {
             </Link>
           </div>
         </div>
-      ) : (
+      ) : metrics ? (
         <section className="stack" aria-label="Backtest under review">
           <MetricGrid result={metrics} />
           <BenchmarkVerdict result={metrics} />
           <CriteriaList metrics={metrics} />
+        </section>
+      ) : null}
+
+      {isHistoricalApproval && latestResult && !backtestLoading && !backtestError && (
+        <section className="stack" aria-label="Current backtest">
+          <Note tone="info" title="Current/latest backtest">
+            <span>
+              This backtest is the latest run available for this strategy and is not the historical approval basis. It is shown for information only.
+            </span>
+          </Note>
+          {(() => {
+            const curMetrics = latestResult.raw_metrics ?? latestResult
+            return curMetrics ? (
+              <section className="stack" aria-label="Current backtest metrics">
+                <MetricGrid result={curMetrics} />
+                <BenchmarkVerdict result={curMetrics} />
+                <CriteriaList metrics={curMetrics} />
+              </section>
+            ) : null
+          })()}
         </section>
       )}
 

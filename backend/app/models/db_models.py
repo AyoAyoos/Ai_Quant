@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Column, String, Text, DateTime, ForeignKey, Float, Integer, JSON, Enum
+    Column, String, Text, DateTime, ForeignKey, Float, Integer, JSON, Enum, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -83,9 +83,11 @@ class Strategy(Base):
     # Structured strategy specification (for strategy builder workflow)
     strategy_spec = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Immutable reference to the backtest that passed approval. NULL for historical approvals.
+    approved_backtest_id = Column(UUID(as_uuid=False), ForeignKey("backtest_results.id"), nullable=True)
 
     conversation = relationship("Conversation", back_populates="strategies")
-    backtest_results = relationship("BacktestResult", back_populates="strategy", cascade="all, delete-orphan")
+    backtest_results = relationship("BacktestResult", back_populates="strategy", foreign_keys="BacktestResult.strategy_id", cascade="all, delete-orphan")
     deployments = relationship("PaperDeployment", back_populates="strategy", cascade="all, delete-orphan")
 
 
@@ -103,7 +105,7 @@ class BacktestResult(Base):
     raw_metrics = Column(JSON)  # full metrics dump for flexibility
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    strategy = relationship("Strategy", back_populates="backtest_results")
+    strategy = relationship("Strategy", back_populates="backtest_results", foreign_keys="BacktestResult.strategy_id")
 
 
 class PaperDeployment(Base):
@@ -152,6 +154,9 @@ class PaperDeployment(Base):
     )
     trades = relationship(
         "PaperTrade", back_populates="deployment", cascade="all, delete-orphan"
+    )
+    equity_snapshots = relationship(
+        "PaperEquitySnapshot", back_populates="deployment", cascade="all, delete-orphan"
     )
 
 
@@ -226,3 +231,29 @@ class PaperTrade(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     deployment = relationship("PaperDeployment", back_populates="trades")
+
+
+class PaperEquitySnapshot(Base):
+    """Per-bar virtual portfolio equity snapshot for historical replay.
+
+    One snapshot per deployment per successfully processed bar. Equity is
+    cash_balance + market value of open positions at bar close.
+    """
+
+    __tablename__ = "paper_equity_snapshots"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    deployment_id = Column(
+        UUID(as_uuid=False), ForeignKey("paper_deployments.id"), nullable=False
+    )
+    bar_date = Column(String(10), nullable=False)
+    cash_balance = Column(Float, nullable=False)
+    positions_market_value = Column(Float, nullable=False)
+    equity = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    deployment = relationship("PaperDeployment", back_populates="equity_snapshots")
+
+    __table_args__ = (
+        UniqueConstraint('deployment_id', 'bar_date', name='uq_paper_equity_snapshot_deployment_bar'),
+    )

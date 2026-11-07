@@ -393,3 +393,152 @@ class GeneratedStrategy(bt.Strategy):
         result = validate_generated_code(code)
         # Should warn about missing entry_price tracking when stop_loss_pct is used
         assert any("entry_price" in w for w in result["warnings"])
+
+    def test_forbidden_slippage_api(self):
+        code = '''
+import backtrader as bt
+class GeneratedStrategy(bt.Strategy):
+    def next(self):
+        self.broker.set_slippage(bt.slippage.FixedSlippage())
+'''
+        result = validate_generated_code(code)
+        assert any("bt.slippage" in e for e in result["errors"])
+        assert any("Broker slippage" in e for e in result["errors"])
+
+    def test_forbidden_bracket_orders(self):
+        code = '''
+import backtrader as bt
+class GeneratedStrategy(bt.Strategy):
+    def next(self):
+        self.buy_bracket()
+'''
+        result = validate_generated_code(code)
+        assert any("Bracket orders" in e for e in result["errors"])
+
+    def test_explicit_buy_size_warning(self):
+        code = '''
+import backtrader as bt
+class GeneratedStrategy(bt.Strategy):
+    def next(self):
+        if not self.position:
+            self.buy(size=10)
+'''
+        result = validate_generated_code(code)
+        assert any("Explicit size argument" in w for w in result["warnings"])
+
+    def test_missing_notify_order_is_error_with_risk(self):
+        code = '''
+import backtrader as bt
+class GeneratedStrategy(bt.Strategy):
+    params = (("stop_loss_pct", 1.0),)
+    def next(self):
+        if not self.position:
+            self.buy()
+'''
+        result = validate_generated_code(code)
+        assert any("notify_order" in e for e in result["errors"])
+
+    def test_signal_bar_close_assignment_error(self):
+        code = '''
+import backtrader as bt
+class GeneratedStrategy(bt.Strategy):
+    params = (("stop_loss_pct", 1.0),)
+    def notify_order(self, order):
+        pass
+    def next(self):
+        if not self.position:
+            self.buy()
+            self.entry_price = self.data.close[0]
+'''
+        result = validate_generated_code(code)
+        assert any("signal-bar close" in e or "not from signal-bar close" in e for e in result["errors"])
+
+    def test_correct_fill_tracking_accepted(self):
+        code = '''
+import backtrader as bt
+class GeneratedStrategy(bt.Strategy):
+    params = (("stop_loss_pct", 1.0),)
+    def notify_order(self, order):
+        if order.status == order.Completed and order.isbuy():
+            self.entry_price = order.executed.price
+    def next(self):
+        if self.order and not self.order.isdone():
+            return
+        if not self.position:
+            self.order = self.buy()
+'''
+        result = validate_generated_code(code)
+        assert not result["errors"]
+        # pending order guard present, should not warn
+        assert not any("Missing pending order guard" in w for w in result["warnings"])
+
+    def test_long_only_entry_exit_pattern_accepted(self):
+        code = '''
+import backtrader as bt
+class GeneratedStrategy(bt.Strategy):
+    params = (("stop_loss_pct", 1.0),)
+    def notify_order(self, order):
+        if order.status == order.Completed and order.isbuy():
+            self.entry_price = order.executed.price
+    def next(self):
+        if self.order and not self.order.isdone():
+            return
+        if not self.position:
+            self.buy()
+        elif self.position:
+            self.close()
+'''
+        result = validate_generated_code(code)
+        assert not result["errors"]
+
+    def test_backtrader_real_fill_price_capture(self):
+        import pandas as pd
+        import backtrader as bt
+        from datetime import datetime, timedelta
+
+        # Create deterministic synthetic data
+        dates = [datetime(2024, 1, i+1) for i in range(10)]
+        prices = [100 + i for i in range(10)]  # monotonic up
+        df = pd.DataFrame({
+            'open': prices,
+            'high': [p + 0.5 for p in prices],
+            'low': [p - 0.5 for p in prices],
+            'close': prices,
+            'volume': [1000]*10
+        }, index=dates)
+
+        class FillCaptureStrategy(bt.Strategy):
+            def __init__(self):
+                self.entry_price = None
+                self.order = None
+                self.filled = False
+
+            def notify_order(self, order):
+                if order.status in [order.Completed]:
+                    if order.isbuy():
+                        self.entry_price = order.executed.price
+                        self.filled = True
+                self.order = None
+
+            def next(self):
+                if self.order and not self.order.isdone():
+                    return
+                if not self.position:
+                    self.order = self.buy()
+
+        cerebro = bt.Cerebro()
+        data_feed = bt.feeds.PandasData(dataname=df)
+        cerebro.adddata(data_feed)
+        cerebro.addstrategy(FillCaptureStrategy)
+        cerebro.broker.set_cash(10000)
+        cerebro.broker.setcommission(commission=0.0)
+        strat = cerebro.run()[0]
+
+        # Position should be opened after first bar
+        assert strat.filled, "Order was not filled"
+        assert strat.entry_price is not None, "Entry price not captured"
+        # Market order fills at next bar open, which is price 101
+        # First signal on bar 0, order submitted, fills on bar 1 open = 101
+        assert abs(strat.entry_price - 101.0) < 1e-6, f"Expected fill price 101, got {strat.entry_price}"
+        # Verify position exists
+        assert strat.position.size > 0

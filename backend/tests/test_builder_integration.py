@@ -58,8 +58,21 @@ class GeneratedStrategy(bt.Strategy):
         self.last_trade_date = None
         self.entry_price = None
         self.highest_price = None
+        self.order = None
+
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                self.entry_price = order.executed.price
+                self.highest_price = order.executed.price
+            elif order.issell():
+                self.entry_price = None
+                self.highest_price = None
+        self.order = None
 
     def next(self):
+        if self.order and not self.order.isdone():
+            return
         current_date = self.data.datetime.date(0)
         if self.last_trade_date != current_date:
             self.trade_count = 0
@@ -69,24 +82,23 @@ class GeneratedStrategy(bt.Strategy):
         ema_cross_up = self.ema_fast[0] > self.ema_slow[0] and self.ema_fast[-1] <= self.ema_slow[-1]
         rsi_oversold = self.rsi[0] < self.p.rsi_oversold
         if not self.position and ema_cross_up and rsi_oversold:
-            self.buy()
+            self.order = self.buy()
             self.trade_count += 1
-            self.entry_price = self.data.close[0]
-            self.highest_price = self.data.close[0]
             return
         if self.position:
             ema_cross_down = self.ema_fast[0] < self.ema_slow[0] and self.ema_fast[-1] >= self.ema_slow[-1]
             rsi_overbought = self.rsi[0] > self.p.rsi_overbought
             exit_opposite = ema_cross_down or rsi_overbought
             current_price = self.data.close[0]
-            self.highest_price = max(self.highest_price, current_price)
-            stop_loss_hit = (self.entry_price - current_price) / self.entry_price * 100 >= self.p.stop_loss_pct
-            take_profit_hit = (current_price - self.entry_price) / self.entry_price * 100 >= self.p.take_profit_pct
-            trailing_stop_hit = (self.highest_price - current_price) / self.highest_price * 100 >= self.p.trailing_stop_pct
+            if self.highest_price is None:
+                self.highest_price = current_price
+            else:
+                self.highest_price = max(self.highest_price, current_price)
+            stop_loss_hit = (self.entry_price - current_price) / self.entry_price * 100 >= self.p.stop_loss_pct if self.entry_price else False
+            take_profit_hit = (current_price - self.entry_price) / self.entry_price * 100 >= self.p.take_profit_pct if self.entry_price else False
+            trailing_stop_hit = (self.highest_price - current_price) / self.highest_price * 100 >= self.p.trailing_stop_pct if self.highest_price else False
             if exit_opposite or stop_loss_hit or take_profit_hit or trailing_stop_hit:
-                self.sell()
-                self.entry_price = None
-                self.highest_price = None'''
+                self.order = self.close()'''
     })
 
     async def mock_post(*args, **kwargs):

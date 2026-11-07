@@ -13,10 +13,18 @@
 // VITE_API_BASE_URL is the deploy-time override (Vercel/Render);
 // VITE_API_BASE is the Dockerfile build-arg name.
 
-export const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_BASE ||
-  (import.meta.env.DEV ? '/api' : 'http://localhost:8000')
+export const API_BASE = (() => {
+  const raw =
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_BASE ||
+    (import.meta.env.DEV ? '/api' : 'http://localhost:8000')
+  // Normalize to avoid double /api prefixes in production deployments.
+  // Only strip trailing /api for absolute URLs; keep relative '/api' for Vite dev proxy.
+  if (typeof raw === 'string' && /^https?:\/\//i.test(raw)) {
+    return raw.replace(/\/api\/?$/, '')
+  }
+  return raw
+})()
 
 /** Backend caps the backtest worker at 120s wall clock (504 on expiry). */
 export const BACKTEST_TIMEOUT_MS = 120_000
@@ -143,6 +151,7 @@ function capitalBody(params) {
   const cash = Number(params?.cash)
   const commissionPct = Number(params?.commissionPct)
   const sizerPercent = Number(params?.sizerPercent)
+  const slippagePct = Number(params?.slippagePct ?? 0)
 
   if (!Number.isFinite(cash) || cash <= 0) {
     throw new ApiError('Starting cash must be a number greater than 0.', { status: 422 })
@@ -157,8 +166,11 @@ function capitalBody(params) {
       status: 422,
     })
   }
+  if (!Number.isFinite(slippagePct) || slippagePct < 0 || slippagePct >= 100) {
+    throw new ApiError('Slippage must be a percentage between 0 and 100.', { status: 422 })
+  }
 
-  return { cash, commission_pct: commissionPct, sizer_percents: sizerPercent }
+  return { cash, commission_pct: commissionPct, sizer_percents: sizerPercent, slippage_pct: slippagePct }
 }
 
 /**
@@ -209,6 +221,11 @@ export function stopDeployment(strategyId, reason, { signal } = {}) {
     body: { reason: reason ? reason : null },
     signal,
   })
+}
+
+/** GET /strategies — list strategies for current user. */
+export function fetchStrategies({ signal } = {}) {
+  return request('/strategies/', { signal })
 }
 
 /** GET /strategies/{id}/deployments — newest first. */
@@ -263,6 +280,11 @@ export function fetchMarketBars(strategyId, { deploymentId, signal } = {}) {
   })
 }
 
+/** GET /paper/deployments/{id}/equity-snapshots — chronological portfolio equity snapshots. */
+export function fetchPaperEquitySnapshots(deploymentId, { signal } = {}) {
+  return request(`/paper/deployments/${encodeURIComponent(deploymentId)}/equity-snapshots`, { signal })
+}
+
 /**
  * POST /strategies/{id}/paper-tick — advance exactly the next cached bar
  * through the deployed strategy's simulation. `deploymentId` pins the tick
@@ -296,6 +318,10 @@ export function generateStrategy(spec, { signal } = {}) {
 /** True when the failure means "this strategy id no longer exists". */
 export function isNotFound(err) {
   return err instanceof ApiError && err.status === 404
+}
+
+export function fetchBacktestResults(strategyId, { signal } = {}) {
+  return request(`/strategies/${encodeURIComponent(strategyId)}/backtest-results`, { signal })
 }
 
 /** True when the server could not be reached at all. */

@@ -31,7 +31,8 @@ function cleanBar(entry) {
  * A marker renders on its execution bar: BUY ▲ below the low, SELL ▼ above
  * the high. Rejected orders and HOLDs never reach this component.
  */
-export default function PaperTradeChart({ bars, markers, mode = 'line' }) {
+export default function PaperTradeChart({ bars, markers, mode = 'line', title }) {
+  const chartTitle = title ?? (mode === 'line' ? 'NIFTY 50 — HISTORICAL PRICE' : 'NIFTY 50 — HISTORICAL OHLC')
   const [hover, setHover] = useState(null)
   const svgRef = useRef(null)
 
@@ -77,6 +78,8 @@ export default function PaperTradeChart({ bars, markers, mode = 'line' }) {
     return { xFor, yFor, step, bodyWidth, gridLevels, count: cleanBars.length }
   }, [cleanBars])
 
+  const isSingle = cleanBars.length === 1
+
   const lineData = useMemo(() => {
     if (!geometry || cleanBars.length === 0) return null
     const points = cleanBars.map((bar, i) => {
@@ -111,8 +114,8 @@ export default function PaperTradeChart({ bars, markers, mode = 'line' }) {
   return (
     <figure className="candle-chart">
       <figcaption className="candle-chart__head">
-        <span className="candle-chart__title">{mode === 'line' ? 'NIFTY 50 — HISTORICAL PRICE' : 'NIFTY 50 — HISTORICAL OHLC'}</span>
-        <span className="candle-chart__badge">Historical market data — independent of paper trading</span>
+        <span className="candle-chart__title">{chartTitle}</span>
+        <span className="candle-chart__badge">Historical Replay — Processed bars up to deployment watermark only</span>
       </figcaption>
 
       <svg
@@ -120,7 +123,7 @@ export default function PaperTradeChart({ bars, markers, mode = 'line' }) {
         className="candle-chart__svg"
         viewBox={`0 0 ${W} ${H}`}
         role="img"
-        aria-label={`NIFTY 50 candlestick chart from ${formatDate(
+        aria-label={`${chartTitle} chart from ${formatDate(
           cleanBars[0].date,
         )} to ${formatDate(cleanBars[cleanBars.length - 1].date)} with simulated trade markers.`}
         tabIndex={0}
@@ -165,6 +168,16 @@ export default function PaperTradeChart({ bars, markers, mode = 'line' }) {
           <>
             <path d={lineData.areaPath} fill="#dc2626" fillOpacity="0.08" />
             <path d={lineData.linePath} fill="none" stroke="#dc2626" strokeWidth="2.3" strokeLinejoin="round" strokeLinecap="round" />
+            {isSingle && (
+              <circle
+                cx={geometry.xFor(0)}
+                cy={geometry.yFor(cleanBars[0].close)}
+                r={4}
+                fill="#dc2626"
+                stroke="#fff"
+                strokeWidth={1.5}
+              />
+            )}
             {active !== null && (
               <line className="candle-chart__crosshair" x1={geometry.xFor(active)} x2={geometry.xFor(active)} y1={PAD.top} y2={PAD.top + PLOT_H} />
             )}

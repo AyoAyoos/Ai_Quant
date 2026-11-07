@@ -25,6 +25,7 @@ class StrategyDetailOut(BaseModel):
     generated_code: str | None = None
     strategy_spec: dict | None = None
     created_at: str | None = None
+    approved_backtest_id: str | None = None
 
 
 class GateOut(BaseModel):
@@ -57,6 +58,9 @@ class CapitalParams(BaseModel):
     )
     sizer_percents: float = Field(
         default=95.0, gt=0, lt=100, description="Percent of available cash per entry, in (0, 100)"
+    )
+    slippage_pct: float = Field(
+        default=0.0, ge=0, lt=100, description="Slippage per order, percent in [0, 100)"
     )
 
 
@@ -91,11 +95,17 @@ class BacktestResultOut(BaseModel):
     sharpe: float | None = None
     sortino: float | None = None
     cagr_pct: float | None = None
+    profit_factor: float | None = None
+    avg_win: float | None = None
+    avg_loss: float | None = None
+    avg_trade_pnl: float | None = None
+    expectancy: float | None = None
     start_date: str | None = None
     end_date: str | None = None
     trades: list[dict] = []
     trades_truncated: int = 0
     equity_curve: list[list] = []
+    drawdown_curve: list[list] = []
     warnings: list[str] = []
     raw_metrics: dict | None = None
 
@@ -134,6 +144,7 @@ class PaperTickOut(BaseModel):
     equity: float | None = None
     realized_pnl: float | None = None
     note: str | None = None
+    warmup_mode: bool = False
 
 
 class PaperAccountOut(BaseModel):

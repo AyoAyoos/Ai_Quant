@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   fetchMarketBars,
   fetchPaperAccount,
+  fetchPaperEquitySnapshots,
   fetchPaperOrders,
   fetchPaperPositions,
   fetchPaperTrades,
@@ -48,10 +49,10 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
   const [orders, setOrders] = useState([])
   const [trades, setTrades] = useState([])
   const [bars, setBars] = useState([])
+  const [equitySnapshots, setEquitySnapshots] = useState([])
   const [chartMode, setChartMode] = useState('line')
   const [viewStart, setViewStart] = useState(0)
   const [viewSize, setViewSize] = useState(200)
-  const [chartRevealed, setChartRevealed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sectionErrors, setSectionErrors] = useState({})
   const [tickBusy, setTickBusy] = useState(false)
@@ -63,11 +64,12 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
       setLoading(true)
       try {
         const opts = { deploymentId, signal }
-        const [accountRes, positionsRes, ordersRes, tradesRes] = await Promise.all([
+        const [accountRes, positionsRes, ordersRes, tradesRes, equityRes] = await Promise.all([
           settled(fetchPaperAccount(strategyId, opts)),
           settled(fetchPaperPositions(strategyId, opts)),
           settled(fetchPaperOrders(strategyId, opts)),
           settled(fetchPaperTrades(strategyId, opts)),
+          settled(fetchPaperEquitySnapshots(deploymentId, { signal })),
         ])
         if (signal?.aborted) return
         const errors = {}
@@ -79,6 +81,8 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
         else errors.orders = errorMessage(ordersRes.error)
         if (tradesRes.ok) setTrades(Array.isArray(tradesRes.value) ? tradesRes.value : [])
         else errors.trades = errorMessage(tradesRes.error)
+        if (equityRes.ok) setEquitySnapshots(Array.isArray(equityRes.value) ? equityRes.value : [])
+        else errors.equity = errorMessage(equityRes.error)
         setSectionErrors(errors)
       } finally {
         if (!signal?.aborted) setLoading(false)
@@ -93,20 +97,20 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
     return () => controller.abort()
   }, [load])
 
+  const refreshBars = useCallback(async (signal) => {
+    try {
+      const data = await fetchMarketBars(strategyId, { deploymentId, signal })
+      if (data) {
+        setBars(Array.isArray(data.bars) ? data.bars : [])
+      }
+    } catch {}
+  }, [strategyId, deploymentId])
+
   useEffect(() => {
     const ctrl = new AbortController()
-    let cancelled = false
-    async function fetchBars() {
-      try {
-        const data = await fetchMarketBars(strategyId, { signal: ctrl.signal })
-        if (!cancelled && data) {
-          setBars(Array.isArray(data.bars) ? data.bars : [])
-        }
-      } catch {}
-    }
-    fetchBars()
-    return () => { cancelled = true; ctrl.abort() }
-  }, [strategyId])
+    refreshBars(ctrl.signal)
+    return () => { ctrl.abort() }
+  }, [refreshBars])
 
   useEffect(() => {
     if (bars.length > 0 && viewSize === 200) {
@@ -122,10 +126,12 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
       return clamped
     })
     setViewStart(start => {
-      const maxStart = Math.max(0, bars.length - viewSize)
+      // Use the (potentially) clamped viewSize
+      const currentSize = Math.max(1, Math.min(viewSize, bars.length))
+      const maxStart = Math.max(0, bars.length - currentSize)
       return Math.min(Math.max(0, start), maxStart)
     })
-  }, [bars.length])
+  }, [bars.length, viewSize])
 
   async function handleTick() {
     if (tickBusy || !isActive) return
@@ -135,8 +141,7 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
     try {
       const result = await runPaperTick(strategyId, { deploymentId })
       setTickResult(result)
-      setChartRevealed(true)
-      await load()
+      await Promise.all([load(), refreshBars(new AbortController().signal)])
       if (typeof onChanged === 'function') {
         try {
           await onChanged()
@@ -205,11 +210,12 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
           </p>
           {tickResult && (
             <Note
-              tone={tickResult.action === 'HOLD' ? 'warning' : 'success'}
-              title={`Paper tick ${tickResult.bar_date}: ${tickResult.action}`}
+              tone={tickResult.warmup_mode ? 'info' : tickResult.action === 'HOLD' ? 'warning' : 'success'}
+              title={`Paper tick ${tickResult.bar_date}: ${tickResult.action}${tickResult.warmup_mode ? ' — warmup' : ''}`}
             >
               <span>
                 Signal {tickResult.signal} → {tickResult.action}.{' '}
+                {tickResult.warmup_mode ? 'Warmup mode — indicator history insufficient. Watermark advanced.' : ''}
                 {tickResult.note ?? ''}
                 {tickResult.order_status === 'rejected' ? ' (order stored as rejected)' : ''}
               </span>
@@ -433,12 +439,11 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
           </section>
 
           <section aria-label="NIFTY paper trading chart">
-            <h4 className="paper-details__heading">NIFTY 50 — simulated paper trading activity</h4>
-            {!chartRevealed ? (
-              <p className="disclaimer-text">
-                Run paper tick to view historical chart. Chart remains hidden until a tick is processed.
-              </p>
-            ) : sectionErrors.bars ? (
+            <h4 className="paper-details__heading">NIFTY 50 — Historical Replay</h4>
+            <p className="disclaimer-text">
+              Historical Replay — Simulated Trading. Chart shows processed NIFTY 50 bars up to the deployment watermark. No live prices.
+            </p>
+            {sectionErrors.bars ? (
               <Note tone="danger" title="Chart data failed to load">
                 <span>
                   {sectionErrors.bars}{' '}
@@ -449,7 +454,7 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
               </Note>
             ) : bars.length === 0 ? (
               <p className="disclaimer-text">
-                No historical market bars available.
+                No historical bars have been processed for this deployment yet. Run the first paper tick to begin historical replay.
               </p>
             ) : (
               <>
@@ -513,8 +518,8 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
                 </dl>
                 <div className="paper-details__chart-controls" style={{display:'flex', flexDirection:'column', gap:'8px', margin:'12px 0'}}>
                   <div style={{display:'flex', gap:'8px'}}>
-                    <button type="button" className={`btn btn--sm ${chartMode==='line'?'btn--primary':'btn--outline'}`} onClick={()=>setChartMode('line')}>Line (Close)</button>
-                    <button type="button" className={`btn btn--sm ${chartMode==='candle'?'btn--primary':'btn--outline'}`} onClick={()=>setChartMode('candle')}>Candles (OHLC)</button>
+                    <button type="button" className={`btn btn--sm ${chartMode==='line'?'btn--primary':'btn--outline'}`} onClick={()=>setChartMode('line')}>Line — Close</button>
+                    <button type="button" className={`btn btn--sm ${chartMode==='candle'?'btn--primary':'btn--outline'}`} onClick={()=>setChartMode('candle')}>Candlestick — OHLC</button>
                   </div>
                   <div style={{display:'flex', gap:'6px', flexWrap:'wrap'}}>
                     <button type="button" className="btn btn--sm btn--outline" onClick={()=>{
@@ -565,6 +570,61 @@ export default function PaperDeploymentDetails({ deployment, onChanged }) {
                     listed under Orders — rejected orders never appear as chart markers.
                   </p>
                 )}
+              </>
+            )}
+          </section>
+
+          <section aria-label="Portfolio equity">
+            <h4 className="paper-details__heading">Portfolio Equity — Historical Replay</h4>
+            <p className="disclaimer-text">
+              Historical Replay — Simulated portfolio equity per processed bar. Equity = cash balance + market value of open positions at bar close.
+            </p>
+            {sectionErrors.equity ? (
+              <Note tone="danger" title="Equity data failed to load">
+                <span>
+                  {sectionErrors.equity}{' '}
+                  <button type="button" className="btn btn--sm" onClick={() => load()}>
+                    Retry
+                  </button>
+                </span>
+              </Note>
+            ) : equitySnapshots.length === 0 ? (
+              <p className="disclaimer-text">
+                No equity snapshots yet. Run the first paper tick to begin recording portfolio equity.
+              </p>
+            ) : (
+              <>
+                <dl className="kv">
+                  <div className="kv__item">
+                    <span className="kv__key">Starting capital</span>
+                    <span className="kv__value tabular">₹{formatMoney(deployment.starting_cash)}</span>
+                  </div>
+                  <div className="kv__item">
+                    <span className="kv__key">Latest equity</span>
+                    <span className="kv__value tabular">₹{formatMoney(equitySnapshots[equitySnapshots.length - 1].equity)}</span>
+                  </div>
+                  <div className="kv__item">
+                    <span className="kv__key">Bars recorded</span>
+                    <span className="kv__value tabular">{formatInt(equitySnapshots.length)}</span>
+                  </div>
+                </dl>
+                {/* Render equity as a line chart using existing PaperTradeChart with synthetic OHLC */}
+                {(() => {
+                  const equityBars = equitySnapshots.map(s => ({
+                    date: s.bar_date,
+                    open: s.equity,
+                    high: s.equity,
+                    low: s.equity,
+                    close: s.equity,
+                    volume: 0,
+                  }))
+                  return (
+                    <PaperTradeChart bars={equityBars} markers={[]} mode="line" title="PORTFOLIO EQUITY — HISTORICAL EQUITY" />
+                  )
+                })()}
+                <p className="disclaimer-text">
+                  Cash balance and positions market value are derived from genuine paper-trading state at each processed bar. No fabrication.
+                </p>
               </>
             )}
           </section>

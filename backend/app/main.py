@@ -14,16 +14,36 @@ from app.routers import strategies
 from pathlib import Path
 
 
-def _run_migrations() -> None:
+import time
+import logging
+import asyncio
+
+logger = logging.getLogger(__name__)
+
+def _run_migrations_sync() -> None:
     """Apply pending Alembic migrations. The schema is owned by migrations;
     nothing here creates tables directly."""
     cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
-    command.upgrade(cfg, "head")
+    # Retry a few times to allow the database to become ready
+    max_attempts = 10
+    delay = 1.0
+    for attempt in range(1, max_attempts + 1):
+        try:
+            command.upgrade(cfg, "head")
+            logger.info("Alembic migrations applied successfully")
+            return
+        except Exception as exc:
+            if attempt == max_attempts:
+                logger.exception("Alembic migrations failed after %d attempts", max_attempts)
+                raise
+            logger.warning("Alembic migration attempt %d/%d failed: %s – retrying in %.1fs", attempt, max_attempts, exc, delay)
+            time.sleep(delay)
+            delay = min(delay * 2, 10.0)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _run_migrations()
+    await asyncio.to_thread(_run_migrations_sync)
     yield
 
 

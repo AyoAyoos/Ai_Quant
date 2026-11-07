@@ -59,18 +59,43 @@ def _snapshot() -> dict[str, set[tuple]]:
 def _delete_rows_added_by_the_test(existing: dict[str, set[tuple]]) -> None:
     """Delete rows the test created, children first, leaving pre-existing data alone."""
     with engine.begin() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
+        # Break the strategies <-> backtest_results cycle by nullifying approved_backtest_id first
+        try:
+            keep_strats = existing.get("strategies", set())
+            rows_strats = conn.execute(text("SELECT id FROM strategies")).fetchall()
+            to_null = [r[0] for r in rows_strats if tuple(r) not in keep_strats]
+            if to_null:
+                conn.execute(text("UPDATE strategies SET approved_backtest_id = NULL WHERE id = ANY(:ids)"), {"ids": to_null})
+        except Exception:
+            pass
+
+        # Define deletion order that respects FKs despite SQLAlchemy cycle warnings
+        order = [
+            "paper_orders",
+            "paper_positions",
+            "paper_trades",
+            "paper_deployments",
+            "messages",
+            "backtest_results",
+            "strategies",
+            "conversations",
+            "users",
+        ]
+        for table_name in order:
+            table = Base.metadata.tables.get(table_name)
+            if table is None:
+                continue
             pk = [col.name for col in table.primary_key.columns]
             if not pk:
                 continue
-            keep = existing.get(table.name, set())
-            rows = conn.execute(text(f"SELECT {', '.join(pk)} FROM {table.name}")).fetchall()
+            keep = existing.get(table_name, set())
+            rows = conn.execute(text(f"SELECT {', '.join(pk)} FROM {table_name}")).fetchall()
             for row in rows:
                 if tuple(row) in keep:
                     continue
                 where = " AND ".join(f"{name} = :{name}" for name in pk)
                 conn.execute(
-                    text(f"DELETE FROM {table.name} WHERE {where}"),
+                    text(f"DELETE FROM {table_name} WHERE {where}"),
                     {name: row[idx] for idx, name in enumerate(pk)},
                 )
 

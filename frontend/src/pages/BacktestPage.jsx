@@ -8,6 +8,7 @@ import { useCachedBacktest, useStrategyDetail } from '../lib/useStrategy.js'
 import { useElapsedTimer } from '../lib/useElapsedTimer.js'
 import BenchmarkVerdict from '../components/BenchmarkVerdict.jsx'
 import Disclosure from '../components/Disclosure.jsx'
+import DrawdownChart from '../components/DrawdownChart.jsx'
 import EquityChart from '../components/EquityChart.jsx'
 import MetricGrid from '../components/MetricGrid.jsx'
 import Note from '../components/Note.jsx'
@@ -16,7 +17,7 @@ import TradeTable from '../components/TradeTable.jsx'
 import ElapsedTimer from '../components/ElapsedTimer.jsx'
 import LoadingBlock, { SkeletonBlock, SkeletonMetrics, SkeletonTitle } from '../components/Skeletons.jsx'
 
-const DEFAULTS = { cash: 100000, commissionPct: 0.1, sizerPercent: 95 }
+const DEFAULTS = { cash: 100000, commissionPct: 0.1, sizerPercent: 95, slippagePct: 0 }
 
 /**
  * Validates against the backend's Field constraints before spending a call.
@@ -33,6 +34,9 @@ function validate(values) {
   }
   if (!Number.isFinite(values.sizerPercent) || values.sizerPercent <= 0 || values.sizerPercent >= 100) {
     errors.sizerPercent = 'Position size must be a percentage greater than 0 and less than 100.'
+  }
+  if (!Number.isFinite(values.slippagePct) || values.slippagePct < 0 || values.slippagePct >= 100) {
+    errors.slippagePct = 'Slippage must be a percentage between 0 and 100.'
   }
   return errors
 }
@@ -93,6 +97,40 @@ export default function BacktestPage() {
   function setField(key, raw) {
     setTouched((current) => ({ ...current, [key]: true }))
     setValues((current) => ({ ...current, [key]: raw === '' ? '' : Number(raw) }))
+  }
+
+  function handleExport() {
+    const data = shown
+    if (!data) return
+    const metrics = [
+      ['Metric','Value'],
+      ['Total Return %', data.total_return_pct],
+      ['Benchmark Return %', data.benchmark_return_pct],
+      ['CAGR %', data.cagr_pct],
+      ['Max Drawdown %', data.max_drawdown_pct],
+      ['Sharpe', data.sharpe],
+      ['Sortino', data.sortino],
+      ['Win Rate %', data.win_rate_pct],
+      ['Num Trades', data.num_trades],
+      ['Profit Factor', data.profit_factor],
+      ['Avg Win', data.avg_win],
+      ['Avg Loss', data.avg_loss],
+      ['Avg Trade PnL', data.avg_trade_pnl],
+      ['Expectancy', data.expectancy],
+    ]
+    const trades = data.trades || []
+    const tradeHeader = ['Entry Date','Exit Date','Direction','Size','Entry Price','Exit Price','Bars Held','PnL Net','Won']
+    const tradeRows = trades.map(t => [
+      t.entry_date, t.exit_date, t.direction, t.size, t.entry_price, t.exit_price, t.bars_held, t.pnl_net, t.won
+    ])
+    const csv = [metrics.map(r=>r.join(',')).join('\n'), '\n\nTrades\n'+[tradeHeader.join(',')].concat(tradeRows.map(r=>r.join(','))).join('\n')].join('\n')
+    const blob = new Blob([csv], {type: 'text/csv'})
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `backtest-${id}-${new Date().toISOString().slice(0,10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   async function handleRun() {
@@ -171,6 +209,25 @@ export default function BacktestPage() {
   const warnings = shown?.warnings ?? []
   const noTradesWarning = warnings.some((w) => w === 'no_trades')
 
+  const monthlyReturns = (() => {
+    const curve = shown?.equity_curve
+    if (!Array.isArray(curve) || curve.length < 2) return []
+    const byMonth = new Map()
+    curve.forEach(([date, value]) => {
+      if (!date || typeof value !== 'number') return
+      const d = new Date(date)
+      if (isNaN(d)) return
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+      if (!byMonth.has(key)) byMonth.set(key, { start: value, end: value })
+      const cur = byMonth.get(key)
+      cur.end = value
+    })
+    return Array.from(byMonth.entries()).map(([month, v]) => {
+      const ret = v.start ? ((v.end / v.start) - 1) * 100 : 0
+      return { month, ret }
+    })
+  })()
+
   return (
     <div className="page">
       <nav className="breadcrumb" aria-label="Breadcrumb">
@@ -230,6 +287,15 @@ export default function BacktestPage() {
             value={values.sizerPercent}
             error={touched.sizerPercent ? errors.sizerPercent : undefined}
             onChange={(raw) => setField('sizerPercent', raw)}
+          />
+          <NumberField
+            id="slippage"
+            label="Slippage"
+            hint="Simulated execution slippage per order. 0 for none."
+            suffix="%"
+            value={values.slippagePct}
+            error={touched.slippagePct ? errors.slippagePct : undefined}
+            onChange={(raw) => setField('slippagePct', raw)}
           />
         </form>
 
@@ -326,6 +392,33 @@ export default function BacktestPage() {
 
           <EquityChart points={shown.equity_curve} startDate={shown.start_date} endDate={shown.end_date} />
 
+          <div className="panel" style={{ marginTop: 'var(--sp-4)' }}>
+            <h3 className="section-title" style={{ marginBottom: 'var(--sp-2)' }}>Drawdown</h3>
+            <DrawdownChart curve={shown?.drawdown_curve} />
+            <p className="disclaimer-text" style={{ marginTop: 'var(--sp-2)' }}>
+              Maximum drawdown: {shown?.max_drawdown_pct ? `${shown.max_drawdown_pct.toFixed(2)}%` : 'N/A'}.
+            </p>
+          </div>
+
+          {monthlyReturns.length > 0 && (
+            <div className="panel" style={{ marginTop: 'var(--sp-4)' }}>
+              <h3 className="section-title" style={{ marginBottom: 'var(--sp-2)' }}>Monthly Returns</h3>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead><tr><th>Month</th><th className="num">Return %</th></tr></thead>
+                  <tbody>
+                    {monthlyReturns.map(m => (
+                      <tr key={m.month}>
+                        <td>{m.month}</td>
+                        <td className="num">{m.ret.toFixed(2)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <p className="disclaimer-text">
             Past performance does not guarantee future results. Educational prototype — paper trading only.
           </p>
@@ -350,6 +443,10 @@ export default function BacktestPage() {
               )}
             </div>
           )}
+
+          <div style={{ marginTop: 'var(--sp-3)' }}>
+            <button type="button" className="btn btn--ghost" onClick={handleExport}>Export CSV</button>
+          </div>
 
           <div className="page-actions">
             {status === 'backtested' ? (
