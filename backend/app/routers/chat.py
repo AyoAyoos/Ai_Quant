@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import get_db
 from app.auth import AuthenticatedUser, get_or_create_user, verify_user
@@ -53,6 +54,8 @@ async def send_message(
     # 2. Store user message
     user_msg = Message(conversation_id=conversation.id, role=MessageRole.user, content=payload.content)
     db.add(user_msg)
+    # Update conversation timestamp
+    conversation.updated_at = func.now()
     db.commit()
 
     # 3. Build history for LLM
@@ -83,6 +86,8 @@ async def send_message(
     # 5. Store assistant reply
     assistant_msg = Message(conversation_id=conversation.id, role=MessageRole.assistant, content=reply)
     db.add(assistant_msg)
+    # Update conversation timestamp
+    conversation.updated_at = func.now()
     db.commit()
 
     strategy_id: str | None = None

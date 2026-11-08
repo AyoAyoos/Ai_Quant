@@ -10,6 +10,7 @@ from app.routers import chat
 from app.routers import market
 from app.routers import paper
 from app.routers import strategies
+from app.routers import conversations
 
 from pathlib import Path
 
@@ -73,6 +74,7 @@ app.include_router(chat.router)
 app.include_router(market.router)
 app.include_router(paper.router)
 app.include_router(strategies.router)
+app.include_router(conversations.router)
 
 
 @app.get("/health")

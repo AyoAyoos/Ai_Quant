@@ -333,3 +333,102 @@ export function isNetworkError(err) {
 export function isAuthError() {
   return false
 }
+
+/* ------------------------------------------------ conversations & projects */
+
+/** GET /conversations/projects — list all projects for current user. */
+export function fetchProjects({ signal } = {}) {
+  return request('/conversations/projects', { signal })
+}
+
+/** POST /conversations/projects — create a new project. */
+export function createProject({ name, description }, { signal } = {}) {
+  return request('/conversations/projects', {
+    method: 'POST',
+    body: { name, description },
+    signal,
+  })
+}
+
+/** PATCH /conversations/projects/{id} — update a project. */
+export function updateProject(projectId, { name, description }, { signal } = {}) {
+  return request(`/conversations/projects/${encodeURIComponent(projectId)}`, {
+    method: 'PATCH',
+    body: { name, description },
+    signal,
+  })
+}
+
+/** DELETE /conversations/projects/{id} — delete a project. */
+export function deleteProject(projectId, { moveConversations = true }, { signal } = {}) {
+  const query = moveConversations ? '?move_conversations=true' : '?move_conversations=false'
+  return request(`/conversations/projects/${encodeURIComponent(projectId)}${query}`, {
+    method: 'DELETE',
+    signal,
+  })
+}
+
+/** GET /conversations — list all conversations for current user. */
+export function fetchConversations({ projectId, status, signal } = {}) {
+  const params = new URLSearchParams()
+  if (projectId) params.set('project_id', projectId)
+  if (status) params.set('status', status)
+  const query = params.toString() ? `?${params.toString()}` : ''
+  return request(`/conversations${query}`, { signal })
+}
+
+/** POST /conversations — create a new conversation. */
+export function createConversation({ title, projectId }, { signal } = {}) {
+  return request('/conversations', {
+    method: 'POST',
+    body: { title, project_id: projectId },
+    signal,
+  })
+}
+
+/** GET /conversations/{id} — get a conversation with full message history. */
+export function fetchConversation(conversationId, { signal } = {}) {
+  return request(`/conversations/${encodeURIComponent(conversationId)}`, { signal })
+}
+
+/** PATCH /conversations/{id} — update a conversation (title, project, status). */
+export function updateConversation(conversationId, { title, projectId, status }, { signal } = {}) {
+  return request(`/conversations/${encodeURIComponent(conversationId)}`, {
+    method: 'PATCH',
+    body: { title, project_id: projectId, status },
+    signal,
+  })
+}
+
+/** POST /conversations/{id}/move — move a conversation to a different project. */
+export function moveConversation(conversationId, { projectId }, { signal } = {}) {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/move`, {
+    method: 'POST',
+    body: { project_id: projectId },
+    signal,
+  })
+}
+
+/** DELETE /conversations/{id} — delete a conversation. */
+export function deleteConversation(conversationId, { signal } = {}) {
+  return request(`/conversations/${encodeURIComponent(conversationId)}`, {
+    method: 'DELETE',
+    signal,
+  })
+}
+
+/** POST /conversations/{id}/archive — archive a conversation. */
+export function archiveConversation(conversationId, { signal } = {}) {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/archive`, {
+    method: 'POST',
+    signal,
+  })
+}
+
+/** POST /conversations/{id}/restore — restore an archived conversation. */
+export function restoreConversation(conversationId, { signal } = {}) {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/restore`, {
+    method: 'POST',
+    signal,
+  })
+}

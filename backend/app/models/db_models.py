@@ -20,6 +20,11 @@ class MessageRole(str, enum.Enum):
     assistant = "assistant"
 
 
+class ConversationStatus(str, enum.Enum):
+    active = "active"
+    archived = "archived"
+
+
 class StrategyStatus(str, enum.Enum):
     draft = "draft"
     backtested = "backtested"
@@ -41,6 +46,21 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversations = relationship("Conversation", back_populates="user")
+    projects = relationship("Project", back_populates="user")
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="projects")
+    conversations = relationship("Conversation", back_populates="project", cascade="all, delete-orphan")
 
 
 class Conversation(Base):
@@ -48,11 +68,15 @@ class Conversation(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+    project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=True)
     title = Column(String, default="New conversation")
+    status = Column(Enum(ConversationStatus), default=ConversationStatus.active)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="conversations")
-    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
+    project = relationship("Project", back_populates="conversations")
+    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
     strategies = relationship("Strategy", back_populates="conversation", cascade="all, delete-orphan")
 
 

@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Loader2, X, ArrowLeft } from 'lucide-react'
 import { CHAT_TIMEOUT_MS, postChat } from '../lib/api.js'
-import { clearThread, readThread, registerStrategy, writeThread } from '../lib/storage.js'
 import { formatElapsed } from '../lib/format.js'
 import { useElapsedTimer } from '../lib/useElapsedTimer.js'
 import Markdown from '../components/Markdown.jsx'
 import Note from '../components/Note.jsx'
 import StrategyMiniCard from '../components/StrategyMiniCard.jsx'
+import ConversationSidebar from '../components/ConversationSidebar.jsx'
+import { showToast } from '../lib/toast.js'
 
 function AssistantAvatar() {
   return (
@@ -59,7 +60,10 @@ function Bubble({ message }) {
 }
 
 export default function ChatPage() {
-  const [thread, setThread] = useState(() => readThread())
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [thread, setThread] = useState({ conversationId: null, messages: [] })
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -77,8 +81,11 @@ export default function ChatPage() {
   const recognitionRef = useRef(null)
   const voiceBaseRef = useRef('')
   const toastTimerRef = useRef(null)
-  const location = useLocation()
   const entryPromptConsumedRef = useRef(false)
+  const conversationLoadedRef = useRef(new Set())
+
+  // Get conversation ID from URL
+  const conversationIdFromUrl = searchParams.get('conversation')
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
@@ -122,12 +129,54 @@ export default function ChatPage() {
     el.style.height = `${Math.min(el.scrollHeight, 180)}px`
   }, [input])
 
-  const persist = useCallback((next) => {
-    setThread(next)
-    writeThread(next)
-  }, [])
+  // Load conversation when URL changes
+  useEffect(() => {
+    if (conversationIdFromUrl && !conversationLoadedRef.current.has(conversationIdFromUrl)) {
+      conversationLoadedRef.current.add(conversationIdFromUrl)
+      loadConversation(conversationIdFromUrl)
+    } else if (!conversationIdFromUrl) {
+      // New chat - clear thread
+      setThread({ conversationId: null, messages: [] })
+      setError(null)
+      setNotice(null)
+    }
+  }, [conversationIdFromUrl])
 
-  function showToast(message) {
+  async function loadConversation(id) {
+    setLoading(true)
+    setError(null)
+    setNotice(null)
+    try {
+      // Import dynamically to avoid circular deps
+      const { fetchConversation } = await import('../lib/api.js')
+      const data = await fetchConversation(id)
+      setThread({
+        conversationId: data.conversation.id,
+        messages: data.messages.map(m => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          createdAt: m.created_at,
+          strategy: m.strategy_id ? {
+            strategy_id: m.strategy_id,
+            strategy_name: m.strategy_name,
+            strategy_description: m.strategy_description,
+          } : null,
+        })),
+      })
+    } catch (err) {
+      if (err?.status === 404) {
+        setNotice('This conversation no longer exists. Start a new conversation to keep going.')
+      } else {
+        setError(err?.message ?? 'Failed to load conversation.')
+      }
+      setThread({ conversationId: null, messages: [] })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function showToastMsg(message) {
     setToast(message)
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     toastTimerRef.current = setTimeout(() => setToast(null), 2600)
@@ -155,7 +204,7 @@ export default function ChatPage() {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
-      showToast('Speech recognition is not supported in this browser')
+      showToastMsg('Speech recognition is not supported in this browser')
       return
     }
     const recognition = new SpeechRecognition()
@@ -177,19 +226,18 @@ export default function ChatPage() {
     }
     recognition.onerror = (event) => {
       if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
-        showToast('Microphone access was denied')
+        showToastMsg('Microphone access was denied')
       }
       stopVoice()
     }
     recognition.onend = () => {
-      // Fires on manual stop too; stopVoice is idempotent.
       recognitionRef.current = null
       setListening(false)
     }
     try {
       recognition.start()
     } catch {
-      showToast('Speech recognition is not supported in this browser')
+      showToastMsg('Speech recognition is not supported in this browser')
       return
     }
     recognitionRef.current = recognition
@@ -210,7 +258,7 @@ export default function ChatPage() {
     }
 
     const base = { conversationId: thread.conversationId, messages: [...thread.messages, userMessage] }
-    persist(base)
+    setThread(base)
     setInput('')
     setAttachment(null)
     if (fileRef.current) fileRef.current.value = ''
@@ -244,6 +292,7 @@ export default function ChatPage() {
       }
 
       if (data.strategy_id) {
+        const { registerStrategy } = await import('../lib/storage.js')
         registerStrategy({
           id: data.strategy_id,
           name: data.strategy_name,
@@ -251,12 +300,16 @@ export default function ChatPage() {
         })
       }
 
-      persist({
+      // Update URL with conversation ID if it's a new conversation
+      if (!base.conversationId && data.conversation_id) {
+        setSearchParams({ conversation: data.conversation_id }, { replace: true })
+      }
+
+      setThread({
         conversationId: data.conversation_id,
         messages: [...base.messages, assistantMessage],
       })
     } catch (err) {
-      // The user turn stays in the thread so nothing typed is lost.
       if (err?.name === 'AbortError') {
         setError('The assistant did not answer within 150 seconds and the request was cancelled.')
       } else if (err?.status === 404) {
@@ -277,13 +330,13 @@ export default function ChatPage() {
   function newConversation() {
     abortRef.current?.abort()
     stopVoice()
-    clearThread()
     setThread({ conversationId: null, messages: [] })
     setError(null)
     setNotice(null)
     setLoading(false)
     setAttachment(null)
     if (fileRef.current) fileRef.current.value = ''
+    setSearchParams({}, { replace: true })
     inputRef.current?.focus()
   }
 
@@ -298,7 +351,6 @@ export default function ChatPage() {
 
   // Single composer instance content — rendered in the visual center when
   // the Studio is empty, and docked at the bottom once a thread exists.
-  // Styling, colors, and behavior are identical in both positions.
   const composerNode = (
     <div className={isEmpty ? 'composer composer--center' : 'composer'}>
       <div className="composer__inner">
@@ -433,110 +485,128 @@ export default function ChatPage() {
     </div>
   )
 
+  // Handle sidebar conversation selection
+  const handleSidebarConversationSelect = useCallback((conversationId) => {
+    setSearchParams({ conversation: conversationId }, { replace: true })
+  }, [setSearchParams])
+
+  const handleNewChat = useCallback(() => {
+    newConversation()
+  }, [])
+
   return (
     <div className="chat-page">
-      <div className="studio-head">
-        <button
-          type="button"
-          className="new-chat-btn"
-          onClick={newConversation}
-          disabled={loading}
-          title="New chat"
-          aria-label="Start a new chat"
-        >
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-            <path
-              d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M18.375 2.625a2.828 2.828 0 1 1 3 3L11.5 15.5l-4 1 1-4Z"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      </div>
-      <div className="chat-page__scroll">
-        {isEmpty ? (
-          <div className="chat-empty chat-empty--center-focus">
-            <div className="chat-empty__main">
-              <div className="chat-empty__hero">
-                <h1 className="chat-empty__title">Design a NIFTY 50 strategy by conversation</h1>
+      <ConversationSidebar
+        activeConversationId={thread.conversationId}
+        onConversationSelect={handleSidebarConversationSelect}
+        onNewChat={handleNewChat}
+        isLoading={loading}
+      />
+
+      <div className="chat-page__main">
+        <div className="studio-head">
+          <button
+            type="button"
+            className="new-chat-btn"
+            onClick={newConversation}
+            disabled={loading}
+            title="New chat"
+            aria-label="Start a new chat"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+              <path
+                d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M18.375 2.625a2.828 2.828 0 1 1 3 3L11.5 15.5l-4 1 1-4Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <div className="chat-page__scroll">
+          {isEmpty ? (
+            <div className="chat-empty chat-empty--center-focus">
+              <div className="chat-empty__main">
+                <div className="chat-empty__hero">
+                  <h1 className="chat-empty__title">Design a NIFTY 50 strategy by conversation</h1>
+                </div>
+                {composerNode}
               </div>
-              {composerNode}
-            </div>
 
-            <div className="chat-empty__builder chat-empty__builder--bottom">
-              <Link
-                to="/studio/builder"
-                className="btn btn--primary chat-empty__builder-btn"
-                disabled={loading}
-                onClick={() => setOpeningBuilder(true)}
-              >
-                {openingBuilder ? (
-                  <>
-                    <span className="chat-empty__builder-spin" aria-hidden="true">
-                      <Loader2 size={16} />
-                    </span>
-                    <span>Opening Builder…</span>
-                  </>
-                ) : (
-                  <span>Open Strategy Builder</span>
-                )}
-              </Link>
-              <p className="chat-empty__builder-text">
-                Prefer a structured form? Build your strategy visually with the Strategy Builder.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="thread">
-            {thread.messages.map((message) => (
-              <Bubble key={message.id} message={message} />
-            ))}
-
-            {loading && (
-              <div className="thinking" role="status" aria-live="polite">
-                <AssistantAvatar />
-                <span className="spinner-inline" aria-hidden="true" />
-                <span className="thinking__label">Thinking…</span>
-                <span className="thinking__timer">{formatElapsed(elapsed)}</span>
+              <div className="chat-empty__builder chat-empty__builder--bottom">
+                <a
+                  href="/studio/builder"
+                  className="btn btn--primary chat-empty__builder-btn"
+                  disabled={loading}
+                  onClick={() => setOpeningBuilder(true)}
+                >
+                  {openingBuilder ? (
+                    <>
+                      <span className="chat-empty__builder-spin" aria-hidden="true">
+                        <Loader2 size={16} />
+                      </span>
+                      <span>Opening Builder…</span>
+                    </>
+                  ) : (
+                    <span>Open Strategy Builder</span>
+                  )}
+                </a>
+                <p className="chat-empty__builder-text">
+                  Prefer a structured form? Build your strategy visually with the Strategy Builder.
+                </p>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="thread">
+              {thread.messages.map((message) => (
+                <Bubble key={message.id} message={message} />
+              ))}
 
-        {notice && (
-          <div style={{ marginTop: 'var(--sp-4)' }}>
-            <Note tone="warning" title="Conversation expired">
-              <span>{notice}</span>
-              <span>
-                <button type="button" className="btn btn--sm" onClick={newConversation}>
-                  Start a new conversation
-                </button>
-              </span>
-            </Note>
-          </div>
-        )}
+              {loading && (
+                <div className="thinking" role="status" aria-live="polite">
+                  <AssistantAvatar />
+                  <span className="spinner-inline" aria-hidden="true" />
+                  <span className="thinking__label">Thinking…</span>
+                  <span className="thinking__timer">{formatElapsed(elapsed)}</span>
+                </div>
+              )}
+            </div>
+          )}
 
-        {error && (
-          <div style={{ marginTop: 'var(--sp-4)' }}>
-            <Note tone="danger" title="Request failed">
-              <span>{error}</span>
-            </Note>
-          </div>
-        )}
+          {notice && (
+            <div style={{ marginTop: 'var(--sp-4)' }}>
+              <Note tone="warning" title="Conversation expired">
+                <span>{notice}</span>
+                <span>
+                  <button type="button" className="btn btn--sm" onClick={newConversation}>
+                    Start a new conversation
+                  </button>
+                </span>
+              </Note>
+            </div>
+          )}
 
-        <div ref={scrollRef} />
+          {error && (
+            <div style={{ marginTop: 'var(--sp-4)' }}>
+              <Note tone="danger" title="Request failed">
+                <span>{error}</span>
+              </Note>
+            </div>
+          )}
+
+          <div ref={scrollRef} />
+        </div>
+
+        {!isEmpty && composerNode}
       </div>
-
-      {!isEmpty && composerNode}
     </div>
   )
 }

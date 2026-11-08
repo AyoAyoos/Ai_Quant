@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+from datetime import datetime
 
 
 class ChatMessageIn(BaseModel):
@@ -13,6 +14,80 @@ class ChatMessageOut(BaseModel):
     strategy_id: str | None = None
     strategy_name: str | None = None
     strategy_description: str | None = None
+
+
+# ============================================================
+# Conversation & Project Schemas
+# ============================================================
+
+class ProjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class ProjectUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class ProjectOut(BaseModel):
+    id: str
+    user_id: str
+    name: str
+    description: str | None = None
+    created_at: str
+    updated_at: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationCreate(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    project_id: str | None = None
+
+
+class ConversationUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    project_id: str | None = None
+    status: str | None = Field(default=None, pattern="^(active|archived)$")
+
+
+class ConversationOut(BaseModel):
+    id: str
+    user_id: str
+    project_id: str | None = None
+    title: str
+    status: str
+    created_at: str
+    updated_at: str
+    message_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class MessageOut(BaseModel):
+    id: str
+    conversation_id: str
+    role: str
+    content: str
+    created_at: str
+    strategy_id: str | None = None
+    strategy_name: str | None = None
+    strategy_description: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationDetailOut(BaseModel):
+    conversation: ConversationOut
+    messages: list[MessageOut]
+
+
+class MoveConversationIn(BaseModel):
+    project_id: str | None = None
 
 
 class StrategyDetailOut(BaseModel):
