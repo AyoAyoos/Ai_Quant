@@ -8,15 +8,76 @@ import {
   Archive,
   Trash2,
   Edit2,
+  FolderPlus,
+  Folder,
+  ChevronRight,
+  ChevronDown,
   X,
   Loader2,
 } from 'lucide-react'
-import { fetchConversations, createConversation, updateConversation, deleteConversation, archiveConversation, restoreConversation } from '../lib/api.js'
+import { fetchProjects, createProject, updateProject, deleteProject } from '../lib/api.js'
+import { fetchConversations, createConversation, updateConversation, deleteConversation, archiveConversation, restoreConversation, moveConversation } from '../lib/api.js'
 import { showToast } from '../lib/toast.js'
 
 const ICON_SIZE = 16
 
-function ConversationItem({ conversation, isActive, onSelect, onRename, onArchive, onDelete, onRestore, editingConversationId, editName, setEditName }) {
+function ProjectItem({ project, isOpen, onToggle, onSelect, onRename, onDelete, editingProjectId, editName, setEditName }) {
+  const isEditing = editingProjectId === project.id
+
+  if (isEditing) {
+    return (
+      <div className="project-item project-item--editing">
+        <input
+          type="text"
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && editName.trim()) {
+              onRename(project.id, editName.trim())
+            } else if (e.key === 'Escape') {
+              onRename(project.id, project.name)
+            }
+          }}
+          onBlur={() => onRename(project.id, editName.trim() || project.name)}
+          autoFocus
+          className="project-edit-input"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="project-item">
+      <div
+        className={`project-header${isOpen ? ' project-header--open' : ''}`}
+        onClick={onToggle}
+      >
+        <Folder className="project-icon" size={ICON_SIZE} />
+        <span className="project-name" title={project.name}>{project.name}</span>
+        <div className="project-actions">
+          <button
+            className="project-action-btn"
+            onClick={(e) => { e.stopPropagation(); onRename(project.id, project.name); }}
+            title="Rename"
+            aria-label="Rename project"
+          >
+            <Edit2 size={ICON_SIZE} />
+          </button>
+          <button
+            className="project-action-btn"
+            onClick={(e) => { e.stopPropagation(); onDelete(project.id); }}
+            title="Delete"
+            aria-label="Delete project"
+          >
+            <Trash2 size={ICON_SIZE} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ConversationItem({ conversation, isActive, onSelect, onRename, onMove, onArchive, onDelete, onRestore, editingConversationId, editName, setEditName }) {
   const isEditing = editingConversationId === conversation.id
   const isArchived = conversation.status === 'archived'
 
@@ -56,6 +117,14 @@ function ConversationItem({ conversation, isActive, onSelect, onRename, onArchiv
         )}
       </button>
       <div className="conversation-menu">
+        <button
+          className="conversation-menu-btn"
+          onClick={(e) => { e.stopPropagation(); onMove(conversation.id); }}
+          title="Move to project"
+          aria-label="Move to project"
+        >
+          <Folder size={ICON_SIZE} />
+        </button>
         <button
           className="conversation-menu-btn"
           onClick={(e) => { e.stopPropagation(); onRename(conversation.id, conversation.title); }}
@@ -103,19 +172,39 @@ export default function ConversationSidebar({
   isLoading,
 }) {
   const navigate = useNavigate()
+  const [projects, setProjects] = useState([])
   const [conversations, setConversations] = useState([])
+  const [openProjects, setOpenProjects] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectDescription, setNewProjectDescription] = useState('')
+  const [creatingProject, setCreatingProject] = useState(false)
+  const [editingProjectId, setEditingProjectId] = useState(null)
+  const [editProjectName, setEditProjectName] = useState('')
   const [editingConversationId, setEditingConversationId] = useState(null)
   const [editConversationName, setEditConversationName] = useState('')
+  const [showMoveDialog, setShowMoveDialog] = useState(false)
+  const [moveConversationId, setMoveConversationId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Load conversations
+  // Load projects and conversations
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      const conversationsData = await fetchConversations()
+      const [projectsData, conversationsData] = await Promise.all([
+        fetchProjects(),
+        fetchConversations(),
+      ])
+      setProjects(projectsData)
       setConversations(conversationsData)
+      // Auto-open projects that have conversations
+      const initiallyOpen = {}
+      conversationsData.forEach(c => {
+        if (c.project_id) initiallyOpen[c.project_id] = true
+      })
+      setOpenProjects(initiallyOpen)
       setError(null)
     } catch (err) {
       setError(err.message)
@@ -129,6 +218,52 @@ export default function ConversationSidebar({
     loadData()
   }, [loadData])
 
+  // Handle new project creation
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return
+    try {
+      setCreatingProject(true)
+      await createProject({ name: newProjectName.trim(), description: newProjectDescription.trim() || undefined })
+      showToast('Project created')
+      setShowNewProjectModal(false)
+      setNewProjectName('')
+      setNewProjectDescription('')
+      await loadData()
+    } catch (err) {
+      showToast('Failed to create project: ' + err.message)
+    } finally {
+      setCreatingProject(false)
+    }
+  }
+
+  // Handle project rename
+  const handleRenameProject = async (projectId, newName) => {
+    if (!newName.trim() || newName.trim() === projects.find(p => p.id === projectId)?.name) {
+      setEditingProjectId(null)
+      return
+    }
+    try {
+      await updateProject(projectId, { name: newName.trim() })
+      showToast('Project renamed')
+      await loadData()
+    } catch (err) {
+      showToast('Failed to rename project: ' + err.message)
+    }
+    setEditingProjectId(null)
+  }
+
+  // Handle project delete
+  const handleDeleteProject = async (projectId) => {
+    if (!window.confirm('Delete this project? Conversations will be moved to "Unassigned".')) return
+    try {
+      await deleteProject(projectId)
+      showToast('Project deleted')
+      await loadData()
+    } catch (err) {
+      showToast('Failed to delete project: ' + err.message)
+    }
+  }
+
   // Handle conversation select
   const handleConversationSelect = (conversationId) => {
     onConversationSelect(conversationId)
@@ -136,9 +271,9 @@ export default function ConversationSidebar({
   }
 
   // Handle new conversation
-  const handleNewConversation = async () => {
+  const handleNewConversation = async (projectId = null) => {
     try {
-      const data = await createConversation({})
+      const data = await createConversation({ project_id: projectId })
       showToast('New conversation started')
       await loadData()
       handleConversationSelect(data.id)
@@ -197,14 +332,40 @@ export default function ConversationSidebar({
     }
   }
 
+  // Handle move conversation
+  const handleMoveConversation = async (conversationId, targetProjectId) => {
+    try {
+      await moveConversation(conversationId, { projectId: targetProjectId })
+      showToast('Conversation moved')
+      await loadData()
+    } catch (err) {
+      showToast('Failed to move conversation: ' + err.message)
+    }
+    setShowMoveDialog(false)
+    setMoveConversationId(null)
+  }
+
+  // Group conversations by project
+  const conversationsByProject = {}
+  const unassignedConversations = []
+
+  conversations.forEach(conv => {
+    if (conv.project_id) {
+      if (!conversationsByProject[conv.project_id]) {
+        conversationsByProject[conv.project_id] = []
+      }
+      conversationsByProject[conv.project_id].push(conv)
+    } else {
+      unassignedConversations.push(conv)
+    }
+  })
+
   // Filter conversations by search query
   const filterConversations = (convs) => {
     if (!searchQuery.trim()) return convs
     const query = searchQuery.toLowerCase()
     return convs.filter(c => c.title.toLowerCase().includes(query))
   }
-
-  const filteredConversations = filterConversations(conversations)
 
   if (loading) {
     return (
@@ -238,17 +399,99 @@ export default function ConversationSidebar({
       <div className="sidebar-actions">
         <button
           className="btn btn--primary btn--icon-text"
-          onClick={handleNewConversation}
-          disabled={isLoading}
+          onClick={() => setShowNewProjectModal(true)}
+          disabled={creatingProject}
         >
-          <Plus size={ICON_SIZE} />
+          <FolderPlus size={ICON_SIZE} />
+          <span>New Project</span>
+        </button>
+        <button
+          className="btn btn--secondary btn--icon-text"
+          onClick={() => handleNewConversation()}
+        >
+          <MessageSquare size={ICON_SIZE} />
           <span>New Chat</span>
         </button>
       </div>
 
+      {/* Projects Section */}
       <div className="sidebar-section">
+        <div className="sidebar-section-header">
+          <h3>Projects</h3>
+        </div>
+        <div className="project-list">
+          {projects.map(project => {
+            const projectConvs = filterConversations(conversationsByProject[project.id] || [])
+            const isOpen = openProjects[project.id] !== false
+            return (
+              <div key={project.id} className="project-wrapper">
+                <ProjectItem
+                  project={project}
+                  isOpen={isOpen}
+                  onToggle={() => setOpenProjects(prev => ({ ...prev, [project.id]: !isOpen }))}
+                  onRename={(id, name) => {
+                    setEditingProjectId(id)
+                    setEditProjectName(name)
+                  }}
+                  onDelete={handleDeleteProject}
+                  editingProjectId={editingProjectId}
+                  editName={editProjectName}
+                  setEditName={setEditProjectName}
+                />
+                {isOpen && projectConvs.length > 0 && (
+                  <div className="project-conversations">
+                    {projectConvs.map(conv => (
+                      <ConversationItem
+                        key={conv.id}
+                        conversation={conv}
+                        isActive={activeConversationId === conv.id}
+                        onSelect={handleConversationSelect}
+                        onRename={(id, name) => {
+                          setEditingConversationId(id)
+                          setEditConversationName(name)
+                        }}
+                        onMove={(id) => {
+                          setMoveConversationId(id)
+                          setShowMoveDialog(true)
+                        }}
+                        onArchive={handleArchiveConversation}
+                        onDelete={handleDeleteConversation}
+                        onRestore={handleRestoreConversation}
+                        editingConversationId={editingConversationId}
+                        editName={editConversationName}
+                        setEditName={setEditConversationName}
+                      />
+                    ))}
+                  </div>
+                )}
+                {isOpen && projectConvs.length === 0 && (
+                  <div className="project-empty">
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => handleNewConversation(project.id)}
+                    >
+                      <Plus size={ICON_SIZE} /> Start a chat in this project
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {projects.length === 0 && (
+            <div className="projects-empty">
+              <p>No projects yet. Create your first project to organize conversations.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Unassigned Conversations */}
+      <div className="sidebar-section">
+        <div className="sidebar-section-header">
+          <h3>Recent Conversations</h3>
+        </div>
         <div className="conversation-list">
-          {filteredConversations.map(conv => (
+          {filterConversations(unassignedConversations).map(conv => (
             <ConversationItem
               key={conv.id}
               conversation={conv}
@@ -258,6 +501,10 @@ export default function ConversationSidebar({
                 setEditingConversationId(id)
                 setEditConversationName(name)
               }}
+              onMove={(id) => {
+                setMoveConversationId(id)
+                setShowMoveDialog(true)
+              }}
               onArchive={handleArchiveConversation}
               onDelete={handleDeleteConversation}
               onRestore={handleRestoreConversation}
@@ -266,13 +513,75 @@ export default function ConversationSidebar({
               setEditName={setEditConversationName}
             />
           ))}
-          {filteredConversations.length === 0 && (
+          {filterConversations(unassignedConversations).length === 0 && (
             <div className="conversations-empty">
               <p>No conversations yet. Click "New Chat" to start one.</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* New Project Modal */}
+      {showNewProjectModal && (
+        <div className="modal-overlay" onClick={() => setShowNewProjectModal(false)}>
+          <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
+            <h3>New Project</h3>
+            <div className="modal-form">
+              <label>
+                <span>Project Name</span>
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="e.g., NIFTY 50 Strategies"
+                  autoFocus
+                />
+              </label>
+              <label>
+                <span>Description (optional)</span>
+                <textarea
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                  placeholder="Brief description of this project..."
+                  rows={3}
+                />
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn--secondary" onClick={() => setShowNewProjectModal(false)}>Cancel</button>
+              <button className="btn btn--primary" onClick={handleCreateProject} disabled={creatingProject || !newProjectName.trim()}>
+                {creatingProject ? <Loader2 size={ICON_SIZE} className="spinner" /> : 'Create Project'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move Conversation Modal */}
+      {showMoveDialog && moveConversationId && (
+        <div className="modal-overlay" onClick={() => setShowMoveDialog(false)}>
+          <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
+            <h3>Move Conversation</h3>
+            <div className="modal-form">
+              <label>
+                <span>Select Project</span>
+                <select
+                  value={''}
+                  onChange={(e) => handleMoveConversation(moveConversationId, e.target.value || null)}
+                >
+                  <option value="">Unassigned</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn--secondary" onClick={() => setShowMoveDialog(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

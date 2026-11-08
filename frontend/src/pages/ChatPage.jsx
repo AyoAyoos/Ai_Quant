@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Loader2, X, ArrowLeft } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { CHAT_TIMEOUT_MS, postChat } from '../lib/api.js'
 import { formatElapsed } from '../lib/format.js'
 import { useElapsedTimer } from '../lib/useElapsedTimer.js'
@@ -504,33 +504,6 @@ export default function ChatPage() {
       />
 
       <div className="chat-page__main">
-        <div className="studio-head">
-          <button
-            type="button"
-            className="new-chat-btn"
-            onClick={newConversation}
-            disabled={loading}
-            title="New chat"
-            aria-label="Start a new chat"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-              <path
-                d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M18.375 2.625a2.828 2.828 0 1 1 3 3L11.5 15.5l-4 1 1-4Z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        </div>
         <div className="chat-page__scroll">
           {isEmpty ? (
             <div className="chat-empty chat-empty--center-focus">
