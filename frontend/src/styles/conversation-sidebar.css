@@ -1,5 +1,5 @@
 /* =============================================================================
-   conversation-sidebar.css — ChatGPT-style conversation history panel.
+   conversation-sidebar.css — Clean conversation history panel.
    Light theme matching QuantNiti: white surface, deep purple text (#403D88),
    dusty mauve accents (#AF719D), amethyst marker (#8B639B).
    ========================================================================== */
@@ -102,136 +102,6 @@
   text-transform: uppercase;
   color: #8b639b;
   margin: 0;
-}
-
-/* Projects */
-.project-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-}
-
-.project-wrapper {
-  border-radius: var(--r-md);
-  overflow: hidden;
-}
-
-.project-item {
-  border-radius: var(--r-md);
-  background: transparent;
-}
-
-.project-header {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 8px 10px;
-  border-radius: var(--r-md);
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
-  width: 100%;
-  border: none;
-  background: transparent;
-  text-align: left;
-}
-
-.project-header:hover {
-  background: rgba(139, 99, 155, 0.08);
-}
-
-.project-header--open {
-  background: rgba(175, 113, 157, 0.12);
-}
-
-.project-icon {
-  flex: none;
-  color: #8b639b;
-}
-
-.project-header--open .project-icon {
-  color: #403d88;
-}
-
-.project-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: #403d88;
-}
-
-.project-actions {
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease);
-}
-
-.project-header:hover .project-actions,
-.project-header:focus-within .project-actions {
-  opacity: 1;
-}
-
-.project-action-btn {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: #8b639b;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
-}
-
-.project-action-btn:hover {
-  background: rgba(139, 99, 155, 0.12);
-  color: #403d88;
-}
-
-.project-item--editing {
-  padding: 4px 8px;
-}
-
-.project-edit-input {
-  width: 100%;
-  padding: 6px 10px;
-  border: 1px solid #403d88;
-  border-radius: var(--r-sm);
-  background: #ffffff;
-  color: #403d88;
-  font-family: var(--font-sans);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  box-sizing: border-box;
-  outline: none;
-}
-
-.project-conversations {
-  padding-left: 28px;
-  border-left: 2px solid rgba(139, 99, 155, 0.15);
-  margin-top: var(--sp-1);
-  padding-top: var(--sp-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-}
-
-.project-empty {
-  padding: var(--sp-2) var(--sp-3);
-}
-
-.projects-empty {
-  padding: var(--sp-4);
-  text-align: center;
-  color: var(--muted);
-  font-size: var(--fs-sm);
 }
 
 /* Conversations */
@@ -428,112 +298,6 @@
   }
 }
 
-/* Modal styles */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: rgba(30, 22, 54, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--sp-4);
-  animation: modal-fade-in 200ms var(--ease);
-}
-
-@keyframes modal-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal {
-  width: 100%;
-  max-width: 420px;
-  background: #ffffff;
-  border: 1px solid #e3d9e5;
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-3);
-  padding: var(--sp-5);
-  animation: modal-slide-up 200ms var(--ease);
-}
-
-@keyframes modal-slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.modal--sm {
-  max-width: 360px;
-}
-
-.modal h3 {
-  font-family: var(--font-display);
-  font-size: var(--fs-lg);
-  font-weight: 700;
-  color: #403d88;
-  margin: 0 0 var(--sp-4);
-}
-
-.modal-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-2);
-}
-
-.modal-form label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-}
-
-.modal-form label span {
-  font-size: var(--fs-caption);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #8b639b;
-}
-
-.modal-form input,
-.modal-form textarea,
-.modal-form select {
-  padding: 10px 12px;
-  border: 1px solid rgba(139, 99, 155, 0.2);
-  border-radius: var(--r-md);
-  background: #ffffff;
-  color: #403d88;
-  font-family: var(--font-sans);
-  font-size: var(--fs-base);
-  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
-}
-
-.modal-form input:focus,
-.modal-form textarea:focus,
-.modal-form select:focus {
-  outline: none;
-  border-color: #403d88;
-  box-shadow: 0 0 0 3px rgba(64, 61, 136, 0.18);
-}
-
-.modal-form textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--sp-2);
-  margin-top: var(--sp-2);
-}
-
 /* Toast styles */
 .toast-container {
   position: fixed;
@@ -583,9 +347,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .modal-overlay,
-  .modal,
-  .toast,
   .conversation-sidebar {
     animation: none;
     transition: none;
