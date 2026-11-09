@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { CHAT_TIMEOUT_MS, postChat } from '../lib/api.js'
 import { formatElapsed } from '../lib/format.js'
@@ -7,8 +7,6 @@ import { useElapsedTimer } from '../lib/useElapsedTimer.js'
 import Markdown from '../components/Markdown.jsx'
 import Note from '../components/Note.jsx'
 import StrategyMiniCard from '../components/StrategyMiniCard.jsx'
-import ConversationSidebar from '../components/ConversationSidebar.jsx'
-import { showToast } from '../lib/toast.js'
 
 function AssistantAvatar() {
   return (
@@ -60,9 +58,7 @@ function Bubble({ message }) {
 }
 
 export default function ChatPage() {
-  const navigate = useNavigate()
   const location = useLocation()
-  const [searchParams, setSearchParams] = useSearchParams()
   const [thread, setThread] = useState({ conversationId: null, messages: [] })
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -82,10 +78,6 @@ export default function ChatPage() {
   const voiceBaseRef = useRef('')
   const toastTimerRef = useRef(null)
   const entryPromptConsumedRef = useRef(false)
-  const conversationLoadedRef = useRef(new Set())
-
-  // Get conversation ID from URL
-  const conversationIdFromUrl = searchParams.get('conversation')
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
@@ -128,53 +120,6 @@ export default function ChatPage() {
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 180)}px`
   }, [input])
-
-  // Load conversation when URL changes
-  useEffect(() => {
-    if (conversationIdFromUrl && !conversationLoadedRef.current.has(conversationIdFromUrl)) {
-      conversationLoadedRef.current.add(conversationIdFromUrl)
-      loadConversation(conversationIdFromUrl)
-    } else if (!conversationIdFromUrl) {
-      // New chat - clear thread
-      setThread({ conversationId: null, messages: [] })
-      setError(null)
-      setNotice(null)
-    }
-  }, [conversationIdFromUrl])
-
-  async function loadConversation(id) {
-    setLoading(true)
-    setError(null)
-    setNotice(null)
-    try {
-      // Import dynamically to avoid circular deps
-      const { fetchConversation } = await import('../lib/api.js')
-      const data = await fetchConversation(id)
-      setThread({
-        conversationId: data.conversation.id,
-        messages: data.messages.map(m => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          createdAt: m.created_at,
-          strategy: m.strategy_id ? {
-            strategy_id: m.strategy_id,
-            strategy_name: m.strategy_name,
-            strategy_description: m.strategy_description,
-          } : null,
-        })),
-      })
-    } catch (err) {
-      if (err?.status === 404) {
-        setNotice('This conversation no longer exists. Start a new conversation to keep going.')
-      } else {
-        setError(err?.message ?? 'Failed to load conversation.')
-      }
-      setThread({ conversationId: null, messages: [] })
-    } finally {
-      setLoading(false)
-    }
-  }
 
   function showToastMsg(message) {
     setToast(message)
@@ -302,7 +247,7 @@ export default function ChatPage() {
 
       // Update URL with conversation ID if it's a new conversation
       if (!base.conversationId && data.conversation_id) {
-        setSearchParams({ conversation: data.conversation_id }, { replace: true })
+        // We track the conversation ID for the API but don't use URL for history
       }
 
       setThread({
@@ -325,19 +270,6 @@ export default function ChatPage() {
       setLoading(false)
       inputRef.current?.focus()
     }
-  }
-
-  function newConversation() {
-    abortRef.current?.abort()
-    stopVoice()
-    setThread({ conversationId: null, messages: [] })
-    setError(null)
-    setNotice(null)
-    setLoading(false)
-    setAttachment(null)
-    if (fileRef.current) fileRef.current.value = ''
-    setSearchParams({}, { replace: true })
-    inputRef.current?.focus()
   }
 
   function handleFileChange(event) {
@@ -485,24 +417,8 @@ export default function ChatPage() {
     </div>
   )
 
-  // Handle sidebar conversation selection
-  const handleSidebarConversationSelect = useCallback((conversationId) => {
-    setSearchParams({ conversation: conversationId }, { replace: true })
-  }, [setSearchParams])
-
-  const handleNewChat = useCallback(() => {
-    newConversation()
-  }, [])
-
   return (
     <div className="chat-page">
-      <ConversationSidebar
-        activeConversationId={thread.conversationId}
-        onConversationSelect={handleSidebarConversationSelect}
-        onNewChat={handleNewChat}
-        isLoading={loading}
-      />
-
       <div className="chat-page__main">
         <div className="chat-page__scroll">
           {isEmpty ? (
@@ -559,7 +475,7 @@ export default function ChatPage() {
               <Note tone="warning" title="Conversation expired">
                 <span>{notice}</span>
                 <span>
-                  <button type="button" className="btn btn--sm" onClick={newConversation}>
+                  <button type="button" className="btn btn--sm" onClick={() => setThread({ conversationId: null, messages: [] })}>
                     Start a new conversation
                   </button>
                 </span>
