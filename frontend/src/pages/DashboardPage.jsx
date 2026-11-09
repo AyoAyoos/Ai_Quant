@@ -27,6 +27,7 @@ import {
   fetchMarketPulse,
 } from '../lib/api.js'
 import {
+  formatSignedMoney,
   formatSignedPercent,
 } from '../lib/format.js'
 import Note from '../components/Note.jsx'
