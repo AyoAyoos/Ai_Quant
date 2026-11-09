@@ -235,6 +235,22 @@ class TestConversations:
 class TestChatIntegration:
     """Integration tests with chat endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def _mock_chat_completion(self, monkeypatch):
+        """Mock the LLM chat completion for chat integration tests.
+
+        The real LLM call requires GROQ_API_KEY which is not available in CI.
+        This fixture provides a deterministic mock response so integration
+        tests can verify conversation/message persistence without external deps.
+        """
+        async def fake_chat_completion(history):
+            return "This is a mocked assistant response."
+
+        monkeypatch.setattr(
+            "app.routers.chat.chat_completion",
+            fake_chat_completion,
+        )
+
     def test_chat_creates_conversation(self):
         resp = client.post("/chat", json={"content": "Create a strategy"})
         assert resp.status_code == 200
