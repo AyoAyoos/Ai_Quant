@@ -7,11 +7,11 @@ import ApprovalPage from './pages/ApprovalPage.jsx'
 import BacktestPage from './pages/BacktestPage.jsx'
 import BacktestsHubPage from './pages/BacktestsHubPage.jsx'
 import ChatPage from './pages/ChatPage.jsx'
+import DashboardPage from './pages/DashboardPage.jsx'
 import DeploymentPage from './pages/DeploymentPage.jsx'
 import DocsPage from './pages/DocsPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
-import OverviewPage from './pages/OverviewPage.jsx'
 import PaperTradingHubPage from './pages/PaperTradingHubPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import StrategiesPage from './pages/StrategiesPage.jsx'
@@ -60,7 +60,7 @@ export default function App() {
           }
           path="/"
         >
-          <Route path="dashboard" element={<OverviewPage />} />
+          <Route path="dashboard" element={<DashboardPage />} />
           <Route path="studio/builder" element={<StrategyBuilderPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="strategies/:id" element={<StrategyOverviewPage />} />

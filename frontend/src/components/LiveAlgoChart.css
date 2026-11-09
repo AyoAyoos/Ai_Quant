@@ -1,223 +1,590 @@
-/* LiveAlgoChart — dark-mode simulated Nifty 50 algo execution chart. */
+/* =============================================================================
+   LiveAlgoChart — light, professional market chart.
+   White canvas, lavender grid, indigo accents. No dark simulated theme.
+   ========================================================================== */
 
-.algo-chart {
+.live-chart {
+  --lc-border: #e6dfec;
+  --lc-border-strong: #d7cbe1;
+  --lc-grid: #efe9f4;
+  --lc-text: #2f2845;
+  --lc-muted: #6f6883;
+  --lc-up: #1b6b4a;
+  --lc-down: #a01028;
+  --lc-accent: #403d88;
+
   width: 100%;
-  border-radius: 16px;
-  border: 1px solid rgba(139, 99, 155, 0.55);
-  background: rgba(0, 0, 0, 0.28);
-  box-shadow: 0 0 28px rgba(255, 179, 186, 0.1), 0 18px 44px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 18px 18px 12px;
-  font-family: var(--font-brand);
-}
-
-.algo-chart__head {
+  min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.algo-chart__title {
-  display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 10px;
+  padding: 14px 14px 10px;
+  border: 1px solid var(--lc-border);
+  border-radius: 14px;
+  background: #ffffff;
+  font-family: var(--font-brand, 'Hanken Grotesk', system-ui, sans-serif);
+  color: var(--lc-text);
+}
+
+.live-chart:fullscreen,
+.live-chart--fullscreen {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  padding: 18px;
+  border-radius: 0;
+  overflow: auto;
+  background: #fbfaff;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.live-chart__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.live-chart__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
 }
 
-.algo-chart__live {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 179, 186, 0.6);
-  background: rgba(255, 179, 186, 0.12);
-  color: #ffb3ba;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-shadow: 0 0 14px rgba(255, 179, 186, 0.6);
-}
-
-.algo-chart__pulse {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #ffb3ba;
-  box-shadow: 0 0 12px rgba(255, 179, 186, 0.9);
-  animation: algo-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes algo-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(0.65);
-    opacity: 0.55;
-  }
-}
-
-.algo-chart__pair {
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: #ffffff;
-  white-space: nowrap;
-}
-
-/* Live strategy status indicator (replaces the static BUY/SELL legend). */
-.algo-chart__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(38, 208, 124, 0.45);
-  background: rgba(38, 208, 124, 0.08);
-  color: #e3d9e5;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-}
-
-.algo-chart__status-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  background: #26d07c;
-  box-shadow: 0 0 12px rgba(38, 208, 124, 0.9);
-  animation: algo-pulse 1.6s ease-in-out infinite;
-}
-
-.algo-chart__body {
-  position: relative;
-  width: 100%;
-}
-
-.algo-chart__canvas {
-  width: 100%;
-  height: 340px;
-}
-
-.algo-chart__canvas canvas {
-  border-radius: 8px;
-}
-
-/* Frosted HUD strip docked top-left inside the chart. Pointer-transparent
-   so it never blocks crosshair / price-scale interaction. */
-.algo-chart__hud {
-  position: absolute;
-  top: 12px;
-  left: 12px;
+.live-chart__name-row {
   display: flex;
   align-items: center;
-  gap: 10px 14px;
+  gap: 8px;
   flex-wrap: wrap;
-  max-width: calc(100% - 24px);
-  padding: 9px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 179, 186, 0.22);
-  background: rgba(15, 11, 26, 0.75);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  pointer-events: none;
-  font-variant-numeric: tabular-nums;
 }
 
-.algo-chart__hud-price {
+.live-chart__name {
+  margin: 0;
+  font-family: var(--font-display, var(--font-brand));
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #ffffff;
-  font-variant-numeric: tabular-nums;
+  color: #1e1636;
 }
 
-.algo-chart__hud-chg {
-  font-size: 0.75rem;
+.live-chart__price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.live-chart__price {
+  font-size: 1.5rem;
   font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: #1e1636;
 }
 
-.algo-chart__hud-chg.is-up {
-  color: #26d07c;
-  text-shadow: 0 0 12px rgba(38, 208, 124, 0.6);
+.live-chart__change {
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 8px;
+  border-radius: 999px;
 }
 
-.algo-chart__hud-chg.is-down {
-  color: #ff5c5c;
-  text-shadow: 0 0 12px rgba(255, 92, 92, 0.6);
+.live-chart__change.is-up {
+  color: var(--lc-up);
+  background: rgba(27, 107, 74, 0.09);
 }
 
-.algo-chart__hud-sep {
-  width: 1px;
-  align-self: stretch;
-  background: rgba(255, 179, 186, 0.25);
+.live-chart__change.is-down {
+  color: var(--lc-down);
+  background: rgba(160, 16, 40, 0.08);
 }
 
-.algo-chart__hud-stat {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: rgba(227, 217, 229, 0.7);
+.live-chart__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--lc-muted);
+  text-align: right;
+}
+
+.live-chart__meta strong {
+  color: #4a4360;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+/* ---------------------------------------------------------------- badges */
+
+.lc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-.algo-chart__hud-stat strong {
-  margin-left: 4px;
-  font-size: 0.82rem;
-  font-weight: 800;
+.lc-badge--live {
+  color: #14603f;
+  background: #e7f6ee;
+  border-color: #b9e3cc;
+}
+
+.lc-badge--delayed {
+  color: #334a8a;
+  background: #edf1fb;
+  border-color: #c9d5ef;
+}
+
+.lc-badge--historical {
+  color: #7a5312;
+  background: #fdf4e2;
+  border-color: #efd9a8;
+}
+
+.lc-badge--stale {
+  color: #8a3b12;
+  background: #fdf0e8;
+  border-color: #f0cbb6;
+}
+
+.lc-badge--unavailable {
+  color: #8c1f2c;
+  background: #fdecef;
+  border-color: #f3c3c9;
+}
+
+/* --------------------------------------------------------------- toolbar */
+
+.live-chart__toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px 18px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--lc-border);
+  border-radius: 11px;
+  background: #fbfaff;
+}
+
+.lc-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.lc-group--indicators {
+  flex: 1 1 300px;
+}
+
+.lc-group--actions {
+  margin-left: auto;
+}
+
+.lc-group__label {
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8a819c;
+}
+
+.lc-segmented {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--lc-border-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.lc-segment {
+  appearance: none;
+  border: 0;
+  border-right: 1px solid var(--lc-border);
+  background: transparent;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--lc-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.lc-segment:last-child {
+  border-right: 0;
+}
+
+.lc-segment:hover {
+  background: #f3eff8;
+  color: var(--lc-accent);
+}
+
+.lc-segment.is-active {
+  background: var(--lc-accent);
   color: #ffffff;
 }
 
-.algo-chart__hud-stat strong.is-up {
-  color: #26d07c;
-  text-shadow: 0 0 12px rgba(38, 208, 124, 0.55);
+.lc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
-.algo-chart__hud-stat strong.is-down {
-  color: #ff5c5c;
-  text-shadow: 0 0 12px rgba(255, 92, 92, 0.55);
+.lc-chip {
+  appearance: none;
+  border: 1px solid var(--lc-border-strong);
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 4px 9px;
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--lc-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
-.algo-chart__note {
-  margin: 10px 2px 2px;
+.lc-chip:hover {
+  border-color: #b7a7c9;
+  color: var(--lc-accent);
+}
+
+.lc-chip.is-active {
+  color: #ffffff;
+  background: #6a5a9c;
+  border-color: #6a5a9c;
+}
+
+.lc-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lc-icon-btn {
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--lc-border-strong);
+  border-radius: 7px;
+  background: #ffffff;
+  color: #5d5473;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.lc-icon-btn:hover {
+  background: #f3eff8;
+  color: var(--lc-accent);
+  border-color: #b7a7c9;
+}
+
+.lc-icon-btn.is-active {
+  color: #ffffff;
+  background: #6a5a9c;
+  border-color: #6a5a9c;
+}
+
+/* ---------------------------------------------------------------- legend */
+
+.live-chart__legend {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+  padding: 0 2px;
+  font-size: 0.68rem;
+  line-height: 1.6;
+  color: var(--lc-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-chart__legend strong {
+  color: var(--lc-text);
+  font-weight: 800;
+}
+
+.lc-legend__symbol {
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: var(--lc-accent);
+}
+
+.lc-legend__tf {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f1ecf7;
+  color: #6a5a9c;
+  font-weight: 800;
+  font-size: 0.62rem;
+}
+
+.lc-legend__time {
+  color: #8a819c;
+}
+
+.lc-legend__muted {
+  color: #9a93a8;
+}
+
+.lc-legend__hint {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #a39bb2;
+  font-size: 0.64rem;
+}
+
+.live-chart__provider-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fdf4e2;
+  color: #7a5312;
+  font-size: 0.64rem;
+  line-height: 1.45;
+}
+
+.live-chart__provider-note svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* ----------------------------------------------------------------- panels */
+
+.live-chart__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lc-panel {
+  width: 100%;
+  min-width: 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.lc-panel--main {
+  height: 430px;
+}
+
+.lc-panel--volume {
+  height: 92px;
+}
+
+.lc-panel--rsi {
+  height: 112px;
+}
+
+.lc-panel--macd {
+  height: 124px;
+}
+
+.lc-panel-wrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.lc-panel__label {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a819c;
+  pointer-events: none;
+}
+
+.lc-panel__label em {
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: #a39bb2;
+}
+
+.lc-panel__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.72rem;
-  line-height: 1.5;
-  color: rgba(227, 217, 229, 0.6);
+  font-weight: 600;
+  color: #9a93a8;
+  background: rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------- states */
+
+.live-chart__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 260px;
+  padding: 24px;
+  border: 1px dashed var(--lc-border-strong);
+  border-radius: 10px;
+  background: #fcfbfe;
+  color: var(--lc-muted);
+  font-size: 0.82rem;
   text-align: center;
 }
 
-@media (max-width: 640px) {
-  .algo-chart {
-    padding: 14px 12px 10px;
+.live-chart__state p {
+  margin: 0;
+}
+
+.live-chart__state--error {
+  justify-content: flex-start;
+  text-align: left;
+  color: #8c1f2c;
+  background: #fef8f9;
+  border-color: #f3c3c9;
+}
+
+.live-chart__state--error > div {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.live-chart__state--error strong {
+  font-size: 0.9rem;
+  color: #6f1520;
+}
+
+.live-chart__state--error p {
+  color: #7a3a44;
+  font-size: 0.78rem;
+}
+
+.lc-state__note {
+  color: #9a6a72 !important;
+  font-size: 0.72rem !important;
+}
+
+.lc-spin {
+  animation: lc-spin 0.9s linear infinite;
+  color: var(--lc-accent);
+}
+
+@keyframes lc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.live-chart__note {
+  margin: 0;
+  padding-top: 2px;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: #8a819c;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------ responsive */
+
+@media (max-width: 1024px) {
+  .lc-group--actions {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .live-chart {
+    padding: 12px 10px 8px;
   }
 
-  .algo-chart__hud {
-    gap: 6px 10px;
-    padding: 8px 12px;
+  .live-chart__header {
+    gap: 8px;
   }
 
-  .algo-chart__hud-price {
-    font-size: 0.95rem;
+  .live-chart__price {
+    font-size: 1.28rem;
   }
 
-  .algo-chart__canvas {
-    height: 280px;
+  .live-chart__meta {
+    text-align: left;
+  }
+
+  .live-chart__toolbar {
+    gap: 10px 12px;
+    padding: 9px;
+  }
+
+  .lc-group--indicators {
+    flex-basis: 100%;
+  }
+
+  .lc-panel--main {
+    height: 300px;
+  }
+
+  .lc-panel--volume {
+    height: 72px;
+  }
+
+  .lc-panel--rsi {
+    height: 92px;
+  }
+
+  .lc-panel--macd {
+    height: 104px;
+  }
+
+  .lc-legend__hint {
+    display: none;
+  }
+
+  .live-chart__legend {
+    gap: 3px 9px;
+    font-size: 0.64rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .algo-chart__pulse,
-  .algo-chart__status-dot {
+  .lc-spin {
     animation: none;
   }
 }

@@ -432,3 +432,68 @@ export function restoreConversation(conversationId, { signal } = {}) {
     signal,
   })
 }
+
+/* ------------------------------------------------ dashboard */
+
+/** GET /dashboard/market/overview — major Indian indices + market status. */
+export function fetchMarketOverview({ signal } = {}) {
+  return request('/dashboard/market/overview', { signal })
+}
+
+/** GET /dashboard/market/quote/{symbol} — detailed quote for one index. */
+export function fetchMarketQuote(symbol, { signal } = {}) {
+  return request(`/dashboard/market/quote/${encodeURIComponent(symbol)}`, { signal })
+}
+
+/** GET /dashboard/market/indicators/{symbol} — technical indicators for a symbol. */
+export function fetchMarketIndicators(symbol, { timeframe = '1d', limit = 500, signal } = {}) {
+  const params = new URLSearchParams({ timeframe, limit: String(limit) })
+  return request(`/dashboard/market/indicators/${encodeURIComponent(symbol)}?${params}`, { signal })
+}
+
+/** GET /dashboard/market/chart/{symbol} — historical chart data. */
+export function fetchMarketChart(symbol, { timeframe = '1d', limit = 500, signal } = {}) {
+  const params = new URLSearchParams({ timeframe, limit: String(limit) })
+  return request(`/dashboard/market/chart/${encodeURIComponent(symbol)}?${params}`, { signal })
+}
+
+/** GET /dashboard/market/pulse — gainers, losers, active, sectors, breadth. */
+export function fetchMarketPulse({ signal } = {}) {
+  return request('/dashboard/market/pulse', { signal })
+}
+
+/** GET /dashboard/market/news — Indian financial market news. */
+export function fetchMarketNews({ limit = 20, signal } = {}) {
+  return request(`/dashboard/market/news?limit=${limit}`, { signal })
+}
+
+/** POST /dashboard/ai/briefing — structured AI-generated market briefing. */
+export function fetchAIBriefing({ mode = 'concise', force = false, signal } = {}) {
+  return request('/dashboard/ai/briefing', { method: 'POST', body: { mode, force }, signal })
+}
+
+/** GET /dashboard/simulation — truthful monitor of the existing paper engine. */
+export function fetchDashboardSimulation({ signal } = {}) {
+  return request('/dashboard/simulation', { signal })
+}
+
+/** GET /dashboard/performance/summary — trading performance metrics. */
+export function fetchPerformanceSummary({ signal } = {}) {
+  return request('/dashboard/performance/summary', { signal })
+}
+
+/** GET /dashboard/strategies — user strategies with backtest/deployment info. */
+export function fetchDashboardStrategies({ status, signal } = {}) {
+  const params = status ? `?status_filter=${encodeURIComponent(status)}` : ''
+  return request(`/dashboard/strategies${params}`, { signal })
+}
+
+/** GET /dashboard/paper/portfolio — consolidated paper trading portfolio. */
+export function fetchPaperPortfolio({ signal } = {}) {
+  return request('/dashboard/paper/portfolio', { signal })
+}
+
+/** GET /dashboard/activity/recent — recent user activity. */
+export function fetchRecentActivity({ limit = 20, signal } = {}) {
+  return request(`/dashboard/activity/recent?limit=${limit}`, { signal })
+}
