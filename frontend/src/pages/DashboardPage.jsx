@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Activity,
-  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   BarChart2,
@@ -10,37 +8,25 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
-  History,
   Info,
   LineChart,
   Loader2,
   Newspaper,
-  Pause,
   PieChart,
-  Play,
   RefreshCw,
   ShieldAlert,
   Sparkles,
-  Square,
   Target,
   TrendingDown,
   TrendingUp,
-  Wallet,
 } from 'lucide-react'
 import {
-  deployStrategy,
   fetchAIBriefing,
-  fetchDashboardSimulation,
   fetchMarketNews,
   fetchMarketOverview,
   fetchMarketPulse,
-  runPaperTick,
-  stopDeployment,
 } from '../lib/api.js'
 import {
-  formatMoney,
-  formatPercent,
-  formatSignedMoney,
   formatSignedPercent,
 } from '../lib/format.js'
 import Note from '../components/Note.jsx'
@@ -342,425 +328,6 @@ function MarketLiveView({ selectedIndex, quote, marketStatus }) {
       </div>
 
       <LiveAlgoChart symbol={selectedIndex} quote={quote} marketStatus={marketStatus} />
-    </section>
-  )
-}
-
-/* ================================================ ALGORITHMIC TRADING SIMULATION */
-
-function SimulationMetric({ label, value, tone = 'neutral', hint }) {
-  return (
-    <div className="sim-metric">
-      <span className="sim-metric__label">{label}</span>
-      <span className={`sim-metric__value ${tone === 'neutral' ? '' : `is-${tone}`}`}>
-        {value}
-      </span>
-      {hint && <span className="sim-metric__hint">{hint}</span>}
-    </div>
-  )
-}
-
-function AlgorithmicTradingSimulation({ marketStatus }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [actionError, setActionError] = useState(null)
-  const [tickNote, setTickNote] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [selectedStrategyId, setSelectedStrategyId] = useState('')
-  const [cash, setCash] = useState('100000')
-  const [autoAdvance, setAutoAdvance] = useState(false)
-  const [confirmStop, setConfirmStop] = useState(false)
-  const tickingRef = useRef(false)
-  const loadRef = useRef(null)
-
-  const load = useCallback(async () => {
-    try {
-      const result = await fetchDashboardSimulation()
-      setData(result)
-      setError(null)
-    } catch (err) {
-      setError(err.message || 'Could not load the simulation state.')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    loadRef.current = load
-  }, [load])
-
-  useEffect(() => {
-    load()
-    const timer = window.setInterval(load, 20000)
-    return () => window.clearInterval(timer)
-  }, [load])
-
-  useEffect(() => {
-    if (!data || selectedStrategyId) return
-    const first = data.available_strategies?.[0]
-    if (first) setSelectedStrategyId(first.id)
-  }, [data, selectedStrategyId])
-
-  const deployment = data?.deployment ?? null
-  const account = data?.account ?? null
-  const isRunning = data?.status === 'running' || data?.status === 'waiting_for_data'
-
-  // Auto-advance the existing paper engine one cached bar at a time. This is a
-  // historical replay, not a live market feed and not a second trading engine.
-  useEffect(() => {
-    if (!autoAdvance || data?.status !== 'running' || !deployment) return undefined
-    let cancelled = false
-
-    const timer = window.setInterval(async () => {
-      if (tickingRef.current) return
-      tickingRef.current = true
-      try {
-        await runPaperTick(deployment.strategy_id, { deploymentId: deployment.id })
-        if (!cancelled) {
-          setTickNote(null)
-          await loadRef.current?.()
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setAutoAdvance(false)
-          setTickNote(
-            err?.message ||
-              'Auto-advance stopped because the next cached bar could not be processed.',
-          )
-        }
-      } finally {
-        tickingRef.current = false
-      }
-    }, 6000)
-
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
-    }
-  }, [autoAdvance, data?.status, deployment?.id, deployment?.strategy_id])
-
-  const statusLabel = useMemo(() => {
-    if (!data?.status || data.status === 'not_started') return 'Not Started'
-    if (data.status === 'stopped') return 'Stopped'
-    if (data.status === 'waiting_for_data') return 'Waiting for Market Data'
-    if (data.status === 'running') return autoAdvance ? 'Running' : 'Paused'
-    return data.status
-  }, [data?.status, autoAdvance])
-
-  const statusClass = useMemo(() => {
-    if (statusLabel === 'Running') return 'running'
-    if (statusLabel === 'Paused') return 'paused'
-    if (statusLabel === 'Waiting for Market Data') return 'waiting'
-    if (statusLabel === 'Stopped') return 'stopped'
-    return 'idle'
-  }, [statusLabel])
-
-  const handleStart = async () => {
-    if (!selectedStrategyId) return
-    const numericCash = Number(cash)
-    if (!Number.isFinite(numericCash) || numericCash <= 0) {
-      setActionError('Enter a virtual starting capital greater than zero.')
-      return
-    }
-    setBusy(true)
-    setActionError(null)
-    setTickNote(null)
-    try {
-      await deployStrategy(selectedStrategyId, {
-        cash: numericCash,
-        commissionPct: 0.1,
-        sizerPercent: 95,
-      })
-      setAutoAdvance(true)
-      await load()
-    } catch (err) {
-      setActionError(err?.message || 'Could not start the simulation.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const handleStop = async () => {
-    if (!deployment) return
-    setBusy(true)
-    setActionError(null)
-    setConfirmStop(false)
-    try {
-      await stopDeployment(deployment.strategy_id, 'Stopped from dashboard simulation')
-      setAutoAdvance(false)
-      await load()
-    } catch (err) {
-      setActionError(err?.message || 'Could not stop the simulation.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const handleTickOnce = async () => {
-    if (!deployment) return
-    setBusy(true)
-    setActionError(null)
-    try {
-      await runPaperTick(deployment.strategy_id, { deploymentId: deployment.id })
-      setTickNote(null)
-      await load()
-    } catch (err) {
-      setActionError(err?.message || 'The next cached bar could not be processed.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const pnlTone = (value) => {
-    if (value === null || value === undefined) return 'neutral'
-    if (Number(value) > 0) return 'positive'
-    if (Number(value) < 0) return 'negative'
-    return 'neutral'
-  }
-
-  return (
-    <section className="panel dashboard-section" aria-labelledby="algo-simulation">
-      <div className="panel__head">
-        <div>
-          <h2 className="section-title" id="algo-simulation">
-            Algorithmic Trading Simulation
-          </h2>
-          <p className="section-subtitle">
-            Virtual paper-trading engine · historical replay · no real-money orders
-          </p>
-        </div>
-        <div className="sim-head">
-          <span className={`sim-status sim-status--${statusClass}`}>
-            <span className="sim-status__dot" aria-hidden="true" />
-            {statusLabel}
-          </span>
-          <div className="sim-head__actions">
-            {isRunning && (
-              <>
-                <button
-                  type="button"
-                  className="btn btn--sm btn--outline"
-                  onClick={() => setAutoAdvance((value) => !value)}
-                  disabled={busy}
-                >
-                  {autoAdvance ? <Pause size={14} /> : <Play size={14} />}
-                  {autoAdvance ? 'Pause' : 'Resume'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--sm btn--outline"
-                  onClick={handleTickOnce}
-                  disabled={busy}
-                >
-                  <Activity size={14} /> Advance one bar
-                </button>
-                {confirmStop ? (
-                  <>
-                    <button
-                      type="button"
-                      className="btn btn--sm btn--danger"
-                      onClick={handleStop}
-                      disabled={busy}
-                    >
-                      Confirm stop
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn--sm btn--ghost"
-                      onClick={() => setConfirmStop(false)}
-                      disabled={busy}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn--sm btn--danger"
-                    onClick={() => setConfirmStop(true)}
-                    disabled={busy}
-                  >
-                    <Square size={14} /> Stop
-                  </button>
-                )}
-              </>
-            )}
-            <Link className="btn btn--sm btn--ghost" to="/paper-trading">
-              <History size={14} /> View History
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {data?.status === 'running' && !autoAdvance && (
-        <p className="sim-pause-note">
-          <Info size={13} />
-          <span>
-            Pause stops automatic bar advancement in this dashboard only. The paper deployment
-            remains active in the paper-trading engine; press Resume to continue replaying cached
-            bars.
-          </span>
-        </p>
-      )}
-
-      {error && (
-        <Note tone="danger" title="Simulation state unavailable">
-          <span>{error}</span>
-        </Note>
-      )}
-
-      {loading && !data && (
-        <div className="briefing-loading">
-          <Loader2 size={20} className="spinner" />
-          <span>Loading the paper-trading simulation…</span>
-        </div>
-      )}
-
-      {data && (
-        <>
-          {account && (
-            <div className="sim-metrics">
-              <SimulationMetric
-                label="Selected strategy"
-                value={deployment?.strategy_name || '—'}
-                hint={deployment?.market ? `${deployment.market} replay` : undefined}
-              />
-              <SimulationMetric
-                label="Virtual initial capital"
-                value={`₹${formatMoney(account.starting_cash)}`}
-              />
-              <SimulationMetric
-                label="Available balance"
-                value={`₹${formatMoney(account.cash_balance)}`}
-              />
-              <SimulationMetric
-                label="Realized P&L"
-                value={`₹${formatSignedMoney(account.realized_pnl)}`}
-                tone={pnlTone(account.realized_pnl)}
-              />
-              <SimulationMetric
-                label="Unrealized P&L"
-                value={
-                  account.unrealized_pnl === null
-                    ? '—'
-                    : `₹${formatSignedMoney(account.unrealized_pnl)}`
-                }
-                tone={pnlTone(account.unrealized_pnl)}
-                hint={account.unrealized_pnl === null ? 'No current mark available' : undefined}
-              />
-              <SimulationMetric
-                label="Win rate"
-                value={data.win_rate === null ? '—' : `${data.win_rate}%`}
-                hint={data.total_trades ? `${data.total_trades} closed trades` : 'No closed trades yet'}
-              />
-              <SimulationMetric
-                label="Total trades"
-                value={String(data.total_trades ?? 0)}
-              />
-              <SimulationMetric
-                label="Sharpe ratio"
-                value={data.sharpe === null ? '—' : data.sharpe}
-                hint={
-                  data.sharpe === null
-                    ? 'Needs at least three equity snapshots'
-                    : `${data.equity_points ?? 0} equity points`
-                }
-              />
-            </div>
-          )}
-
-          {marketStatus?.status === 'CLOSED' && isRunning && (
-            <p className="sim-note">
-              <Info size={14} />
-              Market is closed. The simulation replays cached historical bars, so pausing or
-              running it does not depend on the live session.
-            </p>
-          )}
-
-          {tickNote && (
-            <p className="sim-note sim-note--warning">
-              <AlertTriangle size={14} /> {tickNote}
-            </p>
-          )}
-
-          {!isRunning && (
-            <div className="sim-start">
-              <div className="sim-start__copy">
-                <h3 className="sim-start__title">
-                  {data.status === 'stopped'
-                    ? 'Start a new paper simulation'
-                    : 'Start a paper simulation'}
-                </h3>
-                <p className="sim-start__text">
-                  Choose an approved strategy and a virtual starting capital. QuantNiti reuses
-                  the existing paper-trading engine and its cached bars.
-                </p>
-              </div>
-
-              {data.available_strategies?.length ? (
-                <div className="sim-start__form">
-                  <label className="sim-field">
-                    <span>Approved strategy</span>
-                    <select
-                      value={selectedStrategyId}
-                      onChange={(event) => setSelectedStrategyId(event.target.value)}
-                      disabled={busy}
-                    >
-                      {data.available_strategies.map((strategy) => (
-                        <option key={strategy.id} value={strategy.id}>
-                          {strategy.name} ({strategy.market})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="sim-field">
-                    <span>Virtual starting capital (₹)</span>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1000"
-                      value={cash}
-                      onChange={(event) => setCash(event.target.value)}
-                      disabled={busy}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="btn btn--sm btn--primary"
-                    onClick={handleStart}
-                    disabled={busy || !selectedStrategyId}
-                  >
-                    {busy ? <Loader2 size={14} className="spinner" /> : <Play size={14} />}
-                    Start Simulation
-                  </button>
-                </div>
-              ) : (
-                <Note tone="info" title="No approved strategies available">
-                  <span>
-                    Approve a strategy first, then return here to start a virtual simulation.{' '}
-                    <Link to="/strategies">Open Strategies</Link> or{' '}
-                    <Link to="/studio/builder">build one in Studio</Link>.
-                  </span>
-                </Note>
-              )}
-            </div>
-          )}
-
-          {actionError && (
-            <Note tone="danger" title="Simulation action failed">
-              <span>{actionError}</span>
-            </Note>
-          )}
-
-          <p className="sim-disclaimer">
-            <ShieldAlert size={14} />
-            All figures come from the existing paper-trading records. Sharpe is annualised from
-            stored equity snapshots and is shown only when enough snapshots exist. This is a
-            simulated account — no broker is connected and no real order can be placed.
-          </p>
-        </>
-      )}
     </section>
   )
 }
@@ -1520,8 +1087,8 @@ export default function DashboardPage() {
         <div className="page-head__text">
           <h1 className="page-title">Dashboard</h1>
           <p className="page-lede">
-            Indian market intelligence terminal — indices, real candles, sector breadth, a
-            virtual trading simulation and an AI briefing grounded in the available facts.
+            Indian market intelligence terminal — indices, real candles, sector breadth,
+            AI-powered briefings and the latest market news.
           </p>
         </div>
       </div>
@@ -1541,8 +1108,6 @@ export default function DashboardPage() {
           quote={selectedQuote}
           marketStatus={marketStatus}
         />
-
-        <AlgorithmicTradingSimulation marketStatus={marketStatus} />
 
         <MarketPulse />
 
