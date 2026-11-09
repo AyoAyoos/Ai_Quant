@@ -1084,16 +1084,6 @@ export default function DashboardPage() {
 
   return (
     <div className="page dashboard-page dashboard-page--centered">
-      <div className="page-head">
-        <div className="page-head__text">
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-lede">
-            Indian market intelligence terminal — indices, real candles, sector breadth,
-            AI-powered briefings and the latest market news.
-          </p>
-        </div>
-      </div>
-
       <div className="dashboard-container">
         <MarketOverview
           data={overview}
