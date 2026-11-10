@@ -100,8 +100,15 @@ class TestConversations:
         assert data["project_id"] == project_id
 
     def test_list_conversations(self):
-        client.post("/conversations", json={"title": "Chat 1"})
-        client.post("/conversations", json={"title": "Chat 2"})
+        # Create conversations with actual messages (genuine conversations)
+        conv1 = client.post("/conversations", json={"title": "Chat 1"})
+        conv1_id = conv1.json()["id"]
+        client.post("/chat", json={"conversation_id": conv1_id, "content": "Hello"})
+
+        conv2 = client.post("/conversations", json={"title": "Chat 2"})
+        conv2_id = conv2.json()["id"]
+        client.post("/chat", json={"conversation_id": conv2_id, "content": "Hello again"})
+
         resp = client.get("/conversations")
         assert resp.status_code == 200
         conversations = resp.json()
@@ -112,8 +119,13 @@ class TestConversations:
         proj_resp = client.post("/conversations/projects", json={"name": "Filter Test"})
         project_id = proj_resp.json()["id"]
 
-        client.post("/conversations", json={"title": "In Project", "project_id": project_id})
-        client.post("/conversations", json={"title": "Unassigned"})
+        conv1 = client.post("/conversations", json={"title": "In Project", "project_id": project_id})
+        conv1_id = conv1.json()["id"]
+        client.post("/chat", json={"conversation_id": conv1_id, "content": "Hello"})
+
+        conv2 = client.post("/conversations", json={"title": "Unassigned"})
+        conv2_id = conv2.json()["id"]
+        client.post("/chat", json={"conversation_id": conv2_id, "content": "Hi"})
 
         resp = client.get(f"/conversations?project_id={project_id}")
         assert resp.status_code == 200
@@ -121,7 +133,10 @@ class TestConversations:
         assert all(c["project_id"] == project_id for c in conversations)
 
     def test_list_conversations_unassigned(self):
-        client.post("/conversations", json={"title": "Unassigned Chat"})
+        conv = client.post("/conversations", json={"title": "Unassigned Chat"})
+        conv_id = conv.json()["id"]
+        client.post("/chat", json={"conversation_id": conv_id, "content": "Hello"})
+
         resp = client.get("/conversations?project_id=unassigned")
         assert resp.status_code == 200
         conversations = resp.json()
