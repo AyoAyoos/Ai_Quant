@@ -152,6 +152,14 @@
   color: #403d88;
 }
 
+.conversation-title-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
 .conversation-title {
   flex: 1;
   min-width: 0;
@@ -165,6 +173,15 @@
 
 .conversation-item--active .conversation-title {
   font-weight: 600;
+}
+
+.conversation-timestamp {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .conversation-message-count {

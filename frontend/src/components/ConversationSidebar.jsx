@@ -8,12 +8,46 @@ import {
   Edit2,
   Loader2,
 } from 'lucide-react'
-import { fetchConversations, createConversation, updateConversation, deleteConversation, archiveConversation, restoreConversation } from '../lib/api.js'
+import { fetchConversations, createConversation, updateConversation, deleteConversation, archiveConversation, restoreConversation, fetchConversation } from '../lib/api.js'
 import { showToast } from '../lib/toast.js'
 
 const ICON_SIZE = 16
 
-function ConversationItem({ conversation, isActive, onSelect, onRename, onArchive, onDelete, onRestore, editingConversationId, editName, setEditName }) {
+// Placeholder titles that should be replaced with generated titles
+const PLACEHOLDER_TITLES = new Set([
+  'New conversation',
+  'New Conversation',
+  'New chat',
+  'New Chat',
+])
+
+function generateTitleFromFirstMessage(messages) {
+  const firstUserMessage = messages?.find(m => m.role === 'user')
+  if (!firstUserMessage?.content) return null
+  // Take first 50 characters of the first user message
+  const content = firstUserMessage.content.trim()
+  return content.length > 50 ? content.slice(0, 50) + '…' : content
+}
+
+function formatRelativeTime(dateString) {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return ''
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function ConversationItem({ conversation, isActive, onSelect, onRename, onArchive, onDelete, onRestore, editingConversationId, editName, setEditName, displayTitle, relativeTime }) {
   const isEditing = editingConversationId === conversation.id
   const isArchived = conversation.status === 'archived'
 
@@ -47,7 +81,10 @@ function ConversationItem({ conversation, isActive, onSelect, onRename, onArchiv
         title={conversation.title}
       >
         <MessageSquare className="conversation-icon" size={ICON_SIZE} />
-        <span className="conversation-title">{conversation.title}</span>
+        <div className="conversation-title-container">
+          <span className="conversation-title">{displayTitle}</span>
+          {relativeTime && <span className="conversation-timestamp">{relativeTime}</span>}
+        </div>
         {conversation.message_count > 0 && (
           <span className="conversation-message-count">{conversation.message_count}</span>
         )}
@@ -105,6 +142,7 @@ export default function ConversationSidebar({
   const [editingConversationId, setEditingConversationId] = useState(null)
   const [editConversationName, setEditConversationName] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [enrichedConversations, setEnrichedConversations] = useState({})
 
   // Load conversations
   const loadData = useCallback(async () => {
@@ -122,6 +160,57 @@ export default function ConversationSidebar({
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // Enrich conversations with generated titles and timestamps
+  useEffect(() => {
+    if (conversations.length === 0) {
+      setEnrichedConversations({})
+      return
+    }
+
+    let cancelled = false
+
+    const enrichConversations = async () => {
+      const enriched = {}
+      
+      for (const conv of conversations) {
+        if (cancelled) break
+        
+        let displayTitle = conv.title
+        let relativeTime = conv.updated_at ? formatRelativeTime(conv.updated_at) : ''
+        
+        // Check if title is a placeholder that should be replaced
+        const isPlaceholder = PLACEHOLDER_TITLES.has(conv.title) || 
+                              conv.title === 'New conversation' ||
+                              conv.title.trim() === ''
+        
+        if (isPlaceholder && conv.message_count > 0) {
+          try {
+            // Fetch full conversation to get first user message
+            const fullConv = await fetchConversation(conv.id)
+            const generatedTitle = generateTitleFromFirstMessage(fullConv.messages)
+            if (generatedTitle) {
+              displayTitle = generatedTitle
+            }
+          } catch (err) {
+            // Silently fail, keep original title
+            console.debug('Failed to enrich conversation title:', err)
+          }
+        }
+        
+        if (!cancelled) {
+          enriched[conv.id] = { displayTitle, relativeTime }
+        }
+      }
+      
+      if (!cancelled) {
+        setEnrichedConversations(enriched)
+      }
+    }
+
+    enrichConversations()
+    return () => { cancelled = true }
+  }, [conversations])
 
   // Handle new conversation
   const handleNewConversation = useCallback(async () => {
@@ -186,21 +275,24 @@ export default function ConversationSidebar({
     }
   }, [loadData])
 
-  // Filter conversations by search query
-  const filterConversations = useCallback((convs) => {
-    if (!searchQuery.trim()) return convs
-    const query = searchQuery.toLowerCase()
-    return convs.filter(c => c.title.toLowerCase().includes(query))
-  }, [searchQuery])
+  // Filter and sort: only active conversations, sorted by updated_at descending
+  const filteredAndSortedConversations = useMemo(() => {
+    let filtered = [...conversations]
+      .filter(c => c.status !== 'archived') // Only show active conversations
+      .filter(c => !(PLACEHOLDER_TITLES.has(c.title) && c.message_count === 0)) // Filter empty placeholder conversations
 
-  // Sort conversations by updated_at descending (latest first)
-  const sortedConversations = useMemo(() => {
-    return [...filterConversations(conversations)].sort((a, b) => {
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(c => c.title.toLowerCase().includes(query))
+    }
+
+    return filtered.sort((a, b) => {
       const dateA = new Date(a.updated_at || a.created_at).getTime()
       const dateB = new Date(b.updated_at || b.created_at).getTime()
       return dateB - dateA
     })
-  }, [conversations, filterConversations])
+  }, [conversations, searchQuery])
 
   if (loading) {
     return (
@@ -247,32 +339,37 @@ export default function ConversationSidebar({
           <h3>Recent Conversations</h3>
         </div>
         <div className="conversation-list">
-          {sortedConversations.map(conv => (
-            <ConversationItem
-              key={conv.id}
-              conversation={conv}
-              isActive={activeConversationId === conv.id}
-              onSelect={onConversationSelect}
-              onRename={(id, name) => {
-                const currentConv = conversations.find(c => c.id === id)
-                if (currentConv && name.trim() !== currentConv.title) {
-                  // Confirming edit with a new name
-                  handleRenameConversation(id, name)
-                } else {
-                  // Starting edit mode or cancelling
-                  setEditingConversationId(id)
-                  setEditConversationName(name)
-                }
-              }}
-              onArchive={handleArchiveConversation}
-              onDelete={handleDeleteConversation}
-              onRestore={handleRestoreConversation}
-              editingConversationId={editingConversationId}
-              editName={editConversationName}
-              setEditName={setEditConversationName}
-            />
-          ))}
-          {sortedConversations.length === 0 && (
+          {filteredAndSortedConversations.map(conv => {
+            const enriched = enrichedConversations[conv.id] || {}
+            return (
+              <ConversationItem
+                key={conv.id}
+                conversation={conv}
+                isActive={activeConversationId === conv.id}
+                onSelect={onConversationSelect}
+                onRename={(id, name) => {
+                  const currentConv = conversations.find(c => c.id === id)
+                  if (currentConv && name.trim() !== currentConv.title) {
+                    // Confirming edit with a new name
+                    handleRenameConversation(id, name)
+                  } else {
+                    // Starting edit mode or cancelling
+                    setEditingConversationId(id)
+                    setEditConversationName(name)
+                  }
+                }}
+                onArchive={handleArchiveConversation}
+                onDelete={handleDeleteConversation}
+                onRestore={handleRestoreConversation}
+                editingConversationId={editingConversationId}
+                editName={editConversationName}
+                setEditName={setEditConversationName}
+                displayTitle={enriched.displayTitle || conv.title}
+                relativeTime={enriched.relativeTime}
+              />
+            )
+          })}
+          {filteredAndSortedConversations.length === 0 && (
             <div className="conversations-empty">
               <p>No conversations yet. Click "New Chat" to start one.</p>
             </div>
