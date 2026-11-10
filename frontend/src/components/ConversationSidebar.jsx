@@ -21,6 +21,38 @@ const PLACEHOLDER_TITLES = new Set([
   'New Chat',
 ])
 
+// Test/demo/placeholder conversation titles that should be excluded from the user-facing list
+const TEST_CONVERSATION_TITLES = new Set([
+  'Test persistence',
+  'First message',
+  'Create a strategy',
+  'With Messages',
+  'Chat 1',
+  'Chat 2',
+  'In Project',
+  'Moving',
+  'To Restore',
+  'To Archive',
+  'To Delete',
+  'My Chat',
+  'Project Chat',
+  'Unassigned Chat',
+  'Original',
+  'Updated Name',
+  'New Title',
+  'Old Title',
+  'To Archive',
+  'To Restore',
+  'To Delete',
+  'NIFTY 50 Strategies',
+  'My Trading Strategies',
+  'Test Project',
+  'Filter Test',
+  'Project 1',
+  'Project 2',
+  'New Project',
+])
+
 function generateTitleFromFirstMessage(messages) {
   const firstUserMessage = messages?.find(m => m.role === 'user')
   if (!firstUserMessage?.content) return null
@@ -275,6 +307,7 @@ export default function ConversationSidebar({
     let filtered = [...conversations]
       .filter(c => c.status !== 'archived') // Only show active conversations
       .filter(c => c.message_count > 0) // Only show conversations with at least one message
+      .filter(c => !TEST_CONVERSATION_TITLES.has(c.title)) // Exclude test/demo/placeholder conversations
 
     // Apply search filter
     if (searchQuery.trim()) {
