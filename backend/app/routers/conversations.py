@@ -180,6 +180,7 @@ def create_conversation(
 def list_conversations(
     project_id: str | None = None,
     status: str | None = None,
+    include_empty: bool = False,
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(verify_user),
 ):
@@ -188,6 +189,7 @@ def list_conversations(
     Optional filters:
     - project_id: filter by project (use 'unassigned' for conversations without a project)
     - status: filter by status (active, archived)
+    - include_empty: if true, include conversations with 0 messages (default: false)
     """
     current = get_or_create_user(db, user)
     query = db.query(Conversation).filter(Conversation.user_id == current.id)
@@ -204,6 +206,12 @@ def list_conversations(
             query = query.filter(Conversation.status == status_enum)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+    # By default, exclude conversations with 0 messages (empty conversations)
+    if not include_empty:
+        query = query.filter(
+            Conversation.messages.any()
+        )
 
     conversations = query.order_by(Conversation.updated_at.desc()).all()
     return [_conversation_to_out(db, c) for c in conversations]

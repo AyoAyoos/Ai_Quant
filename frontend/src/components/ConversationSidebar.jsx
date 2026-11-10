@@ -8,7 +8,7 @@ import {
   Edit2,
   Loader2,
 } from 'lucide-react'
-import { fetchConversations, createConversation, updateConversation, deleteConversation, archiveConversation, restoreConversation, fetchConversation } from '../lib/api.js'
+import { fetchConversations, updateConversation, deleteConversation, archiveConversation, restoreConversation, fetchConversation } from '../lib/api.js'
 import { showToast } from '../lib/toast.js'
 
 const ICON_SIZE = 16
@@ -212,18 +212,13 @@ export default function ConversationSidebar({
     return () => { cancelled = true }
   }, [conversations])
 
-  // Handle new conversation
-  const handleNewConversation = useCallback(async () => {
-    try {
-      const data = await createConversation({})
-      showToast('New conversation started')
-      await loadData()
-      onConversationSelect(data.id)
-      navigate(`/studio?conversation=${data.id}`)
-    } catch (err) {
-      showToast('Failed to create conversation: ' + err.message)
-    }
-  }, [loadData, onConversationSelect, navigate])
+  // Handle new conversation - just reset state, don't create a conversation yet
+  // Conversation will be created on first message via postChat
+  const handleNewConversation = useCallback(() => {
+    onConversationSelect(null)
+    navigate('/studio', { replace: true })
+    showToast('New chat started')
+  }, [onConversationSelect, navigate])
 
   // Handle conversation rename
   const handleRenameConversation = useCallback(async (conversationId, newName) => {
@@ -279,7 +274,7 @@ export default function ConversationSidebar({
   const filteredAndSortedConversations = useMemo(() => {
     let filtered = [...conversations]
       .filter(c => c.status !== 'archived') // Only show active conversations
-      .filter(c => !(PLACEHOLDER_TITLES.has(c.title) && c.message_count === 0)) // Filter empty placeholder conversations
+      .filter(c => c.message_count > 0) // Only show conversations with at least one message
 
     // Apply search filter
     if (searchQuery.trim()) {
