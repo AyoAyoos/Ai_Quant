@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Menu, X } from 'lucide-react'
 import { CHAT_TIMEOUT_MS, postChat } from '../lib/api.js'
 import { formatElapsed } from '../lib/format.js'
 import { useElapsedTimer } from '../lib/useElapsedTimer.js'
 import Markdown from '../components/Markdown.jsx'
 import Note from '../components/Note.jsx'
 import StrategyMiniCard from '../components/StrategyMiniCard.jsx'
+import { fetchConversation } from '../lib/api.js'
 
 function AssistantAvatar() {
   return (
@@ -57,7 +58,12 @@ function Bubble({ message }) {
   )
 }
 
-export default function ChatPage() {
+export default function ChatPage({
+  activeConversationId,
+  onNewChat,
+  isSidebarOpen = true,
+  onSidebarToggle,
+}) {
   const location = useLocation()
   const [thread, setThread] = useState({ conversationId: null, messages: [] })
   const [input, setInput] = useState('')
@@ -78,6 +84,7 @@ export default function ChatPage() {
   const voiceBaseRef = useRef('')
   const toastTimerRef = useRef(null)
   const entryPromptConsumedRef = useRef(false)
+  const conversationLoadedRef = useRef(new Set())
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
@@ -95,6 +102,51 @@ export default function ChatPage() {
       inputRef.current?.focus()
     }
   }, [location.state])
+
+  // Load conversation when activeConversationId changes
+  useEffect(() => {
+    if (activeConversationId && !conversationLoadedRef.current.has(activeConversationId)) {
+      conversationLoadedRef.current.add(activeConversationId)
+      loadConversation(activeConversationId)
+    } else if (!activeConversationId) {
+      // New chat - clear thread
+      setThread({ conversationId: null, messages: [] })
+      setError(null)
+      setNotice(null)
+    }
+  }, [activeConversationId])
+
+  async function loadConversation(id) {
+    setLoading(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const data = await fetchConversation(id)
+      setThread({
+        conversationId: data.conversation.id,
+        messages: data.messages.map(m => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          createdAt: m.created_at,
+          strategy: m.strategy_id ? {
+            strategy_id: m.strategy_id,
+            strategy_name: m.strategy_name,
+            strategy_description: m.strategy_description,
+          } : null,
+        })),
+      })
+    } catch (err) {
+      if (err?.status === 404) {
+        setNotice('This conversation no longer exists. Start a new conversation to keep going.')
+      } else {
+        setError(err?.message ?? 'Failed to load conversation.')
+      }
+      setThread({ conversationId: null, messages: [] })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Stop any active dictation when leaving the page.
   useEffect(
@@ -243,11 +295,6 @@ export default function ChatPage() {
           name: data.strategy_name,
           description: data.strategy_description,
         })
-      }
-
-      // Update URL with conversation ID if it's a new conversation
-      if (!base.conversationId && data.conversation_id) {
-        // We track the conversation ID for the API but don't use URL for history
       }
 
       setThread({
@@ -419,6 +466,16 @@ export default function ChatPage() {
 
   return (
     <div className="chat-page">
+      {/* Mobile sidebar toggle button */}
+      <button
+        className="chat-page__mobile-toggle"
+        onClick={onSidebarToggle}
+        aria-label={isSidebarOpen ? 'Close conversation history' : 'Open conversation history'}
+        aria-expanded={isSidebarOpen}
+      >
+        {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+      </button>
+
       <div className="chat-page__main">
         <div className="chat-page__scroll">
           {isEmpty ? (
@@ -475,7 +532,7 @@ export default function ChatPage() {
               <Note tone="warning" title="Conversation expired">
                 <span>{notice}</span>
                 <span>
-                  <button type="button" className="btn btn--sm" onClick={() => setThread({ conversationId: null, messages: [] })}>
+                  <button type="button" className="btn btn--sm" onClick={() => onNewChat()}>
                     Start a new conversation
                   </button>
                 </span>

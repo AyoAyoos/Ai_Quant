@@ -6,7 +6,6 @@ import AnalyticsPage from './pages/AnalyticsPage.jsx'
 import ApprovalPage from './pages/ApprovalPage.jsx'
 import BacktestPage from './pages/BacktestPage.jsx'
 import BacktestsHubPage from './pages/BacktestsHubPage.jsx'
-import ChatPage from './pages/ChatPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import DeploymentPage from './pages/DeploymentPage.jsx'
 import DocsPage from './pages/DocsPage.jsx'
@@ -18,6 +17,7 @@ import StrategiesPage from './pages/StrategiesPage.jsx'
 import StrategyOverviewPage from './pages/StrategyOverviewPage.jsx'
 import LandingPage from './pages/LandingPage.jsx'
 import StrategyBuilderPage from './pages/StrategyBuilderPage.jsx'
+import StudioLayout from './components/StudioLayout.jsx'
 
 /**
  * Route map — ENTRY FLOW ONLY.
@@ -48,7 +48,7 @@ export default function App() {
         {/* Public shell branch: login, studio + strategies need no guard. */}
         <Route element={<AppShell />} path="/">
           <Route path="login" element={<LoginPage />} />
-          <Route path="studio" element={<ChatPage />} />
+          <Route path="studio" element={<StudioLayout />} />
           <Route path="strategies" element={<StrategiesPage />} />
         </Route>
         {/* Guarded shell branch: dashboard + remaining app pages need login. */}
@@ -62,7 +62,7 @@ export default function App() {
         >
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="studio/builder" element={<StrategyBuilderPage />} />
-          <Route path="chat" element={<ChatPage />} />
+          <Route path="chat" element={<StudioLayout />} />
           <Route path="strategies/:id" element={<StrategyOverviewPage />} />
           <Route path="strategies/:id/backtest" element={<BacktestPage />} />
           <Route path="strategies/:id/approval" element={<ApprovalPage />} />

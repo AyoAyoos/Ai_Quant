@@ -1117,6 +1117,197 @@
   padding: var(--sp-3) 0 var(--sp-4);
 }
 
+/* =======================================================================
+   Studio Layout — Three-column layout: App sidebar | Conversation sidebar | Chat
+   ======================================================================= */
+
+.studio-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  position: relative;
+}
+
+.studio-layout__sidebar {
+  width: 270px;
+  flex: none;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  z-index: 10;
+}
+
+.studio-layout__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-lowest);
+}
+
+/* Mobile sidebar toggle button */
+.studio-layout__mobile-toggle {
+  display: none;
+  position: fixed;
+  bottom: var(--sp-5);
+  left: var(--sp-5);
+  z-index: 50;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: var(--shadow-2);
+  display: grid;
+  place-items: center;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.studio-layout__mobile-toggle:hover {
+  background: var(--surface-accent);
+  color: var(--primary);
+}
+
+/* Mobile sidebar overlay */
+.studio-layout__overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 22, 54, 0.5);
+  z-index: 15;
+}
+
+/* Mobile responsive */
+@media (max-width: 1024px) {
+  .studio-layout__sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    transform: translateX(-100%);
+    transition: transform var(--dur) var(--ease);
+    box-shadow: 12px 0 40px rgba(30, 22, 54, 0.3);
+    width: 300px;
+    max-width: 85vw;
+  }
+
+  .studio-layout[data-sidebar-open="true"] .studio-layout__sidebar {
+    transform: translateX(0);
+  }
+
+  .studio-layout__mobile-toggle {
+    display: grid;
+  }
+
+  .studio-layout[data-sidebar-open="true"] .studio-layout__overlay {
+    display: block;
+  }
+
+  .studio-layout__main {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .studio-layout__sidebar {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .studio-layout__mobile-toggle {
+    bottom: var(--sp-4);
+    left: var(--sp-4);
+  }
+}
+
+/* Chat page within Studio Layout */
+.studio-layout .chat-page {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  flex-direction: column;
+  background: transparent;
+}
+
+.studio-layout .chat-page__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-lowest);
+}
+
+.studio-layout .chat-page__scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: var(--sp-5) 0;
+}
+
+.studio-layout .chat-page__mobile-toggle {
+  display: none;
+  position: fixed;
+  bottom: var(--sp-5);
+  left: var(--sp-5);
+  z-index: 50;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: var(--shadow-2);
+  display: grid;
+  place-items: center;
+}
+
+@media (max-width: 1024px) {
+  .studio-layout .chat-page__mobile-toggle {
+    display: grid;
+  }
+}
+
+/* Ensure the chat empty state works in the studio layout */
+.studio-layout .chat-empty {
+  min-height: auto;
+}
+
+.studio-layout .chat-empty__main {
+  padding: var(--sp-6) 0 var(--sp-8);
+}
+
+.studio-layout .chat-empty__builder {
+  border-top: 1px solid var(--border);
+}
+
+/* Composer within studio layout */
+.studio-layout .composer {
+  padding: var(--sp-3) 0 var(--sp-4);
+}
+
+.studio-layout .composer__inner {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.composer {
+  flex: none;
+  border-top: 0;
+  background: transparent;
+  padding: var(--sp-3) 0 var(--sp-4);
+}
+
 .composer__inner {
   width: 100%;
   max-width: 800px;
