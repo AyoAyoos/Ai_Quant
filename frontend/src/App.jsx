@@ -15,6 +15,7 @@ import PaperTradingHubPage from './pages/PaperTradingHubPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import StrategiesPage from './pages/StrategiesPage.jsx'
 import StrategyOverviewPage from './pages/StrategyOverviewPage.jsx'
+import NewsHubPage from './pages/NewsHubPage.jsx'
 import LandingPage from './pages/LandingPage.jsx'
 import StrategyBuilderPage from './pages/StrategyBuilderPage.jsx'
 import StudioLayout from './components/StudioLayout.jsx'
@@ -61,6 +62,7 @@ export default function App() {
           path="/"
         >
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="news" element={<NewsHubPage />} />
           <Route path="studio/builder" element={<StrategyBuilderPage />} />
           <Route path="chat" element={<StudioLayout />} />
           <Route path="strategies/:id" element={<StrategyOverviewPage />} />

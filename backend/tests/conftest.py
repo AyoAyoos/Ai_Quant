@@ -1,7 +1,13 @@
+import os
+
 import pytest
 from sqlalchemy import text
 
-from app.database import Base, engine
+# Disable background news ingestion for the suite: tests call the refresh
+# endpoint explicitly, and a timed worker would hit live feeds mid-run.
+os.environ.setdefault("NEWS_AUTO_REFRESH", "false")
+
+from app.database import Base, engine  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -71,6 +77,7 @@ def _delete_rows_added_by_the_test(existing: dict[str, set[tuple]]) -> None:
 
         # Define deletion order that respects FKs despite SQLAlchemy cycle warnings
         order = [
+            "news_articles",
             "paper_orders",
             "paper_positions",
             "paper_trades",

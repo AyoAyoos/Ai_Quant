@@ -51,6 +51,7 @@ history, passed through a quality gate, and then advanced bar-by-bar in a
 | Quality gate: `draft → backtested → approved → paper_trading` | `/strategies/{id}/approval` |
 | Simulated paper-trading account (cash, positions, orders, trades, equity) | `/paper-trading`, `/strategies/{id}/deployment` |
 | Market terminal: index quotes, charts, indicators, pulse, breadth, news, AI briefing | `/dashboard` |
+| Market News Hub: multi-source aggregation, filters/search, sentiment, trending tickers, stock-linked news | `/news` |
 | Conversation and project history | `/studio` sidebar, `/conversations/*` |
 | Analytics over cached backtest runs (recalculates nothing) | `/analytics` |
 | Public marketing landing page with a simulated live chart | `/` |
@@ -65,24 +66,25 @@ builder rejects other markets because no other dataset is wired up.
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │  React 19 SPA (Vite 8, react-router 7)                               │
-│  Landing · Login · Studio · Builder · Dashboard · Strategies          │
+│  Landing · Login · Studio · Builder · Dashboard · News · Strategies      │
 │  Backtest · Approval · Deployment · Paper Trading · Analytics · Docs  │
 └───────────────┬──────────────────────────────────────────────────────┘
                 │  fetch JSON (dev: Vite proxy /api → :8000)
 ┌───────────────▼──────────────────────────────────────────────────────┐
-│  FastAPI backend (6 routers, 51 routes)                              │
+│  FastAPI backend (7 routers, ~60 routes)                             │
 │                                                                      │
 │  chat ─── Groq LLM ──► strategy_extractor ──► strategies             │
 │  strategies ──► backtest_service ──► subprocess: strategy_runner      │
 │  strategies ──► deployment_gate ──► paper_engine ──► paper_bars       │
 │  dashboard ──► market_data_extended ──► yfinance                     │
 │  market (public) ──► yfinance 1-minute ^NSEI                         │
+│  news ───► news_service ──► taxonomy + feeds (RSS · Reddit · keys)   │
 │  conversations ──► projects / conversations / messages               │
 └───────────────┬───────────────────────────┬──────────────────────────┘
                 │                           │
       ┌─────────▼─────────┐       ┌─────────▼──────────────────────┐
       │ Postgres 16 / Neon│       │ backend/data/NIFTY50.csv cache │
-      │ 11 tables         │       │ (2y daily OHLCV from Yahoo)    │
+      │ 12 tables         │       │ (2y daily OHLCV from Yahoo)    │
       │ Alembic-managed   │       └────────────────────────────────┘
       └───────────────────┘
 ```
@@ -109,7 +111,7 @@ Ai_Quant/
 │   ├── .env.example
 │   ├── alembic/
 │   │   ├── env.py
-│   │   └── versions/             # 9 migrations, head 4f6a7b8c9d10
+│   │   └── versions/             # 10 migrations, head d5e6f7a8b9c0
 │   ├── data/
 │   │   └── NIFTY50.csv           # cached OHLCV (regenerated when stale)
 │   ├── app/
@@ -121,16 +123,19 @@ Ai_Quant/
 │   │   ├── middleware.py         # JSON error handler + CORS origin list
 │   │   ├── schemas.py            # all request/response models
 │   │   ├── models/
-│   │   │   └── db_models.py      # 11 SQLAlchemy models
+│   │   │   └── db_models.py      # 12 SQLAlchemy models
 │   │   ├── routers/
 │   │   │   ├── chat.py
 │   │   │   ├── conversations.py
 │   │   │   ├── dashboard.py      # ~1,300 lines of market intelligence
 │   │   │   ├── market.py         # public live/history endpoints
+│   │   │   ├── news.py           # Market News Hub feed / refresh / sources
 │   │   │   ├── paper.py          # paper-trading hub
 │   │   │   └── strategies.py     # builder, lifecycle, backtest, paper
 │   │   └── services/
 │   │       ├── llm_service.py
+│   │       ├── news_service.py   # ingestion, classification, queries
+│   │       ├── news_taxonomy.py  # source registry + credibility rules
 │   │       ├── strategy_extractor.py
 │   │       ├── strategy_builder.py
 │   │       ├── finalize_service.py
@@ -143,7 +148,7 @@ Ai_Quant/
 │   │       ├── market_data_extended.py
 │   │       ├── qcb_mapper.py
 │   │       └── qcb_evaluator.py
-│   └── tests/                    # 19 test modules, 337 checks
+│   └── tests/                    # 19 test modules, 363 checks
 └── frontend/
     ├── Dockerfile / nginx.conf / vercel.json
     ├── vite.config.js            # /api → http://localhost:8000 proxy
@@ -301,6 +306,17 @@ note the drift against the shipped `.env.example` in the last column.
 | `ALLOWED_ORIGINS` | `""` (dev origins) | Comma-separated CORS allow-list | not listed |
 | `QCB_PATH` | `D:\QuantCode-Bench` (Win) / `/mnt/d/QuantCode-Bench` | QuantCode-Bench root | not listed |
 | `AI_QUANT_BACKEND` | this repo's backend dir | QCB `PYTHONPATH` entry | not listed |
+| `MARKETAUX_API_KEY` | `""` (disabled) | Optional Marketaux news API key | commented out |
+| `FINNHUB_API_KEY` | `""` (disabled) | Optional Finnhub news API key | commented out |
+| `ALPHA_VANTAGE_API_KEY` | `""` (disabled) | Optional Alpha Vantage news API key | commented out |
+| `NEWS_REFRESH_MINUTES` | `30` | Background refresh cadence | matches |
+| `NEWS_RETENTION_DAYS` | `7` | How long articles are kept | matches |
+| `NEWS_MAX_ARTICLES` | `3000` | Cap on stored articles | matches |
+| `NEWS_ENABLE_REDDIT` | `true` | Enable Reddit sentiment feeds | matches |
+| `NEWS_ENABLE_GOOGLE_NEWS` | `true` | Enable Google News RSS index | matches |
+| `NEWS_AUTO_REFRESH` | `true` | Run background ingestion task | matches |
+| `NEWS_USER_AGENT` | descriptive UA | HTTP User-Agent for feeds | not listed |
+| `REDDIT_USER_AGENT` | descriptive UA | Reddit API User-Agent | not listed |
 
 **Known drift:** `DEFAULT_MARKET`, `APPROVAL_MIN_TRADES` and
 `APPROVAL_MAX_DRAWDOWN_PCT` are currently **not read** anywhere.
@@ -447,6 +463,25 @@ local simulator when they fail.
 
 No dashboard endpoint invents a price: when Yahoo has no usable row the caller
 gets an explicit `unavailable`/empty result.
+
+### Market News Hub — `app/routers/news.py`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/news/` | List stored articles. Filters: `region`, `category`, `source_type`, `content_type`, `sentiment`, `ticker`, `q`, `min_credibility`, `hours`, `sort`, `limit`, `offset`. Read-only; never triggers ingestion. Trailing slash required |
+| GET | `/news/overview` | Hub header: counts (total, high impact, official, community), top stories, sentiment, freshness |
+| GET | `/news/trending` | Most-mentioned tickers with mention momentum vs prior window |
+| GET | `/news/sentiment` | Aggregate sentiment, split for official vs community sources |
+| GET | `/news/sources` | Source registry, credibility scale and the credentials still needed |
+| GET | `/news/sources/{key}` | One source's registry entry |
+| POST | `/news/refresh` | Run one ingestion pass over enabled providers (`force`, optional `providers` list) |
+
+**Data rules:** only headlines, short source snippets and links are stored —
+never full article text or publisher images. `is_verified` is true only for
+official/primary sources; publisher and newswire articles are reported, not
+independently verified. Community (Reddit) posts are sentiment signals, never
+verified news. Sentiment is a deterministic lexicon unless a keyed provider
+supplies its own score; the method is stored on every article.
 
 ---
 
@@ -660,6 +695,59 @@ shapes rather than invented numbers. The AI briefing merges LLM narrative with
 rule-derived facts and caches each mode for 120 seconds; without an LLM key it
 returns a clearly labelled rule-based briefing.
 
+## Market News Hub
+
+The News Hub (`/news`) aggregates market news from Indian, US, China, Europe
+and Japan sources plus Reddit community sentiment, with a credibility-aware
+classification layer.
+
+**Source groups**
+- Indian publishers: Moneycontrol, Economic Times, Mint, CNBC-TV18, Business
+  Standard, Financial Express, BusinessLine, NDTV Profit, ET Now, Zee Business,
+  BQ Prime, Business Today, Zerodha Pulse
+- Official Indian sources: NSE, BSE, SEBI, RBI, Ministry of Finance, PIB,
+  NITI Aayog, AMFI, Union Budget (credibility 5 / verified)
+- US / Wall Street: Reuters, Bloomberg, AP, CNBC, WSJ, MarketWatch, Barron's,
+  FT (newswire credibility 4; publisher credibility 3)
+- US official: Federal Reserve, SEC, Nasdaq, NYSE, Treasury, BLS, BEA
+- China: Xinhua, China Daily, PBOC, SSE, SZSE
+- Europe: ECB, Euronext, Deutsche Börse, Bank of England, European Commission,
+  LSE
+- Japan / APAC: Nikkei, Nikkei Asia, JPX, MAS, ASX, HKEX
+- Other intelligence: CoinDesk, Cointelegraph, Decrypt, Investing.com, Yahoo
+  Finance, Seeking Alpha, TradingView, Kobeissi Letter, Glassnode, Kitco,
+  OilPrice
+- Community: Reddit (IndianStockMarket, IndiaInvestments, IndianStreetBets,
+  NSEbets, WallStreetBets, stocks, investing, SecurityAnalysis, options,
+  StockMarket, Forex, CryptoCurrency)
+
+**Ingestion** (keyless by default)
+- Google News RSS `site:` queries over publisher and official domains
+- Direct official RSS/Atom feeds (RBI, PIB, Federal Reserve, SEC, BLS, ECB)
+- Reddit public JSON (sentiment only)
+- Optional free API keys: Marketaux, Finnhub, Alpha Vantage — report what's
+  still needed via `GET /news/sources`
+
+**Credibility scale** (assigned by the local taxonomy, never by a provider)
+- 5 Official / primary — verified fact
+- 4 Newswire — reported, not independently verified
+- 3 Established publisher — reported, not independently verified
+- 2 Aggregator / secondary
+- 1 Community / unverified — speculation only
+
+**What is stored:** headline, short source snippet, source URL, timestamp and
+classification metadata. Full article text and publisher images are never
+copied. AI summaries are never shown; every snippet is the source's own text.
+
+**API:** `GET /news/` (filtered list), `GET /news/overview`, `GET /news/trending`,
+`GET /news/sentiment`, `GET /news/sources`, `POST /news/refresh`. See the
+[API reference](#market-news-hub---approutersnews-py) for the full contract.
+
+Credentials needed for optional providers are listed by `GET /news/sources` and
+documented in [Configuration](#configuration) under `MARKETAUX_API_KEY`,
+`FINNHUB_API_KEY` and `ALPHA_VANTAGE_API_KEY`. Check each provider's
+redistribution terms before commercial display.
+
 ---
 
 ## Sandbox and security model
@@ -717,7 +805,7 @@ absent, remove or fix the mount before using compose.
 Postgres 16 (or Neon). Alembic owns the schema; the app never calls
 `create_all` in production (only the test harness does).
 
-**11 tables**
+**12 tables**
 
 | Table | Purpose |
 |---|---|
@@ -732,17 +820,15 @@ Postgres 16 (or Neon). Alembic owns the schema; the app never calls
 | `paper_orders` | Every simulated order (filled/rejected) |
 | `paper_trades` | Closed round-trips with net PnL |
 | `paper_equity_snapshots` | Equity history for charts |
+| `news_articles` | Market News Hub feed: headline, snippet, link, credibility |
 
-**Migrations:** 9 revisions, single head `4f6a7b8c9d10`. The chain includes the
-initial schema, project/conversation support, strategy spec, paper deployments,
-the execution ledger, equity snapshots, `approved_backtest_id`,
-`updated_at` on conversations, and a cleanup of the retired "phantom" paper
-schema.
+**Migrations:** 10 revisions, single head `d5e6f7a8b9c0`. The latest revision
+adds the `news_articles` table on top of the previous 9.
 
 ```powershell
 cd backend
 alembic upgrade head          # apply
-alembic current               # expected head: 4f6a7b8c9d10
+alembic current               # expected head: d5e6f7a8b9c0
 alembic downgrade -1          # one step back
 ```
 
@@ -773,6 +859,7 @@ connection string must include `sslmode=require` if your project requires TLS.
 | `/analytics` | Analytics over stored runs | guarded |
 | `/paper-trading` | Paper-trading hub | guarded |
 | `/dashboard` | Market terminal | guarded |
+| `/news` | Market News Hub: multi-source feed, filters, sentiment, trending tickers | guarded |
 | `/settings` | Local preferences and system info | guarded |
 | `/docs` | In-app documentation | guarded |
 | `*` | Not found | guarded |

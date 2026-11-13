@@ -497,3 +497,77 @@ export function fetchPaperPortfolio({ signal } = {}) {
 export function fetchRecentActivity({ limit = 20, signal } = {}) {
   return request(`/dashboard/activity/recent?limit=${limit}`, { signal })
 }
+
+// ============================================================
+// Market News Hub — /news
+// ============================================================
+
+function newsQuery(params = {}) {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return
+    search.set(key, String(value))
+  })
+  const text = search.toString()
+  return text ? `?${text}` : ''
+}
+
+/** GET /news/ — stored articles with filters. Never triggers ingestion. */
+export function fetchNews(
+  {
+    region,
+    category,
+    sourceType,
+    sentiment,
+    ticker,
+    q,
+    minCredibility,
+    hours = 168,
+    sort = 'recent',
+    limit = 40,
+    offset = 0,
+    signal,
+  } = {},
+) {
+  const params = newsQuery({
+    region,
+    category,
+    source_type: sourceType,
+    sentiment,
+    ticker,
+    q,
+    min_credibility: minCredibility,
+    hours,
+    sort,
+    limit,
+    offset,
+  })
+  return request(`/news/${params}`, { signal })
+}
+
+/** GET /news/overview — counts, top stories and sentiment for the header. */
+export function fetchNewsOverview({ hours = 48, signal } = {}) {
+  return request(`/news/overview${newsQuery({ hours })}`, { signal })
+}
+
+/** GET /news/trending — most-mentioned tickers with a trend direction. */
+export function fetchNewsTrending({ hours = 24, limit = 10, signal } = {}) {
+  return request(`/news/trending${newsQuery({ hours, limit })}`, { signal })
+}
+
+/** GET /news/sentiment — aggregate sentiment, split for official vs community. */
+export function fetchNewsSentiment({ hours = 48, signal } = {}) {
+  return request(`/news/sentiment${newsQuery({ hours })}`, { signal })
+}
+
+/** GET /news/sources — registry, credibility scale and missing credentials. */
+export function fetchNewsSources({ signal } = {}) {
+  return request('/news/sources', { signal })
+}
+
+/** POST /news/refresh — run one ingestion pass. */
+export function refreshNews({ force = true, providers, signal } = {}) {
+  const params = newsQuery({ force, providers })
+  return request(`/news/refresh${params}`, { method: 'POST', signal })
+}
+
