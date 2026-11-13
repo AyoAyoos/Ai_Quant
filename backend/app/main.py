@@ -6,8 +6,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.middleware import CORS_ALLOW_ORIGINS, JsonErrorMiddleware
+from app.config import settings
 from app.routers import chat
 from app.routers import market
+from app.routers import news
 from app.routers import paper
 from app.routers import strategies
 from app.routers import conversations
@@ -46,7 +48,26 @@ def _run_migrations_sync() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await asyncio.to_thread(_run_migrations_sync)
-    yield
+
+    # Optional keyless news ingestion. The task sleeps before its first pass so
+    # startup never blocks on upstream feeds, and it is cancelled cleanly on
+    # shutdown. Tests disable it via NEWS_AUTO_REFRESH=false.
+    news_task = None
+    if settings.news_auto_refresh:
+        from app.services.news_service import auto_refresh_loop
+
+        news_task = asyncio.create_task(auto_refresh_loop())
+    try:
+        yield
+    finally:
+        if news_task is not None:
+            news_task.cancel()
+            try:
+                await news_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:  # pragma: no cover - defensive shutdown logging
+                logger.exception("News auto-refresh task stopped with an error")
 
 
 app = FastAPI(
@@ -77,6 +98,7 @@ app.include_router(paper.router)
 app.include_router(strategies.router)
 app.include_router(conversations.router)
 app.include_router(dashboard.router)
+app.include_router(news.router)
 
 
 @app.get("/health")

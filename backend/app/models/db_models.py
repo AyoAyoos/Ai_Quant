@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Column, String, Text, DateTime, ForeignKey, Float, Integer, JSON, Enum, UniqueConstraint
+    Boolean, Column, String, Text, DateTime, ForeignKey, Float, Integer, JSON, Enum,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -281,3 +282,43 @@ class PaperEquitySnapshot(Base):
     __table_args__ = (
         UniqueConstraint('deployment_id', 'bar_date', name='uq_paper_equity_snapshot_deployment_bar'),
     )
+
+
+class NewsArticle(Base):
+    """One aggregated market-news item.
+
+    Only the headline, a short source snippet and the link are stored — never
+    the full article text and never a publisher image.  ``credibility_level``
+    and ``is_verified`` are assigned by the local taxonomy, not by a provider,
+    so an aggregator can never label its own copy as an official document.
+    """
+
+    __tablename__ = "news_articles"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    external_id = Column(String(64), nullable=False, unique=True, index=True)
+    headline = Column(String(500), nullable=False)
+    summary = Column(Text, nullable=False, default="")
+    source_name = Column(String(160), nullable=False, default="")
+    source_domain = Column(String(160), nullable=False, default="")
+    source_key = Column(String(160), nullable=False, default="")
+    source_url = Column(Text, nullable=False)
+    published_at = Column(DateTime, nullable=False, index=True)
+    fetched_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    region = Column(String(20), nullable=False, default="global", index=True)
+    category = Column(String(30), nullable=False, default="markets", index=True)
+    tickers = Column(JSON, nullable=False, default=list)
+    # Pipe-delimited mirror of ``tickers`` so Postgres can filter with LIKE
+    # without depending on a JSON operator or a GIN index.
+    tickers_text = Column(String(240), nullable=False, default="")
+    sentiment = Column(String(10), nullable=False, default="neutral", index=True)
+    sentiment_score = Column(Float, nullable=False, default=0.0)
+    sentiment_method = Column(String(20), nullable=False, default="lexicon")
+    source_type = Column(String(20), nullable=False, default="aggregator", index=True)
+    content_type = Column(String(20), nullable=False, default="report")
+    credibility_level = Column(Integer, nullable=False, default=2, index=True)
+    impact_level = Column(String(10), nullable=False, default="low", index=True)
+    is_verified = Column(Boolean, nullable=False, default=False)
+    provider = Column(String(30), nullable=False, default="unknown")
+    raw_metadata = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)

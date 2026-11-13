@@ -494,3 +494,165 @@ class StrategyGenerateResponse(BaseModel):
     status: str
     generated_code: str
     strategy_specification: StrategySpecOut
+
+
+# ============================================================
+# Market News Hub Schemas
+# ============================================================
+
+
+class NewsArticleOut(BaseModel):
+    """One classified news item.
+
+    ``summary`` is a short snippet written by the source, never an AI
+    paraphrase, and ``is_verified`` is true only for official/primary sources.
+    """
+
+    id: str
+    headline: str
+    summary: str = ""
+    summary_kind: str = "none"
+    source_name: str
+    source_domain: str = ""
+    source_url: str
+    published_at: int | None = None
+    fetched_at: int | None = None
+    age_minutes: int | None = None
+    region: str
+    region_label: str
+    category: str
+    category_label: str
+    tickers: list[str] = []
+    sentiment: str
+    sentiment_score: float
+    sentiment_method: str
+    source_type: str
+    source_type_label: str
+    content_type: str
+    content_type_label: str
+    credibility_level: int
+    credibility_label: str
+    impact_level: str
+    is_verified: bool
+    provider: str = ""
+
+
+class NewsListOut(BaseModel):
+    articles: list[NewsArticleOut] = []
+    total: int = 0
+    limit: int = 40
+    offset: int = 0
+    window_hours: int = 168
+    refreshed_at: int | None = None
+    stale: bool = True
+    generated_at: int
+
+
+class NewsTrendingTickerOut(BaseModel):
+    ticker: str
+    mentions: int
+    previous_mentions: int
+    delta_pct: float | None = None
+    velocity: str
+    mention_share: float
+    sentiment: str
+    sentiment_score: float
+    bullish_pct: float
+    bearish_pct: float
+    neutral_pct: float
+    community_mentions: int
+    official_mentions: int
+    sources: list[str] = []
+    headlines: list[str] = []
+
+
+class NewsTrendingOut(BaseModel):
+    window_hours: int
+    tickers: list[NewsTrendingTickerOut] = []
+    generated_at: int
+
+
+class NewsSentimentBucketOut(BaseModel):
+    bullish_pct: float
+    bearish_pct: float
+    neutral_pct: float
+    average_score: float
+    sample_size: int
+    method: str
+
+
+class NewsSentimentRegionOut(NewsSentimentBucketOut):
+    region: str
+
+
+class NewsSentimentOut(BaseModel):
+    window_hours: int
+    overall: NewsSentimentBucketOut
+    by_region: list[NewsSentimentRegionOut] = []
+    by_source_type: dict[str, NewsSentimentBucketOut] = {}
+    community: NewsSentimentBucketOut
+    official: NewsSentimentBucketOut
+    generated_at: int
+
+
+class NewsGroupCountOut(BaseModel):
+    key: str
+    count: int
+
+
+class NewsOverviewOut(BaseModel):
+    """Counts, top stories and sentiment for the hub header."""
+
+    window_hours: int
+    total: int
+    high_impact: int
+    official: int
+    community: int
+    regions: list[NewsGroupCountOut] = []
+    categories: list[NewsGroupCountOut] = []
+    source_types: list[NewsGroupCountOut] = []
+    top_stories: list[NewsArticleOut] = []
+    sentiment: NewsSentimentOut
+    refreshed_at: int | None = None
+    stale: bool = True
+    generated_at: int
+
+
+class NewsCountOut(BaseModel):
+    total: int
+    high_impact: int
+    official: int
+    community: int
+
+
+class NewsGroupCountOut(BaseModel):
+    key: str
+    count: int
+
+
+class NewsRefreshProviderOut(BaseModel):
+    provider: str
+    fetched: int = 0
+    errors: int = 0
+    duration_ms: int = 0
+
+
+class NewsRefreshErrorOut(BaseModel):
+    provider: str
+    error: str
+
+
+class NewsRefreshOut(BaseModel):
+    """Result of POST /news/refresh."""
+
+    status: str
+    fetched: int = 0
+    normalized: int = 0
+    inserted: int = 0
+    duplicates: int = 0
+    invalid: int = 0
+    deleted: int = 0
+    providers: list[NewsRefreshProviderOut] = []
+    errors: list[NewsRefreshErrorOut] = []
+    refreshed_at: int | None = None
+    duration_ms: int = 0
