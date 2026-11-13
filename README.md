@@ -1,14 +1,21 @@
-# AI Conversational Quant Trading App
+# QuantNiti — Conversational NIFTY 50 Strategy Research
 
-Chat with an AI, get a NIFTY 50 trading strategy generated, backtested, reviewed
-through an approval gate, and recorded as a paper-trading deployment.
+QuantNiti is a full-stack research workbench for NIFTY 50 trading strategies. You
+describe an idea in chat (or fill in a structured spec), an LLM writes a
+Backtrader strategy, the strategy is sandboxed and backtested on real index
+history, passed through a quality gate, and then advanced bar-by-bar in a
+**simulated paper-trading account**.
 
-> ⚠️ **Educational prototype — paper trading only.** Nothing here places real
-> orders, and past backtest performance does not predict future results.
+> ⚠️ **Educational prototype — paper trading only.**
+> Nothing in this repository places a real order, connects to a broker, or moves
+> real money. Backtest and paper results are simulations and do not predict
+> future returns.
+
+---
 
 ## Contents
 
-- [Features](#features)
+- [What it does](#what-it-does)
 - [Architecture](#architecture)
 - [Project structure](#project-structure)
 - [Tech stack](#tech-stack)
@@ -18,595 +25,962 @@ through an approval gate, and recorded as a paper-trading deployment.
 - [API reference](#api-reference)
 - [Strategy lifecycle](#strategy-lifecycle)
 - [Chat and strategy extraction](#chat-and-strategy-extraction)
+- [Structured strategy builder](#structured-strategy-builder)
 - [Backtest pipeline](#backtest-pipeline)
+- [Paper-trading engine](#paper-trading-engine)
+- [Market intelligence (dashboard)](#market-intelligence-dashboard)
 - [Sandbox and security model](#sandbox-and-security-model)
+- [QuantCode-Bench integration](#quantcode-bench-integration)
 - [Database and migrations](#database-and-migrations)
 - [Frontend guide](#frontend-guide)
 - [Testing](#testing)
 - [CI](#ci)
-- [Docker deployment](#docker-deployment)
+- [Deployment](#deployment)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap and known gaps](#roadmap-and-known-gaps)
 
-## Features
+---
 
-- **Conversational strategy design** — describe a strategy in plain language; the
-  assistant asks clarifying questions until the idea is concrete, then produces a
-  Backtrader strategy class.
-- **Structured Strategy Builder (NEW)** — define strategies via a structured JSON
-  payload: market, trading style, timeframe, indicators with parameters, entry/exit
-  conditions, and risk management. Validated, sent to the LLM, and persisted as a
-  draft strategy ready for backtesting.
-- **Structured extraction** — a second, schema-constrained LLM call (with a regex
-  fallback) turns free-form replies into clean `{name, description, code}` rows.
-- **One-click backtests** — market data auto-downloads from Yahoo Finance and is
-  cached locally; AI code executes in an isolated subprocess behind AST guardrails.
-- **Full results surface** — return vs. buy & hold, CAGR, Sharpe, Sortino, max
-  drawdown, win rate, profit factor, an SVG equity curve, and a per-trade table.
-- **Paper-trading gate** — approve / reject / deploy / stop workflow with quality
-  thresholds, guardrail re-validation, and a newest-first deployment audit trail.
-- **76+ collected backend checks, CI on every push** — guardrails, runner, worker
-  CLI, orchestrator, API endpoints, gate transitions, reply cleaning, and strategy
-  builder validation.
+## What it does
+
+| Capability | Where |
+|---|---|
+| Conversational strategy design with a Groq-hosted LLM | `/studio`, `POST /chat` |
+| Structured (form-driven) strategy generation | `/studio/builder`, `POST /strategies/builder` |
+| Sandboxed Backtrader backtests over cached NIFTY 50 daily bars | `POST /strategies/{id}/backtest` |
+| Quality gate: `draft → backtested → approved → paper_trading` | `/strategies/{id}/approval` |
+| Simulated paper-trading account (cash, positions, orders, trades, equity) | `/paper-trading`, `/strategies/{id}/deployment` |
+| Market terminal: index quotes, charts, indicators, pulse, breadth, news, AI briefing | `/dashboard` |
+| Conversation and project history | `/studio` sidebar, `/conversations/*` |
+| Analytics over cached backtest runs (recalculates nothing) | `/analytics` |
+| Public marketing landing page with a simulated live chart | `/` |
+
+Scope note: **NIFTY 50 only.** The data layer maps `NIFTY50 → ^NSEI`; the
+builder rejects other markets because no other dataset is wired up.
+
+---
 
 ## Architecture
 
 ```
-┌──────────────┐      ┌─────────────────────────────┐      ┌────────────┐
-│  React chat  │─────▶│  FastAPI backend            │─────▶│  Postgres  │
-│  (Vite)      │◀─────│  /chat  /strategies  /health │◀─────│  6 tables  │
-└──────────────┘      └──────────────┬──────────────┘      └────────────┘
-                                     │ spawns (stdin code in,
-                                     │ sentinel JSON out)
-                                     ▼
-                              ┌──────────────┐     ┌──────────────┐
-                              │  Backtest    │────▶│ Yahoo Finance│
-                              │  worker      │     │ (CSV cache)  │
-                              └──────────────┘     └──────────────┘
-                                     ▲
-                                     │ chat + finalize calls
-                              ┌──────────────┐
-                              │  Groq LLM    │
-                              └──────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  React 19 SPA (Vite 8, react-router 7)                               │
+│  Landing · Login · Studio · Builder · Dashboard · Strategies          │
+│  Backtest · Approval · Deployment · Paper Trading · Analytics · Docs  │
+└───────────────┬──────────────────────────────────────────────────────┘
+                │  fetch JSON (dev: Vite proxy /api → :8000)
+┌───────────────▼──────────────────────────────────────────────────────┐
+│  FastAPI backend (6 routers, 51 routes)                              │
+│                                                                      │
+│  chat ─── Groq LLM ──► strategy_extractor ──► strategies             │
+│  strategies ──► backtest_service ──► subprocess: strategy_runner      │
+│  strategies ──► deployment_gate ──► paper_engine ──► paper_bars       │
+│  dashboard ──► market_data_extended ──► yfinance                     │
+│  market (public) ──► yfinance 1-minute ^NSEI                         │
+│  conversations ──► projects / conversations / messages               │
+└───────────────┬───────────────────────────┬──────────────────────────┘
+                │                           │
+      ┌─────────▼─────────┐       ┌─────────▼──────────────────────┐
+      │ Postgres 16 / Neon│       │ backend/data/NIFTY50.csv cache │
+      │ 11 tables         │       │ (2y daily OHLCV from Yahoo)    │
+      │ Alembic-managed   │       └────────────────────────────────┘
+      └───────────────────┘
 ```
 
-Three flows matter:
+- Startup runs `alembic upgrade head` (retried up to 10 times) before serving.
+- The backend has **no authentication**. Every request runs as a fixed local
+  identity (`dev@local`). The frontend login is cosmetic — see
+  [Known gaps](#roadmap-and-known-gaps).
 
-**Chat flow** (`app/routers/chat.py`): receive message → store in Postgres → call
-LLM with history → store reply → detect a finished strategy → run the constrained
-finalize call (or regex fallback) → persist a `strategies` row → return the reply
-plus `strategy_id`/`strategy_name`/`strategy_description`. The model is only the
-"brain"; the controller owns the workflow, so swapping providers means touching
-only `app/config.py` and `app/services/llm_service.py`.
-
-**Strategy Builder flow** (`app/routers/strategies.py` — `POST /strategies/generate`):
-receive structured spec → validate indicators, timeframes, risk params → build a
-controlled prompt → call LLM with JSON schema output → extract name/description/code
-→ persist `strategies` row with `strategy_spec` JSON → return structured response.
-Reuses the same LLM service, guardrails, backtest pipeline, and lifecycle as the
-chat flow.
-
-**Backtest flow** (`POST /strategies/{id}/backtest`): load `generated_code` →
-ensure market data → spawn the worker subprocess with code on stdin → enforce the
-timeout and output cap → parse the `__BT_RESULT__` sentinel line → compute CAGR in
-the parent → persist a `backtest_results` row and flip the strategy to `backtested`.
+---
 
 ## Project structure
 
 ```
 Ai_Quant/
+├── README.md
+├── docker-compose.yml            # db + backend + frontend
+├── .github/workflows/ci.yml      # backend tests + frontend lint/build
 ├── backend/
-│   ├── alembic.ini                  # Alembic config (URL overridden from settings)
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── alembic.ini
+│   ├── pytest.ini
+│   ├── .env.example
 │   ├── alembic/
-│   │   ├── env.py                   # wires Base.metadata + DATABASE_URL
-│   │   └── versions/
-│   │       ├── 2ee9e2c6346e_initial_schema.py
-│   │       ├── 8333ffdaacba_paper_deployments_and_status_notes.py
-│   │       └── a1b2c3d4e5f6_add_strategy_spec_column.py
+│   │   ├── env.py
+│   │   └── versions/             # 9 migrations, head 4f6a7b8c9d10
+│   ├── data/
+│   │   └── NIFTY50.csv           # cached OHLCV (regenerated when stale)
 │   ├── app/
-│   │   ├── main.py                  # FastAPI app, CORS, lifespan runs migrations
-│   │   ├── config.py                # pydantic-settings (see Configuration)
-│   │   ├── database.py              # engine / SessionLocal / Base / get_db
-│   │   ├── schemas.py               # Pydantic request/response models
+│   │   ├── main.py               # FastAPI app, lifespan migrations, CORS
+│   │   ├── config.py             # pydantic-settings
+│   │   ├── database.py           # engine + get_db
+│   │   ├── auth.py               # fixed local identity (auth removed)
+│   │   ├── ids.py                # UUID validation helpers
+│   │   ├── middleware.py         # JSON error handler + CORS origin list
+│   │   ├── schemas.py            # all request/response models
 │   │   ├── models/
-│   │   │   └── db_models.py         # User, Conversation, Message, Strategy,
-│   │   │                            # BacktestResult, PaperDeployment + enums
+│   │   │   └── db_models.py      # 11 SQLAlchemy models
 │   │   ├── routers/
-│   │   │   ├── chat.py              # POST /chat (7-step workflow)
-│   │   │   └── strategies.py        # detail, backtest, approve/reject/deploy/stop, generate
+│   │   │   ├── chat.py
+│   │   │   ├── conversations.py
+│   │   │   ├── dashboard.py      # ~1,300 lines of market intelligence
+│   │   │   ├── market.py         # public live/history endpoints
+│   │   │   ├── paper.py          # paper-trading hub
+│   │   │   └── strategies.py     # builder, lifecycle, backtest, paper
 │   │   └── services/
-│   │       ├── llm_service.py       # SYSTEM_PROMPT + Groq chat_completion()
-│   │       ├── finalize_service.py  # narrow json_schema extraction call
-│   │       ├── strategy_extractor.py# looks_like_final_strategy, extract_strategy,
-│   │       │                        # clean_reply_for_display
-│   │       ├── strategy_builder.py  # structured builder: prompt, validation, LLM call
-│   │       ├── market_data.py       # yfinance download + CSV cache + offline reuse
-│   │       ├── strategy_runner.py   # worker: guardrails, Backtrader run, metrics
-│   │       ├── backtest_service.py  # orchestrator: spawn, timeout, tree-kill, CAGR
-│   │       └── deployment_gate.py   # pure approve/deploy transition rules
-│   ├── tests/
-│   │   ├── conftest.py              # db_reachable() probe
-│   │   ├── fixtures/                # buy_hold, alternating, swing_churn,
-│   │   │                            # rsi_meanrev, probe_trades + nifty50.csv
-│   │   │                            # (740 real OHLCV rows for offline tests)
-│   │   ├── test_guardrails.py       # 12 escape-hatch rejections
-│   │   ├── test_runner.py           # metrics, Sortino, trades, equity curve
-│   │   ├── test_backtest_api.py     # endpoint incl. 404/422 paths (needs Postgres)
-│   │   ├── test_deployment_gate.py  # lifecycle transitions (needs Postgres)
-│   │   ├── test_display.py          # reply cleaning (no DB)
-│   │   └── test_strategy_builder_unit.py # strategy builder unit tests (no DB)
-│   ├── Dockerfile                   # python:3.11-slim + uvicorn
-│   ├── pytest.ini                   # testpaths=., pythonpath=.
-│   └── requirements.txt
-├── frontend/
-│   ├── Dockerfile                   # node build → nginx serve
-│   ├── src/
-│   │   ├── main.jsx                 # createRoot entry
-│   │   ├── App.jsx                  # chat + StrategyCard (metrics, equity chart,
-│   │   │                            # trade table, code viewer, gate buttons)
-│   │   ├── App.css / index.css      # hand-written dark theme
-│   └── package.json                 # react 19, vite 8, oxlint
-├── docker-compose.yml               # db + backend + frontend
-├── .github/workflows/ci.yml         # backend pytest + frontend lint/build
-└── test_prompt.txt                  # manual QA script for the chat flow
+│   │       ├── llm_service.py
+│   │       ├── strategy_extractor.py
+│   │       ├── strategy_builder.py
+│   │       ├── finalize_service.py
+│   │       ├── backtest_service.py
+│   │       ├── strategy_runner.py    # sandboxed worker (standalone file)
+│   │       ├── deployment_gate.py
+│   │       ├── paper_engine.py
+│   │       ├── paper_bars.py
+│   │       ├── market_data.py
+│   │       ├── market_data_extended.py
+│   │       ├── qcb_mapper.py
+│   │       └── qcb_evaluator.py
+│   └── tests/                    # 19 test modules, 337 checks
+└── frontend/
+    ├── Dockerfile / nginx.conf / vercel.json
+    ├── vite.config.js            # /api → http://localhost:8000 proxy
+    ├── package.json
+    ├── public/                   # QuantNiti brand kit (SVGs, PNGs, tokens)
+    └── src/
+        ├── App.jsx               # route map
+        ├── main.jsx
+        ├── index.css
+        ├── context/AuthContext.jsx
+        ├── lib/                  # api.js, storage.js, formatting, hooks
+        ├── components/           # shell, charts, studio, builder widgets
+        ├── pages/                # 18 page components
+        └── styles/               # tokens.css + page/component styles
 ```
+
+---
 
 ## Tech stack
 
-| Layer | Choice | Notes |
-| --- | --- | --- |
-| UI | React 19.2, Vite 8.2, oxlint | Single-component chat, no router/state lib |
-| API | FastAPI 0.115, uvicorn 0.30.6 | Lifespan handler runs migrations on startup |
-| ORM / migrations | SQLAlchemy 2.0.35, Alembic 1.13.2 | psycopg2-binary driver |
-| LLM | Groq OpenAI-compatible API (`httpx`, no SDK) | Default `openai/gpt-oss-120b`; `json_schema` response mode for extraction |
-| Market data | yfinance 1.7.0 | NIFTY 50 (`^NSEI`), 2y daily, CSV cache |
-| Backtests | backtrader 1.9.78.123, pandas 2.2.2, numpy 1.26.4 | Worker subprocess + AST guardrails |
-| DB | Postgres 16 (Docker) | 6 tables; tests use the same engine |
-| Tests | pytest 8.4.2 | 76+ collected; DB-backed modules self-skip offline |
-| Deploy | Docker Compose (db, backend, nginx frontend) | GitHub Actions CI on push/PR |
+**Backend**
 
-Python is 3.11 in Docker and 3.11 in CI; the local venv may differ — the code
-targets 3.10+ syntax only.
+- Python 3.11 (Docker image), FastAPI 0.115, Uvicorn
+- SQLAlchemy 2.0 + psycopg2, Alembic 1.13
+- Postgres 16 (local compose) or hosted Neon
+- Backtrader 1.9.78 for strategy execution
+- pandas / numpy, yfinance for market data
+- Groq (OpenAI-compatible API) for the LLM
+- pytest 8.4
+
+**Frontend**
+
+- React 19, React DOM 19, react-router-dom 7
+- Vite 8 + `@vitejs/plugin-react`
+- `lightweight-charts` for price/equity charts
+- GSAP + OGL for landing-page animation
+- lucide-react icons
+- oxlint (no ESLint config)
+- Plain CSS with design tokens (`src/styles/tokens.css`), light theme
+
+**Infra**
+
+- Docker Compose: `db` (postgres:16-alpine), `backend`, `frontend` (nginx)
+- GitHub Actions CI
+- Neon (hosted Postgres), Render (backend), Vercel (frontend) are the
+  deployment targets the repo is configured for
+
+---
 
 ## Prerequisites
 
-- Python 3.11+ and `pip`
-- Node 20+ and `npm` (22 used in Docker/CI)
-- Docker Desktop (for Postgres, and for the full-stack compose)
-- A free Groq API key: https://console.groq.com
+- Python 3.11+
+- Node.js 22+ and npm
+- Postgres 16 (or a Neon connection string)
+- A free [Groq API key](https://console.groq.com) — only chat/builder need it;
+  every other feature works without a key
+- Optional: Docker Desktop (for the compose stack)
+
+---
 
 ## Getting started
 
-### 1. Backend (local dev)
+### 1. Backend
 
-```bash
+```powershell
 cd backend
-cp .env.example .env        # then paste your GROQ_API_KEY into .env
-cd .. && docker compose up -d db      # Postgres only, from the repo root
-cd backend
-python -m venv venv && venv\Scripts\Activate     # Windows (POSIX: source venv/bin/activate)
+python -m venv ..\venv
+..\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+
+Copy-Item .env.example .env
+# edit backend/.env: set DATABASE_URL and GROQ_API_KEY
+
+..\venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
-Backend runs at http://localhost:8000 — health check: `GET /health`.
-On startup it applies pending Alembic migrations (`upgrade head`).
+On startup the app applies Alembic migrations automatically. Check it:
 
-### 2. Frontend (local dev)
+```powershell
+curl http://localhost:8000/health          # {"status":"ok"}
+# interactive docs: http://localhost:8000/docs
+```
 
-```bash
+> The repo's `backend/.env` currently points at **Neon**, not the compose
+> Postgres. If you want a local database, set
+> `DATABASE_URL=postgresql://quant_user:quant_pass@localhost:5432/quant_trading`
+> and start the `db` service first.
+
+### 2. Frontend
+
+```powershell
 cd frontend
 npm install
-npm run dev
+npm run dev        # http://localhost:5173
 ```
 
-Frontend runs at http://localhost:5173 and calls the backend at `:8000`.
-Point it elsewhere at build time with `VITE_API_BASE`
-(e.g. `VITE_API_BASE=https://api.example.com npm run build`).
+Vite proxies `/api/*` to `http://localhost:8000`, stripping the prefix, so local
+development never hits CORS.
 
-### 3. Full stack via Docker
+The login page accepts the fixed local credential:
 
-```bash
+```
+email:    admin@local
+password: admin
+```
+
+### 3. Docker Compose
+
+```powershell
 docker compose up --build
+# frontend → http://localhost:3000
+# backend  → http://localhost:8000
+# postgres → localhost:5432
 ```
 
-Services: Postgres `:5432`, backend `:8000`, nginx frontend `:3000`.
-**Important:** don't run a local `uvicorn` at the same time — both bind port
-8000 and only one will receive your requests. Run `docker compose down` before
-rebuilding after code changes so containers pick up fresh edits. To run only the
-database locally: `docker compose up -d db`.
+Compose reads `backend/.env` for the backend environment, so the backend will
+use whatever `DATABASE_URL` is set there. The compose file also bind-mounts
+`D:/QuantCode-Bench` into the backend at `/opt/quantcode-bench`; if that path
+does not exist the mount (and therefore `docker compose up`) can fail. See
+[QuantCode-Bench integration](#quantcode-bench-integration).
+
+### 4. Useful commands
+
+| Task | Command |
+|---|---|
+| Backend dev server | `python -m uvicorn app.main:app --reload --port 8000` (from `backend/`) |
+| Frontend dev server | `npm run dev` (from `frontend/`) |
+| Frontend lint | `npm run lint` |
+| Frontend production build | `npm run build` |
+| All backend tests | `python -m pytest -q` (from `backend/`) |
+| Fast unit subset | `python -m pytest tests/test_guardrails.py tests/test_display.py -q` |
+| Apply migrations | `alembic upgrade head` (from `backend/`) |
+| New migration | `alembic revision --autogenerate -m "message"` |
+
+---
 
 ## Configuration
 
-All settings live in `backend/app/config.py` (pydantic-settings) and can be set
-via environment or `backend/.env` — copy `backend/.env.example` to start:
+Settings are defined in `backend/app/config.py` and read from `backend/.env`
+(process env wins). **The defaults below are what the code actually uses** —
+note the drift against the shipped `.env.example` in the last column.
 
-| Variable | Default | What it does |
-| --- | --- | --- |
-| `DATABASE_URL` | `postgresql://quant_user:quant_pass@localhost:5432/quant_trading` | Postgres connection. Compose overrides it to host `db` for the backend container |
-| `GROQ_API_KEY` | *(empty)* | Required for `/chat`; without it chat calls fail |
-| `GROQ_MODEL` | `openai/gpt-oss-120b` | Any model id Groq serves |
-| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Swap providers by changing this + `llm_service.py` |
-| `DEFAULT_MARKET` | `NIFTY50` | Only wired market; maps to `^NSEI` in `MARKET_TICKERS` |
-| `MARKET_DATA_REFRESH_DAYS` | `1` | Days a cached `backend/data/{MARKET}.csv` stays fresh before re-download |
-| `SANDBOX_MEMORY_MB` | `1024` | Worker address-space cap, **POSIX only** (no Windows equivalent) |
-| `SANDBOX_CPU_SECONDS` | *(unset)* | Optional worker CPU-time cap, POSIX only |
-| `APPROVAL_MIN_TRADES` | `1` | Minimum closed trades for the approval gate |
-| `APPROVAL_MAX_DRAWDOWN_PCT` | `50.0` | Drawdown cap (%) for the approval gate |
+| Variable | Default in code | Used for | `.env.example` |
+|---|---|---|---|
+| `DATABASE_URL` | `postgresql://quant_user:quant_pass@localhost:5432/quant_trading` | SQLAlchemy engine | matches |
+| `GROQ_API_KEY` | `""` (disabled) | Chat + builder LLM calls | placeholder |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Groq model id | matches |
+| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | OpenAI-compatible endpoint | matches |
+| `DEFAULT_MARKET` | `NIFTY50` | Declared but **unused** — NIFTY 50 is fixed in code | matches |
+| `MARKET_DATA_REFRESH_DAYS` | `1` | CSV cache staleness | matches |
+| `SANDBOX_MEMORY_MB` | `2048` | POSIX address-space cap for the worker | matches |
+| `SANDBOX_CPU_SECONDS` | unset | Optional POSIX CPU cap | commented out |
+| `APPROVAL_MIN_TRADES` | `10` | Intended approval threshold | **`1` (stale)** |
+| `APPROVAL_MAX_DRAWDOWN_PCT` | `50.0` | Intended drawdown cap | matches |
+| `ALLOWED_ORIGINS` | `""` (dev origins) | Comma-separated CORS allow-list | not listed |
+| `QCB_PATH` | `D:\QuantCode-Bench` (Win) / `/mnt/d/QuantCode-Bench` | QuantCode-Bench root | not listed |
+| `AI_QUANT_BACKEND` | this repo's backend dir | QCB `PYTHONPATH` entry | not listed |
 
-Frontend build arg: `VITE_API_BASE` (default `http://localhost:8000`).
+**Known drift:** `DEFAULT_MARKET`, `APPROVAL_MIN_TRADES` and
+`APPROVAL_MAX_DRAWDOWN_PCT` are currently **not read** anywhere.
+`deployment_gate.py` hardcodes the gate rules (10 trades, 25% drawdown, Sharpe
+0.5, win rate 40%), so changing those env vars or the code defaults above has no
+effect today. `.env.example` also still ships `APPROVAL_MIN_TRADES=1`.
+
+Unused leftovers still present in local env files (not read by any code):
+
+- `backend/.env`: `SUPABASE_JWT_SECRET`, `SMTP_HOST`, `SMTP_PORT`,
+  `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`
+- `frontend/.env`: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+
+Frontend build-time variables:
+
+| Variable | Purpose |
+|---|---|
+| `VITE_API_BASE_URL` | Absolute backend URL for Vercel/Render builds |
+| `VITE_API_BASE` | Docker build-arg fallback for the same value |
+
+If neither is set, dev uses `/api` (proxied) and a production build falls back to
+`http://localhost:8000`.
+
+---
 
 ## API reference
 
-Base URL `http://localhost:8000`. Interactive docs at `/docs` (Swagger UI).
+Base URL: `http://localhost:8000`. Interactive schema at `/docs`, raw at
+`/openapi.json`. There are **51 routes** including the docs endpoints.
 
-### `POST /chat`
+All JSON errors are normalised by `JsonErrorMiddleware`. Gate refusals return
+`422` with `{"detail": {"reasons": [...]}}`; malformed UUIDs return `404`.
 
-Send a message; get the assistant reply plus any strategy it produced.
+### Health
 
-```jsonc
-// request
-{ "conversation_id": null, "content": "medium-risk NIFTY 50 strategy, hold 2-5 days" }
-// response
-{
-  "conversation_id": "…",
-  "reply": "…",                       // display-cleaned (no STRATEGY_READY/code dumps)
-  "strategy_id": "…",                 // null until a strategy is finalized
-  "strategy_name": "…",
-  "strategy_description": "…"
-}
-```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/health` | `{"status":"ok"}` |
 
-Pass `conversation_id` back on the next turn to keep memory. Unknown ids return
-**404**. The stored history keeps the raw LLM reply (finalize + memory need it);
-only the returned copy is cleaned.
+### Chat — `app/routers/chat.py`
 
-### `POST /strategies/generate`
+| Method | Path | Body / behaviour |
+|---|---|---|
+| POST | `/chat` | `{conversation_id?, content}` → `{conversation_id, reply, strategy_id?, strategy_name?, strategy_description?}`. Creates a conversation when `conversation_id` is omitted. Requires `GROQ_API_KEY`. |
 
-Generate a trading strategy from a structured specification.
+### Conversations & projects — `app/routers/conversations.py`
 
-```jsonc
-// request
-{
-  "market": "NIFTY50",
-  "trading_style": "intraday",
-  "timeframe": "15m",
-  "indicators": [
-    { "name": "EMA", "parameters": { "fast": 20, "slow": 50 } },
-    { "name": "RSI", "parameters": { "period": 14, "oversold": 30, "overbought": 70 } }
-  ],
-  "entry_conditions": ["EMA 20 crosses above EMA 50", "RSI is below 30"],
-  "exit_conditions": ["EMA 20 crosses below EMA 50"],
-  "risk_management": {
-    "stop_loss_percent": 1,
-    "take_profit_percent": 2,
-    "trailing_stop_percent": null,
-    "max_trades_per_day": 3
-  }
-}
-// response
-{
-  "strategy_id": "…",
-  "name": "EMA RSI Intraday Strategy",
-  "description": "Intraday NIFTY50 strategy using EMA crossover and RSI confirmation.",
-  "market": "NIFTY50",
-  "timeframe": "15m",
-  "status": "draft",
-  "generated_code": "import backtrader as bt\n…",
-  "strategy_specification": { … }
-}
-```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/conversations` | List the caller's conversations |
+| POST | `/conversations` | `{title?, project_id?}` |
+| GET | `/conversations/{id}` | Conversation with messages |
+| PATCH | `/conversations/{id}` | Rename / update |
+| DELETE | `/conversations/{id}` | Delete |
+| POST | `/conversations/{id}/archive` | Archive |
+| POST | `/conversations/{id}/restore` | Restore |
+| POST | `/conversations/{id}/move` | `{project_id}` |
+| GET | `/conversations/projects` | List projects |
+| POST | `/conversations/projects` | `{name, description?}` |
+| PATCH | `/conversations/projects/{id}` | Update |
+| DELETE | `/conversations/projects/{id}` | Delete |
 
-Validation rules:
-- **Market**: `NIFTY50` (only supported for backtesting), `BANKNIFTY`, `SENSEX`, `OTHER`
-- **Trading style**: `scalping`, `intraday`, `swing`, `positional`
-- **Timeframe**: `5m`, `15m`, `30m`, `1h`, `1d` (validated against trading style)
-- **Indicators**: `EMA`, `SMA`, `RSI`, `MACD`, `Bollinger Bands`, `Volume` (with parameter validation)
-- **Entry/exit conditions**: at least one required, non-empty strings
-- **Risk management**: stop_loss/take_profit > 0 and ≤ 100; trailing_stop ≥ 0; max_trades_per_day 1–100
+Ownership is enforced by the fixed local user; a row owned by another identity
+404s exactly like a missing one.
 
-Errors: **422** validation errors (detailed per-field) · **502** LLM service failure · **500** internal error
+### Strategies — `app/routers/strategies.py`
 
-### `GET /strategies/{id}`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/strategies/` | List strategies (note the trailing slash — `redirect_slashes=False`) |
+| POST | `/strategies/builder` | Structured generation (see [builder](#structured-strategy-builder)) |
+| GET | `/strategies/{id}` | Detail + generated code + spec |
+| POST | `/strategies/{id}/backtest` | Run sandboxed backtest |
+| GET | `/strategies/{id}/backtest-results` | All stored runs, newest first |
+| POST | `/strategies/{id}/approve` | Gate evaluation; no body |
+| POST | `/strategies/{id}/reject` | `{reason}` |
+| POST | `/strategies/{id}/deploy` | `{cash, commission_pct, sizer_percents, slippage_pct?}` |
+| POST | `/strategies/{id}/stop` | `{reason?}` |
+| GET | `/strategies/{id}/deployments` | Deployment history |
+| POST | `/strategies/{id}/paper-tick` | Advance one simulated bar |
+| GET | `/strategies/{id}/paper-account` | Virtual account snapshot |
+| GET | `/strategies/{id}/paper-positions` | Open positions |
+| GET | `/strategies/{id}/paper-orders` | Order ledger |
+| GET | `/strategies/{id}/paper-trades` | Closed trades |
+| GET | `/strategies/{id}/market-bars` | Processed OHLC bars (read-only) |
 
-Strategy detail for the code viewer — no LLM round-trip.
+**Capital parameters** (`CapitalParams`, shared by backtest/deploy):
 
-```jsonc
-{
-  "strategy_id": "…", "name": "…", "description": "…",
-  "market": "NIFTY50", "status": "backtested", "status_note": null,
-  "generated_code": "import backtrader as bt\n…",
-  "strategy_spec": { … }  // present for strategies created via /generate
-}
-```
+| Field | Default | Meaning |
+|---|---|---|
+| `cash` | `100000` | Starting capital, `> 0` |
+| `commission_pct` | `0.1` | Commission per order, **percent** in `(0, 100)` |
+| `sizer_percents` | `95.0` | Percent of cash per entry, `(0, 100)` |
+| `slippage_pct` | `0.0` | Slippage per order, percent in `[0, 100)` |
 
-Unknown ids return **404**.
+`BacktestRequest` adds optional `data_path` (defaults to the cached market CSV).
 
-### `POST /strategies/{id}/backtest`
+**Backtest response** (`BacktestResultOut`) includes: `total_return_pct`,
+`benchmark_return_pct`, `win_rate_pct`, `max_drawdown_pct`, `num_trades`,
+`sharpe`, `sortino`, `cagr_pct`, `profit_factor`, `avg_win`, `avg_loss`,
+`avg_trade_pnl`, `expectancy`, `start_date`, `end_date`, `trades`,
+`trades_truncated`, `equity_curve`, `drawdown_curve`, `warnings`, `raw_metrics`.
 
-Run the backtest. Body fields are all optional:
+**Paper-tick request** (`PaperTickIn`): `bar_date?` (`YYYY-MM-DD`, must be
+exactly the next unprocessed bar) and `deployment_id?` (pins the tick; defaults
+to the active deployment). Response (`PaperTickOut`) reports both the strategy's
+`signal` (BUY/SELL/HOLD) and the simulated `action`, plus fill price, quantity,
+order status, trade id, cash, equity and realised PnL.
 
-```jsonc
-// request (defaults shown)
-{ "data_path": null, "cash": 100000.0, "commission_pct": 0.1, "sizer_percents": 95.0 }
-// response (abridged)
-{
-  "strategy_id": "…", "status": "backtested",
-  "total_return_pct": -25.03, "benchmark_return_pct": -12.36,
-  "win_rate_pct": 37.8, "max_drawdown_pct": 25.03, "num_trades": 82,
-  "sharpe": -1.35, "sortino": -1.67, "cagr_pct": -13.41,
-  "start_date": "2024-09-30", "end_date": "2026-09-30",
-  "trades": [ { "entry_date": "…", "exit_date": "…", "entry_price": 0.0,
-                "exit_price": 0.0, "size": 0, "direction": "long",
-                "bars_held": 0, "pnl": 0.0, "pnl_net": 0.0, "won": false } ],
-  "trades_truncated": 0,
-  "equity_curve": [["2024-09-30", 100000.0], "..."],
-  "warnings": [], "raw_metrics": { "…full dump…" }
-}
-```
+### Paper-trading hub — `app/routers/paper.py`
 
-Omit `data_path` to auto-fetch NIFTY 50 (cached CSV, reused stale if Yahoo is
-down). Errors: **404** unknown strategy · **422** no code / guardrail rejection /
-bad params · **503** market data unavailable · **504** worker timeout.
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/paper/deployments` | All deployments with live snapshot numbers |
+| GET | `/paper/deployments/active` | Active deployments only |
+| GET | `/paper/deployments/{id}/equity-snapshots` | Equity history |
 
-### `POST /strategies/{id}/approve`
+### Market (public) — `app/routers/market.py`
 
-`backtested → approved` when the quality gate passes (backtest exists, ≥
-`APPROVAL_MIN_TRADES` trades, drawdown within `APPROVAL_MAX_DRAWDOWN_PCT`).
-Failures return **422** with `{"reasons": [...]}`. Response: `GateOut`
-`{strategy_id, status, status_note}`.
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/market/nifty-live` | Latest 1-minute `^NSEI` bar. Returns **503** when the market is closed or Yahoo is unreachable |
+| GET | `/market/nifty-history` | Recent 1-minute bars for the landing-page chart |
 
-### `POST /strategies/{id}/reject`
+These endpoints deliberately require no login; the landing page falls back to a
+local simulator when they fail.
 
-`draft/backtested → rejected`. Body `{"reason": "..."}` (3–500 chars, required).
-Rejecting a `paper_trading` strategy returns **422** — stop it first.
+### Dashboard / market intelligence — `app/routers/dashboard.py`
 
-### `POST /strategies/{id}/deploy`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/dashboard/market/overview` | Six Indian indices with quote data |
+| GET | `/dashboard/market/quote/{symbol}` | Single symbol quote |
+| GET | `/dashboard/market/chart/{symbol}` | Historical chart, multiple timeframes |
+| GET | `/dashboard/market/indicators/{symbol}` | Technical indicators |
+| GET | `/dashboard/market/pulse` | Gainers / losers / most active |
+| GET | `/dashboard/market/news` | Aggregated market news |
+| POST | `/dashboard/ai/briefing` | `{mode: concise\|detailed\|explain, force?}`. Falls back to a labelled rule-based briefing when the LLM is unavailable. 120-second in-process cache |
+| GET | `/dashboard/simulation` | Monitor over existing paper deployments (recomputes win rate / Sharpe from the ledger; does not run a second engine) |
+| GET | `/dashboard/performance/summary` | Aggregate paper performance |
+| GET | `/dashboard/strategies` | Strategy counts/status for the dashboard |
+| GET | `/dashboard/paper/portfolio` | Aggregated paper portfolio |
+| GET | `/dashboard/activity/recent` | Recent activity feed |
 
-`approved → paper_trading`. Body `{cash, commission_pct, sizer_percents}`
-(all defaulted like backtest params). Re-runs the AST guardrails over the current
-code and refuses duplicate active deployments (**422** with reasons). Records a
-`paper_deployments` row and returns it.
+No dashboard endpoint invents a price: when Yahoo has no usable row the caller
+gets an explicit `unavailable`/empty result.
 
-### `POST /strategies/{id}/stop`
-
-Closes the active deployment (`→ approved`), recording `stopped_at` and the
-optional reason. **422** when nothing is active.
-
-### `GET /strategies/{id}/deployments`
-
-Newest-first deployment history for audit.
-
-### `GET /health`
-
-`{"status": "ok"}`.
+---
 
 ## Strategy lifecycle
 
 ```
-draft → backtested → approved → paper_trading
-  \         \                       ^
-   \-> rejected                      \-> approved (on stop)
+                 POST /strategies/builder
+                 (or chat + extract)
+                          │
+                          ▼
+                       ┌───────┐   POST /backtest    ┌────────────┐
+                       │ draft │ ──────────────────► │ backtested │
+                       └───────┘                     └────┬───────┘
+                            │                             │
+             POST /reject   │                 POST /approve (quality gate)
+                            ▼                             ▼
+                       ┌──────────┐                  ┌──────────┐
+                       │ rejected │                  │ approved │
+                       └──────────┘                  └────┬─────┘
+                                                          │ POST /deploy
+                                                          ▼
+                                                   ┌───────────────┐
+                                                   │ paper_trading │
+                                                   └───────┬───────┘
+                                                           │ POST /stop
+                                                           ▼
+                                                     back to approved
 ```
 
-- A strategy is born `draft` when the chat pipeline finalizes one **or** when
-  generated via the structured builder (`POST /strategies/generate`).
-- A backtest flips it to `backtested` and stores the metrics row the gate reads.
-- Approval is a quality gate, not a profitability filter: it blocks strategies
-  with no backtest, no real trading activity, or catastrophic drawdown.
-- Deployment re-validates the guardrails (cheap, static) and enforces a single
-  active deployment per strategy.
-- Every reject/stop carries an optional-or-mandatory reason (`status_note` /
-  `stop_reason`) so the UI and audit trail explain *why*, not just *what*.
+### Approval gate (`services/deployment_gate.py`)
+
+`check_approval` returns a list of human-readable blocking reasons; empty means
+allowed. Rules are **hardcoded**:
+
+1. Strategy status must be `backtested`.
+2. A latest backtest must exist.
+3. **At least 10 closed trades.**
+4. At least **2 of 4** criteria must pass:
+   - max drawdown `< 25%`
+   - at least 10 closed trades
+   - Sharpe `> 0.5`
+   - win rate `> 40%`
+
+On success the passing backtest id is stored in `strategies.approved_backtest_id`
+so approval is tied to a specific run.
+
+### Deploy / stop
+
+- `check_deploy` re-validates status (`approved`), re-runs the **AST guardrails**
+  against the current code, and refuses a second active deployment.
+- Deploying creates a `paper_deployments` row whose virtual account starts with
+  the full requested cash, zero PnL, no processed bar.
+- Stopping marks the deployment `stopped`, stores the reason, and returns the
+  strategy to `approved`. Strategy status notes are cleared on gate transitions.
+
+---
 
 ## Chat and strategy extraction
 
-Early attempts relied on prompting the model into a strict `STRATEGY_READY`
-format. Against Groq's hosted models this failed consistently — disclaimers,
-markdown headers, and runnable-script boilerplate (`if __name__`, `cerebro.plot()`,
-CSV loading) survived two rounds of prompt tightening. Conclusion: prose
-formatting instructions are not a data pipeline.
+`services/llm_service.py` calls Groq's OpenAI-compatible chat endpoint using
+`httpx`. The system prompt tells the model to:
 
-The two-stage approach instead:
+1. Ask clarifying questions while the request is vague.
+2. Emit a strict, machine-parseable block once the strategy is fully defined —
+   no disclaimers, headers, or install instructions.
 
-1. `app/routers/chat.py` lets the model chat freely — no format constraints on the
-   visible conversation.
-2. `strategy_extractor.looks_like_final_strategy()` — cheap heuristic (starts with
-   `STRATEGY_READY`, or a ` ```python ` block with a `bt.Strategy` subclass)
-   deciding whether a second call is worth it.
-3. `finalize_service.finalize_strategy()` — a narrow LLM call returning JSON
-   against an exact schema (`name`, `description`, `code`) via Groq's
-   `response_format: json_schema`, so the API validates the shape, not the prompt.
-4. On any failure (unsupported mode, network, malformed JSON), regex-based
-   `extract_strategy()` runs as fallback — forcing the class name to
-   `GeneratedStrategy` and stripping `__main__`/plotting/CSV boilerplate.
-5. Either path persists a `strategies` row linked to the conversation.
+`services/strategy_extractor.py` then:
 
-Display cleaning (`clean_reply_for_display`) strips the marker, `Name:` /
-`Description:` headers, and code fences from the client-facing copy, keeping any
-surrounding prose — or a short "ready, run a backtest below" confirmation when
-nothing readable remains. History keeps the original.
+- detects a final strategy (`looks_like_final_strategy`),
+- extracts the code fence and metadata (`extract_strategy`),
+- cleans the reply for display (`clean_reply_for_display`),
+- collapses free-form code blocks to placeholders so partial attempts never get
+  mistaken for a finished strategy.
+
+`services/finalize_service.py` persists the parsed strategy, name and
+description, and links it to the conversation. Missing credentials raise
+`LLMNotConfiguredError`, which routers map to **503** with an actionable message
+(never echoing the key).
+
+---
+
+## Structured strategy builder
+
+`POST /strategies/builder` accepts a fully validated `StrategyBuilderRequest`:
+
+```json
+{
+  "market": "NIFTY50",
+  "trading_style": "swing",
+  "timeframe": "1d",
+  "indicators": [
+    { "name": "RSI", "parameters": { "period": 14 } },
+    { "name": "EMA", "parameters": { "period": 50 } }
+  ],
+  "entry_conditions": ["RSI crosses below 30 and price is above EMA50"],
+  "exit_conditions": ["RSI crosses above 70"],
+  "risk_management": {
+    "stop_loss_percent": 2,
+    "take_profit_percent": 6,
+    "trailing_stop_percent": null,
+    "max_trades_per_day": 2
+  }
+}
+```
+
+Validation enforced by `schemas.py`:
+
+| Field | Allowed |
+|---|---|
+| `market` | `NIFTY50`, `BANKNIFTY`, `SENSEX`, `OTHER` — but only `NIFTY50` passes the data check |
+| `trading_style` | `scalping`, `intraday`, `swing`, `positional` |
+| `timeframe` | `5m`, `15m`, `30m`, `1h`, `1d` |
+| style → timeframe | scalping `5m/15m`; intraday `5m/15m/30m/1h`; swing `1h/1d`; positional `1d` |
+| indicators | `EMA`, `SMA`, `RSI`, `MACD`, `Bollinger Bands`, `Volume` (flexible spellings fold to canonical names; duplicates rejected) |
+| conditions | at least one non-empty entry and exit condition |
+
+`services/strategy_builder.py` builds a controlled prompt, calls the LLM, then
+runs static code checks (`validate_generated_code`): required
+`import backtrader as bt`, `class GeneratedStrategy`, `def next`, buy/sell calls,
+position checks, and forbidden APIs (slippage overrides, bracket orders, manual
+`size` on `buy()` with risk params, signal-bar close assignment). Errors are
+returned as `422 {"detail": {"errors": [...]}}`; warnings are surfaced but do
+not block.
+
+The generated strategy is stored as a normal `Strategy` row in the caller's
+`Strategy Builder` conversation, so the backtest/approval/deploy pipeline is
+identical to the chat path.
+
+---
 
 ## Backtest pipeline
 
-`POST /strategies/{id}/backtest` runs `generated_code` through three layers:
+1. **Resolve data.** `market_data.ensure_market_data("NIFTY50")` downloads 2
+   years of daily `^NSEI` OHLCV from Yahoo via yfinance and caches
+   `backend/data/NIFTY50.csv`. The cache is refreshed only when older than
+   `MARKET_DATA_REFRESH_DAYS`.
+2. **Guardrails.** `strategy_runner.check_guardrails(code)` parses the code with
+   `ast` and refuses:
+   - imports outside `backtrader`, `pandas`, `numpy`, `math`, `datetime`
+   - calls to `exec`, `eval`, `open`, `input`, `compile`, `globals`, `locals`,
+     `vars`, `breakpoint`, `getattr`, `setattr`, `delattr`, `__import__`
+   - escape-hatch dunder attributes/names (`__class__`, `__subclasses__`,
+     `__globals__`, `__builtins__`, `__reduce__`, …)
+3. **Isolated worker.** `backtest_service.run_backtest_sandboxed` spawns
+   `python strategy_runner.py` as a subprocess (launched as a file, not `-m`, so
+   package imports cannot swallow startup failures). The strategy code goes in
+   on **stdin**; paths and numeric knobs go in argv. A wall-clock timeout
+   (`TIMEOUT_DEFAULT_SECONDS = 120`) kills the whole process tree. On POSIX the
+   worker also gets `RLIMIT_AS` (`SANDBOX_MEMORY_MB`) and optional `RLIMIT_CPU`.
+4. **Execute.** Backtrader runs the strategy with a `PercentSizer`, commission
+   and slippage converted from percentages to fractions. Analyzers:
+   Sharpe, Sortino, DrawDown, TradeAnalyzer, Returns, TimeReturn and a custom
+   `ClosedTradeCollector`. Missing analyzers degrade gracefully.
+5. **Collect.** The worker prints one sentinel line
+   `__BT_RESULT__ {json}`. The parent parses it, derives CAGR, sanitises
+   NaN/inf to `null`, caps the equity curve at 400 points, and truncates trades
+   with a `trades_truncated` count and `no_trades` warning.
+6. **Persist.** A `BacktestResult` row stores the headline metrics and the full
+   JSON payload; the strategy becomes `backtested`.
+7. **Optional QCB.** A best-effort background evaluation is enqueued (log-only;
+   never affects the response).
 
-1. **Guardrails** (`strategy_runner.check_guardrails`) — an `ast` walk refusing
-   anything outside `ALLOWED_IMPORTS` (backtrader, pandas, numpy, math, datetime)
-   and the usual escape hatches (`exec`, `eval`, `open`, `__import__`,
-   `__class__`, `__globals__`, …). Static rejection, before anything runs.
-2. **Subprocess** (`backtest_service.run_backtest_sandboxed`) — the worker runs as
-   `python -m app.services.strategy_runner`, takes code on **stdin** (avoids
-   Windows argv quoting/length limits), and emits one sentinel line
-   `__BT_RESULT__ {json}` on stdout. The parent enforces the timeout, kills the
-   process tree on expiry, and caps captured output at 256KB.
-3. **Metrics** — analyzers attach by name to survive backtrader version drift.
-   Three outputs are computed, not read off an analyzer:
-   - **CAGR** — annualised in the parent from value span and date span, as a
-     *percentage* consistent with the other `*_pct` fields.
-   - **Sortino** — backtrader 1.9.78.123 ships no `SortinoRatio_A`, so it derives
-     from the `TimeReturn` daily series: mean return over *downside* deviation,
-     annualised with factor 252 (matching backtrader's Sharpe). Upside volatility
-     is not penalised.
-   - **Trade list + equity curve** — a `ClosedTradeCollector` analyzer records one
-     row per closed trade (paired by `trade.ref`, since backtrader delivers a
-     different object on close than on open; exit price is the execution bar's
-     open, verified against pnl/size math). The equity curve compounds the
-     `TimeReturn` series from starting cash and lands exactly on the broker value.
-     Payloads cap at 500 trades / 400 points.
+Failure mapping: timeout → `504`; `BacktestError`/worker failure → `422`;
+missing market data → `503`; unexpected errors → `400`/`500`.
+
+---
+
+## Paper-trading engine
+
+`services/paper_engine.py` is a deterministic **simulator**, not a broker
+client.
+
+- Each `paper-tick` advances **one** cached NIFTY bar (the oldest unprocessed
+  one, unless an exact `bar_date` is supplied; skips are rejected).
+- It replays the **deployment's own generated code** over the slice
+  `[first bar .. current bar]` in the same sandboxed worker used by backtests,
+  then reads the end-of-slice broker position as the signal.
+- Execution rules: long-only, integer quantities, no leverage/margin/shorting,
+  one open position per deployment/symbol, commission on every fill, fill price
+  always the processed bar's **close**.
+- `HOLD` creates no order, trade or chart marker. Rejected orders are stored as
+  rejected and never rendered as fills.
+- Every processed bar appends/updates one **idempotent**
+  `paper_equity_snapshots` row (`UNIQUE(deployment_id, bar_date)`).
+- `paper_bars.load_bars` and the chart read the **same** CSV; nothing there
+  downloads or fabricates a bar.
+
+No scheduler exists: paper trading advances only when someone calls the tick
+endpoint. The virtual account lives in `paper_deployments` plus the ledger
+tables; `GET /strategies/{id}/paper-account` is the authoritative snapshot the
+UI displays verbatim.
+
+---
+
+## Market intelligence (dashboard)
+
+`services/market_data_extended.py` powers the dashboard with data from Yahoo
+Finance and public NSE/index sources:
+
+- six Indian indices (NIFTY 50, BANK NIFTY, SENSEX, FINNIFTY, INDIA VIX, NIFTY IT)
+- intraday/daily chart series for multiple timeframes
+- top gainers / losers / most active over a fixed, documented universe
+- sector performance from real NSE sector indices
+- market breadth
+- market news aggregation
+- technical indicators
+
+There is a small in-process TTL cache so concurrent dashboard sections do not
+hammer the upstream provider. Failures return explicit `unavailable`/empty
+shapes rather than invented numbers. The AI briefing merges LLM narrative with
+rule-derived facts and caches each mode for 120 seconds; without an LLM key it
+returns a clearly labelled rule-based briefing.
+
+---
 
 ## Sandbox and security model
 
-Be explicit about what protects what:
+What the sandbox **does** protect against:
 
-| Threat | Mitigation | Location |
-| --- | --- | --- |
-| Malicious imports / builtins | AST pre-check, static refusal | `strategy_runner.check_guardrails` |
-| Dumb/accidental bad code | Same pre-check fails fast and cheap | `strategy_runner` + `test_guardrails.py` |
-| Infinite loops / hangs | 120s wall-clock timeout (default) | `backtest_service` |
-| Orphaned child processes | Tree kill: `killpg` on own process group (POSIX) / `taskkill /T` (Windows) | `backtest_service._kill_tree` |
-| Memory bombs | `RLIMIT_AS` cap, default 1GB (`SANDBOX_MEMORY_MB`), POSIX only | `preexec_fn` child hook |
-| CPU spin within timeout | Optional `RLIMIT_CPU` (`SANDBOX_CPU_SECONDS`), POSIX only | same hook |
-| Log/output bombs | 256KB stdout cap; trade/equity payload caps | orchestrator + runner |
-| Prompt-injected exfiltration | No network/file/syscall access in `ALLOWED_IMPORTS`; subprocess has no secrets in env beyond the app's own | guardrails + process boundary |
+- arbitrary imports outside the allow-list
+- `exec`/`eval`/file/network primitives
+- Python class-hierarchy escape hatches
+- runaway runtime (wall-clock timeout + process-tree kill)
+- memory blow-ups (POSIX `RLIMIT_AS`, default 2048 MB)
 
-What this is **not**: a container or cgroup sandbox. A sufficiently clever
-payload running *inside* the worker could still misbehave within its OS-user
-privileges — treat the worker host accordingly and never run it as root.
+What it **does not** do:
+
+- provide authentication or authorization (see below)
+- run the worker as a non-root user in Docker
+- isolate the filesystem/network at the OS level (no container/seccomp per
+  backtest)
+
+> ⚠️ **No API authentication.** `app/auth.py` returns a fixed local identity
+> (`dev@local`, id `aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`) for every request.
+> The frontend's `admin@local` / `admin` login is client-side only and stores a
+> `localStorage` flag. Anyone who can reach the API can read and write all data.
+> Do not expose this service publicly without adding real auth.
+
+Ownership checks still exist relative to the fixed identity, so rows created
+under a different id do not leak into the current user's lists.
+
+---
+
+## QuantCode-Bench integration
+
+After every successful backtest, `strategies.py` maps the strategy to a
+QuantCode-Bench `task_info` (`qcb_mapper.py`) and enqueues
+`evaluate_strategy(...)` (`qcb_evaluator.py`) as a FastAPI background task.
+
+- The evaluator runs in an isolated subprocess with a per-evaluation temp
+  directory, a timeout, and process-tree termination (Windows Job Objects on
+  Windows, `os.killpg` on POSIX).
+- Results are **only logged**. They are not persisted or shown in the UI.
+- Location is resolved from `QCB_PATH` (defaults: `D:\QuantCode-Bench` on
+  Windows, `/mnt/d/QuantCode-Bench` on Linux) and `AI_QUANT_BACKEND` supplies
+  this repo on `PYTHONPATH`.
+- If the path is missing, the evaluator logs a warning and the backtest response
+  is unaffected.
+
+`docker-compose.yml` bind-mounts `D:/QuantCode-Bench` to
+`/opt/quantcode-bench`. That directory is not part of this repository; if it is
+absent, remove or fix the mount before using compose.
+
+---
 
 ## Database and migrations
 
-Tables: `users`, `conversations`, `messages`, `strategies` (+ `status_note`,
-`strategy_spec`), `backtest_results`, `paper_deployments`. Strategy ↔
-results/deployments are one-to-many with delete-orphan cascades; all PKs are
-UUID strings.
+Postgres 16 (or Neon). Alembic owns the schema; the app never calls
+`create_all` in production (only the test harness does).
 
-The schema is owned by Alembic (`backend/alembic/`). The app runs
-`upgrade head` on startup; nothing calls `create_all` outside tests.
-Workflow for schema changes:
+**11 tables**
 
-```bash
+| Table | Purpose |
+|---|---|
+| `users` | Single local identity (kept for FK integrity) |
+| `projects` | Grouping for conversations |
+| `conversations` | Chat threads, status, timestamps |
+| `messages` | User/assistant turns |
+| `strategies` | Name, description, code, spec, status, status note, approved backtest id |
+| `backtest_results` | Metrics + full JSON payload per run |
+| `paper_deployments` | Virtual account and deployment lifecycle |
+| `paper_positions` | Open positions |
+| `paper_orders` | Every simulated order (filled/rejected) |
+| `paper_trades` | Closed round-trips with net PnL |
+| `paper_equity_snapshots` | Equity history for charts |
+
+**Migrations:** 9 revisions, single head `4f6a7b8c9d10`. The chain includes the
+initial schema, project/conversation support, strategy spec, paper deployments,
+the execution ledger, equity snapshots, `approved_backtest_id`,
+`updated_at` on conversations, and a cleanup of the retired "phantom" paper
+schema.
+
+```powershell
 cd backend
-# 1. edit app/models/db_models.py
-# 2. generate against an EMPTY database (a populated dev DB diffs to nothing!)
-python -m alembic revision --autogenerate -m "describe the change"
-# 3. verify the cycle, then stamp/upgrade dev
-python -m alembic upgrade head
+alembic upgrade head          # apply
+alembic current               # expected head: 4f6a7b8c9d10
+alembic downgrade -1          # one step back
 ```
 
-Two Postgres lessons baked into the revisions: autogenerate against an empty
-database, and drop ENUM types explicitly on downgrade (they survive
-`DROP TABLE` and break re-upgrade otherwise).
+`docker-compose.yml` starts Postgres with `quant_user` / `quant_pass` /
+`quant_trading`; CI uses the same credentials in a service container. A Neon
+connection string must include `sslmode=require` if your project requires TLS.
+
+---
 
 ## Frontend guide
 
-Multi-page React app routed from `frontend/src/App.jsx`:
+### Routes (`src/App.jsx`)
 
-| Route | Screen |
-| --- | --- |
-| `/` | Landing page — capabilities, lifecycle, sample metrics, sandbox table, quickstart |
-| `/chat` | Strategy Studio: chat window, input, and a `StrategyCard` rendered under any reply that produced a strategy |
-| `/strategies`, `/strategies/:id` | Local strategy registry and per-strategy overview |
-| `/strategies/:id/backtest`, `/approval`, `/deployment` | Backtest runner, approval gate, deployment log |
+| Route | Page | Access |
+|---|---|---|
+| `/` | Landing page (public marketing + simulated live chart) | public |
+| `/welcome` | Redirect to `/` | public |
+| `/login` | Cosmetic login (`admin@local` / `admin`) | public |
+| `/studio` | AI Strategy Studio with conversation sidebar | public |
+| `/chat` | Alias of the Studio | guarded |
+| `/strategies` | Strategy library | public |
+| `/studio/builder` | Structured strategy builder | guarded |
+| `/strategies/:id` | Strategy overview | guarded |
+| `/strategies/:id/backtest` | Backtest runner + charts | guarded |
+| `/strategies/:id/approval` | Gate criteria and decision | guarded |
+| `/strategies/:id/deployment` | Paper-trading account and tick controls | guarded |
+| `/backtests` | Backtest hub | guarded |
+| `/analytics` | Analytics over stored runs | guarded |
+| `/paper-trading` | Paper-trading hub | guarded |
+| `/dashboard` | Market terminal | guarded |
+| `/settings` | Local preferences and system info | guarded |
+| `/docs` | In-app documentation | guarded |
+| `*` | Not found | guarded |
 
-The `StrategyCard` shows the description, a status badge (`draft → backtested →
-approved → paper_trading / rejected`), and context actions — backtest button,
-approve/deploy/stop/reject (with inline reason form) — driven by live
-`GET /strategies/{id}` detail so it never goes stale after a transition.
+"Guarded" means `<ProtectedRoute>` checks the `localStorage` login flag — a
+convenience guard, **not** security.
 
-Results render a metrics grid beside the buy & hold benchmark with a beat/lagged
-verdict, an SVG equity curve (no chart dependency), a collapsible per-trade table
-with win/loss tinting, and a lazy-loaded code viewer. Risk disclaimers sit in the
-persistent header, on every results card, and across the landing page.
+### Data flow
 
-Light Material 3 theme, layered CSS: `styles/tokens.css` (design tokens, reset,
-typography, Material Symbols ligature setup), `styles/components.css`,
-`styles/pages.css` and `styles/landing.css` (landing page only, scoped under
-`.landing`). Scripts: `npm run dev` (Vite :5173), `npm run build`, `npm run
-preview`, `npm run lint` (oxlint). No test runner is configured for the frontend.
+- `src/lib/api.js` is the single API client; every shape is taken from the
+  backend schemas.
+- Dev requests go to `/api` and are proxied by Vite; production calls the
+  absolute URL from `VITE_API_BASE_URL` / `VITE_API_BASE`.
+- Charts use `lightweight-charts` (price, equity, drawdown, paper trade markers).
+- `AuthContext` keeps the fake login flag and display name in `localStorage`.
+- `storage.js` scopes cached strategy/UI data to the local user key.
 
-`frontend/nginx.conf` adds the SPA fallback (`try_files $uri /index.html`) so
-direct loads and refreshes on `/chat` and `/strategies/:id` resolve in React
-Router instead of returning an nginx 404.
+### Styling
+
+Light theme with CSS custom properties in `src/styles/tokens.css` (lavender
+surface, dark text), plus page/component stylesheets (`landing-page.css`,
+`pages.css`, `components.css`, `sidebar.css`, `auth.css`). There is no CSS
+framework and no Tailwind.
+
+### Build notes
+
+`npm run build` currently emits a **single ~772 kB JS chunk** (230 kB gzipped)
+and warns about chunk size and an ineffective dynamic import in
+`src/lib/storage.js`. Lint is oxlint; `npm run lint` passes with five warnings
+(unused vars in `toast.js`, fast-refresh export in `AuthContext.jsx`, two
+`exhaustive-deps` warnings).
+
+---
 
 ## Testing
 
-```bash
+```powershell
 cd backend
-python -m pytest            # full suite, ~4s
-python -m pytest tests/test_runner.py -q
-python -m pytest -k sortino -q
+..\venv\Scripts\python.exe -m pytest -q
 ```
 
-| File | What it covers | Needs DB? |
-| --- | --- | --- |
-| `test_guardrails.py` | Clean code accepted; 12 escape hatches rejected statically | No |
-| `test_runner.py` | Metrics incl. Sortino properties, trade list ↔ aggregates, equity curve ends on broker value | No |
-| `test_backtest_api.py` | Endpoint incl. 404/422 paths, DB persistence | Yes (self-skips) |
-| `test_deployment_gate.py` | Full approve/reject/deploy/stop lifecycle, 13 cases | Yes (self-skips) |
-| `test_display.py` | Reply cleaning: marker/headers/fences stripped, prose kept | No |
-| `test_strategy_builder_unit.py` | Prompt building, parameter validation, spec conversion | No |
+Current status: **337 checks — 331 passed, 6 skipped, 0 failed.**
 
-Fixtures in `tests/fixtures/`: four strategy fixtures plus `nifty50.csv`
-(740 real OHLCV rows, 2023-09-18 → 2026-09-18) so everything except the API
-modules runs offline. `probe_trades.py` is a debug-only fixture importing
-`traceback` — it would fail the guardrail and is referenced by no test.
+The 6 skips are Linux-only QCB process-group cleanup tests that do not apply on
+Windows.
 
-DB-backed modules skip themselves when Postgres is unreachable
-(`docker compose up -d db` to enable). A manual chat-flow QA script lives in
-`test_prompt.txt` at the repo root.
+### Timing reality
+
+The suite is **not** fast when it points at a hosted database. DB-backed modules
+round-trip to Neon for every test:
+
+| Module | Result | Wall time |
+|---|---|---|
+| `test_deployment_gate.py` | 26 passed | 7m 46s |
+| `test_conversations.py` | 24 passed | 2m 58s |
+| `test_llm_credentials.py` | 22 passed | 2m 38s |
+| `test_backtest_api.py` | 8 passed | 2m 06s |
+| `test_builder_integration.py` | 9 passed | 1m 49s |
+| `test_id_validation.py` | 56 passed | 1m 26s |
+| `test_migration_conversations_updated_at.py` | 4 passed | 1m 00s |
+| `test_approval_gate_new.py` | 10 passed | 58s |
+| `test_paper_trading.py` | 35 passed | 8.4s |
+| `test_paper_equity_snapshots.py` | 9 passed | 8.8s |
+| `test_runner.py` | 24 passed | 4.6s |
+| `test_backtest_service.py` | 18 passed | 2.6s |
+| `test_qcb_integration.py` | 11 passed, 6 skipped | 1.2s |
+| `test_guardrails.py` | 15 passed | 1.1s |
+| `test_display.py` | 5 passed | 1.1s |
+| `test_strategy_builder_unit.py` | 29 passed | 1.1s |
+| `test_error_handling.py` | 4 passed | 1.2s |
+| `test_dashboard_market.py` | 16 passed | 1.2s |
+| `test_dashboard_api.py` | 6 passed | 1.2s |
+
+Total observed runtime: roughly **19 minutes** against hosted Neon. Pure-logic
+modules (`guardrails`, `display`, `runner`, `paper_trading`) finish in seconds.
+
+### Important caveat: tests are not hermetic
+
+`backend/tests/conftest.py` calls `Base.metadata.create_all()` against the
+database in `backend/.env` and deletes the rows it added during teardown. If
+`backend/.env` points at a hosted Neon database, local test runs **write to and
+clean up a real shared database** and are dominated by network latency. CI does
+this correctly (local Postgres service), so local and CI behaviour differ. Point
+`DATABASE_URL` at a disposable local database for fast, safe runs.
+
+Test fixtures live in `backend/tests/fixtures/` (strategy files plus a 740-row
+`nifty50.csv`).
+
+---
 
 ## CI
 
-`.github/workflows/ci.yml` runs on push to `main` and all PRs:
+`.github/workflows/ci.yml` runs on pushes to `main` and on pull requests.
 
-- **backend**: Python 3.11 + Postgres 16 service → `pip install` →
-  `alembic upgrade head` (migrations must apply cleanly) → `pytest -q`
-- **frontend**: Node 22 → `npm ci` → `npm run lint` → `npm run build`
+**Backend job**
 
-## Docker deployment
+1. Starts a `postgres:16-alpine` service with the compose credentials.
+2. Adds a 4 GB swapfile (the backtest worker needs memory headroom).
+3. Installs Python 3.11 dependencies from `backend/requirements.txt`.
+4. Runs `alembic upgrade head` to prove migrations apply cleanly.
+5. Runs `python -m pytest -q`.
 
-```bash
+**Frontend job**
+
+1. Node 22, `npm ci`.
+2. `npm run lint`.
+3. `npm run build`.
+
+---
+
+## Deployment
+
+The repository is wired for **Neon + Render + Vercel**, with Docker Compose as
+the local/self-hosted option.
+
+### Neon (database)
+
+1. Create a Neon project and copy the direct connection string.
+2. Set it as `DATABASE_URL` in `backend/.env` (local) or the Render service env.
+3. The app migrates automatically on startup; `alembic upgrade head` also works
+   manually.
+
+### Render (backend)
+
+- Build: `pip install -r requirements.txt` (root directory `backend`)
+- Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Env: `DATABASE_URL`, `GROQ_API_KEY`, `GROQ_MODEL`, `ALLOWED_ORIGINS`
+  (comma-separated frontend origins, e.g. `https://your-app.vercel.app`), plus
+  `SANDBOX_MEMORY_MB=2048` if the instance is memory-constrained.
+
+### Vercel (frontend)
+
+- Root directory `frontend`; `vercel.json` rewrites all paths to `/` so the SPA
+  router works on refresh.
+- Set `VITE_API_BASE_URL` to the Render URL at build time.
+
+### Docker Compose (self-hosted)
+
+```powershell
 docker compose up --build
 ```
 
-| Service | Image | Port |
-| --- | --- | --- |
-| `db` | `postgres:16-alpine`, volume `pgdata` | `5432` |
-| `backend` | built from `backend/` (`python:3.11-slim` + uvicorn) | `8000` |
-| `frontend` | multi-stage `node:22-alpine` build → `nginx:1.27-alpine` | `3000` |
+- `db` → Postgres 16 with a named volume and healthcheck.
+- `backend` → built from `backend/Dockerfile`, reads `backend/.env`, exposes
+  `8000`, and bind-mounts `D:/QuantCode-Bench` read-only.
+- `frontend` → multi-stage build served by nginx on port `3000`, with
+  `VITE_API_BASE` / `VITE_API_BASE_URL` passed as build args.
 
-The browser calls the backend directly, so the published `:8000` is what the
-nginx UI uses by default; bake a different API host with
-`--build-arg VITE_API_BASE=…` on the frontend build. The backend container gets
-`DATABASE_URL` pointing at host `db` (overriding `.env`) and runs migrations on
-startup.
+Caveats: the backend container runs as **root** (no `USER` in the Dockerfile),
+and the QCB bind mount requires `D:/QuantCode-Bench` to exist on the host.
+
+---
 
 ## Troubleshooting
 
-- **`/chat` fails / LLM errors** — `GROQ_API_KEY` missing or invalid in
-  `backend/.env`; check the backend logs. Everything except chat works without it.
-- **Backtest API tests skip** — Postgres isn't up: `docker compose up -d db`
-  from the repo root, then re-run pytest.
-- **Port 8000 already in use** — a local `uvicorn` and `docker compose up backend`
-  conflict; stop one. (Also note: on Windows the venv launcher shows as a
-  parent + child `python.exe` pair — kill the parent and both go.)
-- **`alembic revision --autogenerate` produces an empty migration** — you diffed
-  against a database that already has the tables. Generate against an empty DB.
-- **`type … already exists` on re-upgrade** — a downgrade left a Postgres ENUM
-  behind; new revisions must drop custom types explicitly (see existing ones).
-- **Frontend shows "Error reaching the backend"** — backend not running, or CORS:
-  dev (`:5173`) and compose (`:3000`) origins are allow-listed in `app/main.py`.
-- **Yahoo Finance rate-limits** — backtests reuse the stale CSV cache instead of
-  failing, so this surfaces only as older `start_date`s, plus a 503 when no cache
-  exists at all.
+| Symptom | Cause / fix |
+|---|---|
+| Chat returns `503` "LLM not configured" | `GROQ_API_KEY` is empty. Add a key to `backend/.env` and restart. |
+| Backtest returns `503` "Could not load market data" | Yahoo unreachable and no cached CSV. Check `backend/data/NIFTY50.csv` / network. |
+| Backtest returns `422` | Guardrail refusal or the strategy has no generated code. Read `detail`. |
+| Backtest returns `504` | The worker exceeded its 120 s timeout. Simplify the strategy or raise the limit in `strategy_runner.py`. |
+| Worker dies with "failed to map segment from shared object" | `SANDBOX_MEMORY_MB` is below the ~1.5 GB needed just to import pandas/numpy/backtrader. Keep it at 2048+. |
+| Approval returns `422` with reasons | Expected gate refusal. The reasons list every failed criterion. |
+| Paper tick returns `422` | `bar_date` was not exactly the next unprocessed bar, or no active deployment exists. |
+| Frontend gets CORS errors | Add the frontend origin to `ALLOWED_ORIGINS` (or use the Vite proxy in dev). |
+| `docker compose up` fails on the backend volume | `D:/QuantCode-Bench` does not exist. Remove the bind mount or create the directory. |
+| `alembic` fails on startup after 10 retries | Database unreachable or migrations diverged. Check `DATABASE_URL`, then run `alembic current` / `alembic upgrade head` manually. |
+| Tests are extremely slow | They are talking to hosted Neon. Point `DATABASE_URL` at a local Postgres. |
+| `GET /strategies` 404s | Use `/strategies/` — the app runs with `redirect_slashes=False`. |
+
+---
 
 ## Roadmap and known gaps
 
-- **No auth** — a single `dev@local` user is auto-created per conversation.
-- **No live trading loop** — deployments are validated and recorded; no scheduler
-  or broker feed executes them against live markets.
-- **Single-position sizing** — `PercentSizer` assumes one position at a time.
-- **Sandbox, not a container** — see the security table above for exact boundaries.
-- **No frontend tests** — backend is at 76+ collected checks; the UI has lint +
-  build only.
+Verified gaps in the current tree (roughly in priority order):
+
+1. **No real authentication.** The API is open; the fixed `dev@local` identity
+   and the cosmetic `admin@local` / `admin` login provide no protection. Add
+   real auth (and real per-user ownership) before any public deployment.
+2. **Tests are not isolated.** `conftest.py` creates tables and cleans rows on
+   whatever `DATABASE_URL` points at; with the shipped env that is hosted Neon.
+   Use a disposable database and gate the fixtures behind it.
+3. **The backend container runs as root**, contradicting the security posture
+   of the sandbox. Add a non-root `USER` and drop capabilities.
+4. **QuantCode-Bench is effectively dead code.** `D:\QuantCode-Bench` does not
+   exist here; the compose bind mount points at a missing path; evaluation is
+   log-only and never persisted or displayed. Either wire it up properly or
+   remove the hook and mount.
+5. **Approval thresholds are hardcoded.** `APPROVAL_MIN_TRADES` /
+   `APPROVAL_MAX_DRAWDOWN_PCT` are configuration dead ends, and
+   `.env.example` still ships the stale `APPROVAL_MIN_TRADES=1`.
+6. **No scheduler for paper trading.** Ticks only happen when a user clicks.
+   A real loop needs a worker/cron and idempotency guarantees.
+7. **Market coverage is NIFTY 50 only.** `BANKNIFTY`, `SENSEX` and `OTHER` are
+   accepted by the enum but rejected by the data validator.
+8. **Frontend test coverage is zero.** There is lint + build in CI, no unit or
+   E2E tests.
+9. **Bundle size.** One ~772 kB chunk; route-level code splitting is not set up.
+10. **Repository hygiene.** Stale `__pycache__` entries for deleted tests
+    (`test_welcome_email`, `test_user_isolation`), a stray
+    `backend/node_modules` + `.package-lock.json`, an unused `openai`
+    dependency, and unused Supabase/SMTP env vars in local `.env` files.
+11. **Analytics page is read-only.** It renders cached backtest runs and
+    recalculates nothing.
+
+---
+
+**Status:** backend imports cleanly (51 routes), frontend lints and builds,
+migrations apply, and all 337 collected checks pass (6 environment skips). The
+main work left is authentication, test isolation, container hardening, and
+deciding what to do with the QCB hook.
