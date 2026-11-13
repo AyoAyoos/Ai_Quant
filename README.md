@@ -697,56 +697,203 @@ returns a clearly labelled rule-based briefing.
 
 ## Market News Hub
 
-The News Hub (`/news`) aggregates market news from Indian, US, China, Europe
-and Japan sources plus Reddit community sentiment, with a credibility-aware
-classification layer.
+The News Hub (`/news`) is a multi-source market-news aggregation page, not just
+an article list. It pulls from Indian, US, China, Europe and Japan sources plus
+Reddit community sentiment, classifies every item with an explicit credibility
+rating, and exposes filters/search, sentiment, trending tickers and stock-linked
+news.
 
-**Source groups**
-- Indian publishers: Moneycontrol, Economic Times, Mint, CNBC-TV18, Business
-  Standard, Financial Express, BusinessLine, NDTV Profit, ET Now, Zee Business,
-  BQ Prime, Business Today, Zerodha Pulse
-- Official Indian sources: NSE, BSE, SEBI, RBI, Ministry of Finance, PIB,
-  NITI Aayog, AMFI, Union Budget (credibility 5 / verified)
-- US / Wall Street: Reuters, Bloomberg, AP, CNBC, WSJ, MarketWatch, Barron's,
-  FT (newswire credibility 4; publisher credibility 3)
-- US official: Federal Reserve, SEC, Nasdaq, NYSE, Treasury, BLS, BEA
-- China: Xinhua, China Daily, PBOC, SSE, SZSE
-- Europe: ECB, Euronext, Deutsche Börse, Bank of England, European Commission,
-  LSE
-- Japan / APAC: Nikkei, Nikkei Asia, JPX, MAS, ASX, HKEX
-- Other intelligence: CoinDesk, Cointelegraph, Decrypt, Investing.com, Yahoo
-  Finance, Seeking Alpha, TradingView, Kobeissi Letter, Glassnode, Kitco,
-  OilPrice
-- Community: Reddit (IndianStockMarket, IndiaInvestments, IndianStreetBets,
-  NSEbets, WallStreetBets, stocks, investing, SecurityAnalysis, options,
-  StockMarket, Forex, CryptoCurrency)
+### Source groups
 
-**Ingestion** (keyless by default)
-- Google News RSS `site:` queries over publisher and official domains
-- Direct official RSS/Atom feeds (RBI, PIB, Federal Reserve, SEC, BLS, ECB)
-- Reddit public JSON (sentiment only)
-- Optional free API keys: Marketaux, Finnhub, Alpha Vantage — report what's
-  still needed via `GET /news/sources`
+| Group | Sources | Credibility |
+|---|---|---|
+| Indian publishers | Moneycontrol, Economic Times, Mint, CNBC-TV18, Business Standard, Financial Express, BusinessLine, NDTV Profit, ET Now, Zee Business, BQ Prime, Business Today, Zerodha Pulse | 3 — publisher |
+| Official Indian | NSE, BSE, SEBI, RBI, Ministry of Finance, PIB, NITI Aayog, AMFI, Union Budget | 5 — official / verified |
+| US / Wall Street | Reuters, Bloomberg, AP, CNBC, WSJ, MarketWatch, Barron's, FT | 4 newswire / 3 publisher |
+| US official | Federal Reserve, SEC, Nasdaq, NYSE, Treasury, BLS, BEA | 5 — official / verified |
+| China | Xinhua, China Daily, PBOC, SSE, SZSE | 3 publisher / 5 official |
+| Europe | ECB, Euronext, Deutsche Börse, Bank of England, European Commission, LSE | 3 publisher / 5 official |
+| Japan / APAC | Nikkei, Nikkei Asia, JPX, MAS, ASX, HKEX | 3 publisher / 5 official |
+| Other intelligence | CoinDesk, Cointelegraph, Decrypt, Investing.com, Yahoo Finance, Seeking Alpha, TradingView, Kobeissi Letter, Glassnode, Kitco, OilPrice | 2 aggregator / 3 publisher |
+| Community | Reddit (IndianStockMarket, IndiaInvestments, IndianStreetBets, NSEbets, WallStreetBets, stocks, investing, SecurityAnalysis, options, StockMarket, Forex, CryptoCurrency) | 1 — unverified |
 
-**Credibility scale** (assigned by the local taxonomy, never by a provider)
-- 5 Official / primary — verified fact
-- 4 Newswire — reported, not independently verified
-- 3 Established publisher — reported, not independently verified
-- 2 Aggregator / secondary
-- 1 Community / unverified — speculation only
+### Ingestion (keyless by default)
 
-**What is stored:** headline, short source snippet, source URL, timestamp and
-classification metadata. Full article text and publisher images are never
-copied. AI summaries are never shown; every snippet is the source's own text.
+The hub works with no API keys. Keyless sources are used by default:
 
-**API:** `GET /news/` (filtered list), `GET /news/overview`, `GET /news/trending`,
-`GET /news/sentiment`, `GET /news/sources`, `POST /news/refresh`. See the
-[API reference](#market-news-hub---approutersnews-py) for the full contract.
+- **Google News RSS** `site:` queries over publisher and official domains — acts as an index; the publisher is always named and the registry sets credibility.
+- **Direct official RSS/Atom feeds** — RBI, PIB, Federal Reserve, SEC, BLS, ECB.
+- **Reddit public JSON** — sentiment only; never presented as verified news.
 
-Credentials needed for optional providers are listed by `GET /news/sources` and
-documented in [Configuration](#configuration) under `MARKETAUX_API_KEY`,
-`FINNHUB_API_KEY` and `ALPHA_VANTAGE_API_KEY`. Check each provider's
-redistribution terms before commercial display.
+Optional free API keys (not required):
+
+- **Marketaux** — `MARKETAUX_API_KEY` — global news with entity-level sentiment and ticker mapping.
+- **Finnhub** — `FINNHUB_API_KEY` — general market news and company news.
+- **Alpha Vantage** — `ALPHA_VANTAGE_API_KEY` — `NEWS_SENTIMENT` supplies provider sentiment and tickers.
+
+Credentials still needed are reported by `GET /news/sources` and documented in
+[Configuration](#configuration). No code change is required to enable a key;
+add it to `backend/.env` and restart the backend.
+
+### Credibility scale
+
+Credibility is always assigned by the local taxonomy in
+`app/services/news_taxonomy.py` — never by a provider — so an aggregator can
+never label its own copy as an official document.
+
+| Level | Label | Meaning |
+|---|---|---|
+| 5 | Official / primary | Primary document from an exchange, regulator or central bank. Treated as a verified fact. |
+| 4 | Newswire | Established newswire reporting. Reported, not independently verified by this app. |
+| 3 | Established publisher | Established financial publisher. Reported, not independently verified by this app. |
+| 2 | Aggregator / secondary | Aggregator, secondary summary or analyst/opinion platform. |
+| 1 | Community / unverified | Community discussion. Speculation only — never presented as verified news. |
+
+`is_verified` is `true` only for official/primary sources. Publisher and
+newswire articles are "reported, not independently verified." Community
+(Reddit) posts are speculation only.
+
+### Classification rules
+
+Every headline is classified deterministically (no LLM guesswork):
+
+- **Region** — matched from explicit keywords (India/US/China/Europe/Japan),
+  falling back to the source's registry region or `global`.
+- **Category** — markets, stocks, economy, policy, earnings, forex,
+  commodities, crypto, geopolitics, scored by weighted keywords.
+- **Sentiment** — deterministic finance lexicon, normalized to roughly
+  `[-1, 1]`, labeled bullish / bearish / neutral. A keyed provider may supply
+  its own score; `sentiment_method` records which (`lexicon` or `provider`).
+- **Impact** — high / medium / low, based on source type, credibility,
+  category and high-impact keywords. Community posts are always `low`.
+- **Tickers** — extracted from company names and known NSE/global symbols plus
+  cashtags (`$NVDA`); only recognized instruments are kept, never invented.
+- **Content type** — report / analysis / opinion / community.
+
+### What is stored (and what is not)
+
+Only the headline, a short source snippet, the source URL, the timestamp and
+classification metadata are stored in Postgres (`news_articles` table). Never
+stored:
+
+- Full article text
+- Publisher images
+
+AI summaries are never shown; every snippet is the source's own text. Check
+each provider's redistribution terms before commercial display (especially for
+publisher images and Reddit content).
+
+### Data model — `news_articles`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | primary key |
+| `external_id` | String(64) | unique, SHA of canonical URL |
+| `headline` | String(500) | |
+| `summary` | Text | source snippet only |
+| `source_name` | String(160) | |
+| `source_domain` | String(160) | |
+| `source_key` | String(160) | taxonomy registry key |
+| `source_url` | Text | canonical link |
+| `published_at` | DateTime | indexed |
+| `fetched_at` | DateTime | indexed |
+| `region` | String(20) | indexed |
+| `category` | String(30) | indexed |
+| `tickers` | JSON | array |
+| `tickers_text` | String(240) | pipe-delimited mirror for LIKE filtering |
+| `sentiment` | String(10) | indexed |
+| `sentiment_score` | Float | |
+| `sentiment_method` | String(20) | `lexicon` or `provider` |
+| `source_type` | String(20) | indexed |
+| `content_type` | String(20) | |
+| `credibility_level` | Integer | indexed |
+| `impact_level` | String(10) | indexed |
+| `is_verified` | Boolean | true only for official sources |
+| `provider` | String(30) | ingestion provider |
+| `raw_metadata` | JSON | provider-specific extras |
+| `created_at` | DateTime | |
+
+Alembic migration `d5e6f7a8b9c0` (head) adds the table; 10 migrations total.
+
+### API contract — `app/routers/news.py`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/news/` | List stored articles. Filters: `region`, `category`, `source_type`, `content_type`, `sentiment`, `ticker`, `q`, `min_credibility`, `hours`, `sort` (recent\|impact\|credibility), `limit`, `offset`. Read-only; never triggers ingestion. Trailing slash required |
+| GET | `/news/overview` | Hub header: counts (total, high impact, official, community), top stories, sentiment, freshness |
+| GET | `/news/trending` | Most-mentioned tickers with mention momentum vs prior window |
+| GET | `/news/sentiment` | Aggregate sentiment, split for official vs community sources |
+| GET | `/news/sources` | Source registry, credibility scale and the credentials still needed |
+| GET | `/news/sources/{key}` | One source's registry entry |
+| POST | `/news/refresh` | Run one ingestion pass over enabled providers (`force`, optional `providers` list) |
+
+### Configuration (`backend/app/config.py`, `backend/.env`)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MARKETAUX_API_KEY` | `""` | Optional Marketaux news API key |
+| `FINNHUB_API_KEY` | `""` | Optional Finnhub news API key |
+| `ALPHA_VANTAGE_API_KEY` | `""` | Optional Alpha Vantage news API key |
+| `NEWS_REFRESH_MINUTES` | `30` | Background refresh cadence |
+| `NEWS_RETENTION_DAYS` | `7` | How long articles are kept |
+| `NEWS_MAX_ARTICLES` | `3000` | Cap on stored articles |
+| `NEWS_ENABLE_REDDIT` | `true` | Enable Reddit sentiment feeds |
+| `NEWS_ENABLE_GOOGLE_NEWS` | `true` | Enable Google News RSS index |
+| `NEWS_AUTO_REFRESH` | `true` | Run background ingestion task on startup |
+| `NEWS_AUTO_REFRESH_INITIAL_DELAY_SECONDS` | `20` | Delay before first background refresh |
+| `NEWS_RSS_TIMEOUT_SECONDS` | `20` | HTTP timeout for feeds |
+| `NEWS_USER_AGENT` | descriptive | HTTP User-Agent for feeds |
+| `REDDIT_USER_AGENT` | descriptive | Reddit API User-Agent |
+
+### Frontend
+
+- Route: `/news` (guarded), page `NewsHubPage.jsx`.
+- Sidebar entry: "Market News" in `AppShell.jsx`.
+- API functions in `lib/api.js`: `fetchNews`, `fetchNewsOverview`,
+  `fetchNewsTrending`, `fetchNewsSentiment`, `fetchNewsSources`, `refreshNews`.
+- Styles in `styles/news.css`.
+- The page shows an overview strip (counts, high-impact, official, community,
+  sentiment breakdown), a trending tickers strip, filter chips (region, source
+  type, sentiment), search/ticker inputs, article cards with credibility
+  badges and source links, pagination, and a Sources/credentials tab.
+
+### Background refresh
+
+When `NEWS_AUTO_REFRESH=true` (default), the FastAPI lifespan starts an
+`auto_refresh_loop` task. It waits an initial delay, then refreshes only when
+the database is stale (older than `NEWS_REFRESH_MINUTES`), and sleeps between
+passes. Startup never blocks on the network; the task is cancelled cleanly on
+shutdown. Tests disable it via `NEWS_AUTO_REFRESH=false`.
+
+### Testing
+
+`backend/tests/test_news.py` — 26 offline tests covering classification,
+parsers (Google News RSS, direct RSS, Reddit, Marketaux, Finnhub, Alpha
+Vantage), normalisation helpers and the router contract. All provider calls are
+monkeypatched; no network or database is required.
+
+DB-backed tests require Postgres (`docker compose up -d db`) and are slow
+(~19 min for the full suite).
+
+### Running
+
+```powershell
+# 1. Configure optional keys (all optional — hub works without them)
+# edit backend/.env: MARKETAUX_API_KEY, FINNHUB_API_KEY, ALPHA_VANTAGE_API_KEY
+
+# 2. Start the stack (applies the news_articles migration on startup)
+docker compose up -d
+
+# 3. Manual refresh (optional; background auto-refresh runs by default)
+curl -X POST http://localhost:8000/news/refresh?force=true
+
+# 4. Open the hub
+# http://localhost:3000/news
+```
+
+Commercial/redistribution reminder: only headlines, short source snippets and
+links are stored. Check each provider's terms before displaying full article
+text, publisher images, or Reddit content alongside advertising.
 
 ---
 
