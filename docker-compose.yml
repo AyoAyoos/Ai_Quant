@@ -23,7 +23,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: postgresql://quant_user:quant_pass@db:5432/quant_trading
+      # DATABASE_URL comes from backend/.env (Neon hosted Postgres)
       QCB_PATH: /opt/quantcode-bench
       AI_QUANT_BACKEND: /app
     volumes:
@@ -31,9 +31,6 @@ services:
         source: D:/QuantCode-Bench
         target: /opt/quantcode-bench
         read_only: true
-    depends_on:
-      db:
-        condition: service_healthy
     ports:
       - "8000:8000"
 
