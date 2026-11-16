@@ -36,6 +36,31 @@ class Settings(BaseSettings):
     # Read from the ALLOWED_ORIGINS env var (set on Render). Empty = dev defaults.
     allowed_origins: str = ""
 
+    # ------------------------------------------------------------ News Hub
+    # Optional free API keys. The hub is fully functional without them using
+    # keyless RSS/Atom feeds and Reddit's public JSON. Marketaux and Alpha
+    # Vantage can supply their own sentiment; Finnhub only supplies headlines.
+    marketaux_api_key: str = ""
+    finnhub_api_key: str = ""
+    alpha_vantage_api_key: str = ""
+
+    # Background refresh cadence and retention.
+    news_refresh_minutes: int = 30
+    news_retention_days: int = 7
+    news_max_articles: int = 3000
+    news_enable_reddit: bool = True
+    news_enable_google_news: bool = True
+    news_auto_refresh: bool = True
+    news_auto_refresh_initial_delay_seconds: int = 20
+    news_rss_timeout_seconds: float = 20.0
+    news_user_agent: str = (
+        "QuantNitiNewsHub/1.0 (+https://github.com/; educational market research)"
+    )
+    # Reddit asks for a descriptive UA with contact info; override in .env.
+    reddit_user_agent: str = (
+        "QuantNitiNewsHub/1.0 (educational market-news aggregator; contact: dev@local)"
+    )
+
     # Single local user (auth removed): every request runs as dev@local.
 
 

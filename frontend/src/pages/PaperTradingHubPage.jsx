@@ -18,6 +18,7 @@ export default function PaperTradingHubPage() {
   const [deployments, setDeployments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [tab, setTab] = useState('active')
   const [expanded, setExpanded] = useState({})
   const [stopTarget, setStopTarget] = useState(null)
   const [stopReason, setStopReason] = useState('')
@@ -129,9 +130,15 @@ export default function PaperTradingHubPage() {
           <h2 className="section-title" id="paper-active">
             Active paper deployments
           </h2>
-          <span className="disclaimer-text">
-            {loading ? 'Loading…' : `${active.length} active`}
-          </span>
+          <div className="row row--between" style={{width:'100%'}}>
+            <div className="segmented" role="tablist" aria-label="Paper deployments">
+              <button role="tab" aria-selected={tab==='active'} onClick={()=>setTab('active')} className={`segmented__item${tab==='active'?' segmented__item--active':''}`}>Active</button>
+              <button role="tab" aria-selected={tab==='history'} onClick={()=>setTab('history')} className={`segmented__item${tab==='history'?' segmented__item--active':''}`}>History</button>
+            </div>
+            <span className="disclaimer-text">
+              {loading ? 'Loading…' : `${active.length} active`}
+            </span>
+          </div>
         </div>
         {loading ? (
           <p className="disclaimer-text">Loading deployment histories…</p>
@@ -152,6 +159,7 @@ export default function PaperTradingHubPage() {
                   <th scope="col">Equity (virtual)</th>
                   <th scope="col">P&amp;L (virtual)</th>
                   <th scope="col">Return</th>
+                  <th scope="col">Health</th>
                   <th scope="col">Deployed</th>
                   <th scope="col">Details</th>
                   <th scope="col">Action</th>
@@ -173,6 +181,11 @@ export default function PaperTradingHubPage() {
                       {d.total_pnl == null ? '—' : formatSignedMoney(d.total_pnl)}
                     </td>
                     <td className="tabular">{formatPercent(d.return_pct)}</td>
+                    <td>
+                      <div style={{width:'100px',height:'8px',background:'var(--panel)',borderRadius:'4px',overflow:'hidden'}}>
+                        <div style={{width:`${Math.min(100, Math.max(0, (d.return_pct ?? 0)+50))}%`,height:'100%',background:(d.return_pct??0)>=0?'var(--positive)':'var(--negative)'}}/>
+                      </div>
+                    </td>
                     <td className="tabular">{formatDateTime(d.deployed_at)}</td>
                     <td>
                       <button
@@ -264,7 +277,7 @@ export default function PaperTradingHubPage() {
           </>
         )}
       </section>
-
+      {tab==='history' && (
       <section className="panel" aria-labelledby="paper-history">
         <div className="panel__head">
           <h2 className="section-title" id="paper-history">
@@ -345,6 +358,7 @@ export default function PaperTradingHubPage() {
           </>
         )}
       </section>
+      )}
     </div>
   )
 }

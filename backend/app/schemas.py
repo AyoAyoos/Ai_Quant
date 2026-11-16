@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+from datetime import datetime
 
 
 class ChatMessageIn(BaseModel):
@@ -15,6 +16,80 @@ class ChatMessageOut(BaseModel):
     strategy_description: str | None = None
 
 
+# ============================================================
+# Conversation & Project Schemas
+# ============================================================
+
+class ProjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class ProjectUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class ProjectOut(BaseModel):
+    id: str
+    user_id: str
+    name: str
+    description: str | None = None
+    created_at: str
+    updated_at: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationCreate(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    project_id: str | None = None
+
+
+class ConversationUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    project_id: str | None = None
+    status: str | None = Field(default=None, pattern="^(active|archived)$")
+
+
+class ConversationOut(BaseModel):
+    id: str
+    user_id: str
+    project_id: str | None = None
+    title: str
+    status: str
+    created_at: str
+    updated_at: str
+    message_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class MessageOut(BaseModel):
+    id: str
+    conversation_id: str
+    role: str
+    content: str
+    created_at: str
+    strategy_id: str | None = None
+    strategy_name: str | None = None
+    strategy_description: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationDetailOut(BaseModel):
+    conversation: ConversationOut
+    messages: list[MessageOut]
+
+
+class MoveConversationIn(BaseModel):
+    project_id: str | None = None
+
+
 class StrategyDetailOut(BaseModel):
     strategy_id: str
     name: str
@@ -25,6 +100,7 @@ class StrategyDetailOut(BaseModel):
     generated_code: str | None = None
     strategy_spec: dict | None = None
     created_at: str | None = None
+    approved_backtest_id: str | None = None
 
 
 class GateOut(BaseModel):
@@ -57,6 +133,9 @@ class CapitalParams(BaseModel):
     )
     sizer_percents: float = Field(
         default=95.0, gt=0, lt=100, description="Percent of available cash per entry, in (0, 100)"
+    )
+    slippage_pct: float = Field(
+        default=0.0, ge=0, lt=100, description="Slippage per order, percent in [0, 100)"
     )
 
 
@@ -91,11 +170,17 @@ class BacktestResultOut(BaseModel):
     sharpe: float | None = None
     sortino: float | None = None
     cagr_pct: float | None = None
+    profit_factor: float | None = None
+    avg_win: float | None = None
+    avg_loss: float | None = None
+    avg_trade_pnl: float | None = None
+    expectancy: float | None = None
     start_date: str | None = None
     end_date: str | None = None
     trades: list[dict] = []
     trades_truncated: int = 0
     equity_curve: list[list] = []
+    drawdown_curve: list[list] = []
     warnings: list[str] = []
     raw_metrics: dict | None = None
 
@@ -134,6 +219,7 @@ class PaperTickOut(BaseModel):
     equity: float | None = None
     realized_pnl: float | None = None
     note: str | None = None
+    warmup_mode: bool = False
 
 
 class PaperAccountOut(BaseModel):
@@ -408,3 +494,165 @@ class StrategyGenerateResponse(BaseModel):
     status: str
     generated_code: str
     strategy_specification: StrategySpecOut
+
+
+# ============================================================
+# Market News Hub Schemas
+# ============================================================
+
+
+class NewsArticleOut(BaseModel):
+    """One classified news item.
+
+    ``summary`` is a short snippet written by the source, never an AI
+    paraphrase, and ``is_verified`` is true only for official/primary sources.
+    """
+
+    id: str
+    headline: str
+    summary: str = ""
+    summary_kind: str = "none"
+    source_name: str
+    source_domain: str = ""
+    source_url: str
+    published_at: int | None = None
+    fetched_at: int | None = None
+    age_minutes: int | None = None
+    region: str
+    region_label: str
+    category: str
+    category_label: str
+    tickers: list[str] = []
+    sentiment: str
+    sentiment_score: float
+    sentiment_method: str
+    source_type: str
+    source_type_label: str
+    content_type: str
+    content_type_label: str
+    credibility_level: int
+    credibility_label: str
+    impact_level: str
+    is_verified: bool
+    provider: str = ""
+
+
+class NewsListOut(BaseModel):
+    articles: list[NewsArticleOut] = []
+    total: int = 0
+    limit: int = 40
+    offset: int = 0
+    window_hours: int = 168
+    refreshed_at: int | None = None
+    stale: bool = True
+    generated_at: int
+
+
+class NewsTrendingTickerOut(BaseModel):
+    ticker: str
+    mentions: int
+    previous_mentions: int
+    delta_pct: float | None = None
+    velocity: str
+    mention_share: float
+    sentiment: str
+    sentiment_score: float
+    bullish_pct: float
+    bearish_pct: float
+    neutral_pct: float
+    community_mentions: int
+    official_mentions: int
+    sources: list[str] = []
+    headlines: list[str] = []
+
+
+class NewsTrendingOut(BaseModel):
+    window_hours: int
+    tickers: list[NewsTrendingTickerOut] = []
+    generated_at: int
+
+
+class NewsSentimentBucketOut(BaseModel):
+    bullish_pct: float
+    bearish_pct: float
+    neutral_pct: float
+    average_score: float
+    sample_size: int
+    method: str
+
+
+class NewsSentimentRegionOut(NewsSentimentBucketOut):
+    region: str
+
+
+class NewsSentimentOut(BaseModel):
+    window_hours: int
+    overall: NewsSentimentBucketOut
+    by_region: list[NewsSentimentRegionOut] = []
+    by_source_type: dict[str, NewsSentimentBucketOut] = {}
+    community: NewsSentimentBucketOut
+    official: NewsSentimentBucketOut
+    generated_at: int
+
+
+class NewsGroupCountOut(BaseModel):
+    key: str
+    count: int
+
+
+class NewsOverviewOut(BaseModel):
+    """Counts, top stories and sentiment for the hub header."""
+
+    window_hours: int
+    total: int
+    high_impact: int
+    official: int
+    community: int
+    regions: list[NewsGroupCountOut] = []
+    categories: list[NewsGroupCountOut] = []
+    source_types: list[NewsGroupCountOut] = []
+    top_stories: list[NewsArticleOut] = []
+    sentiment: NewsSentimentOut
+    refreshed_at: int | None = None
+    stale: bool = True
+    generated_at: int
+
+
+class NewsCountOut(BaseModel):
+    total: int
+    high_impact: int
+    official: int
+    community: int
+
+
+class NewsGroupCountOut(BaseModel):
+    key: str
+    count: int
+
+
+class NewsRefreshProviderOut(BaseModel):
+    provider: str
+    fetched: int = 0
+    errors: int = 0
+    duration_ms: int = 0
+
+
+class NewsRefreshErrorOut(BaseModel):
+    provider: str
+    error: str
+
+
+class NewsRefreshOut(BaseModel):
+    """Result of POST /news/refresh."""
+
+    status: str
+    fetched: int = 0
+    normalized: int = 0
+    inserted: int = 0
+    duplicates: int = 0
+    invalid: int = 0
+    deleted: int = 0
+    providers: list[NewsRefreshProviderOut] = []
+    errors: list[NewsRefreshErrorOut] = []
+    refreshed_at: int | None = None
+    duration_ms: int = 0

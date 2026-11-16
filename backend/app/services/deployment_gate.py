@@ -53,20 +53,62 @@ def check_approval(strategy) -> list[str]:
         reasons.append("no backtest yet — run a backtest first")
         return reasons
 
+    # Minimum closed trades prerequisite
     num_trades = result.num_trades or 0
-    if num_trades < settings.approval_min_trades:
+    if num_trades < 10:
         reasons.append(
-            f"the backtest closed {num_trades} trade(s) and the gate needs at least "
-            f"{settings.approval_min_trades} — there is nothing to judge yet, so re-run "
-            "the backtest on a strategy that actually trades"
+            f"Approval requires at least 10 closed trades. Current closed trades: {num_trades}."
         )
+        return reasons
 
-    drawdown = result.max_drawdown_pct
-    if drawdown is not None and drawdown > settings.approval_max_drawdown_pct:
+    # Gather metrics for the four criteria
+    max_drawdown = result.max_drawdown_pct
+    win_rate = result.win_rate_pct
+    raw = result.raw_metrics or {}
+    sharpe = raw.get('sharpe')
+
+    criteria = []
+    # 1. Max drawdown under 25%
+    c1_pass = max_drawdown is not None and max_drawdown < 25
+    criteria.append(('Max drawdown under 25%', c1_pass, max_drawdown))
+
+    # 2. At least 10 closed trades
+    c2_pass = num_trades >= 10
+    criteria.append(('At least 10 closed trades', c2_pass, num_trades))
+
+    # 3. Sharpe ratio above 0.5
+    c3_pass = sharpe is not None and sharpe > 0.5
+    criteria.append(('Sharpe ratio above 0.5', c3_pass, sharpe))
+
+    # 4. Win rate above 40%
+    c4_pass = win_rate is not None and win_rate > 40
+    criteria.append(('Win rate above 40%', c4_pass, win_rate))
+
+    passed = sum(1 for _, p, _ in criteria if p)
+    if passed < 2:
+        failed = [name for name, p, _ in criteria if not p]
         reasons.append(
-            f"max drawdown {drawdown:.1f}% exceeds the "
-            f"{settings.approval_max_drawdown_pct:.1f}% cap"
+            f"Approval requires at least 2 of 4 criteria to pass. Passed {passed}/4. "
+            f"Failed criteria: {', '.join(failed)}."
         )
+        # Add details for each failed criterion for clarity
+        if not c1_pass:
+            if max_drawdown is None:
+                reasons.append("Max drawdown under 25%: no drawdown was recorded.")
+            else:
+                reasons.append(f"Max drawdown under 25%: drawdown reached {max_drawdown:.2f}%, above the 25% ceiling.")
+        if not c2_pass:
+            reasons.append(f"At least 10 closed trades: only {num_trades} closed trade(s) — too thin to judge.")
+        if not c3_pass:
+            if sharpe is None:
+                reasons.append("Sharpe ratio above 0.5: no Sharpe ratio was recorded.")
+            else:
+                reasons.append(f"Sharpe ratio above 0.5: Sharpe was {sharpe:.2f}.")
+        if not c4_pass:
+            if win_rate is None:
+                reasons.append("Win rate above 40%: no win rate was recorded.")
+            else:
+                reasons.append(f"Win rate above 40%: win rate was {win_rate:.2f}%.")
     return reasons
 
 

@@ -1,8 +1,9 @@
 from datetime import datetime
 import json
+import logging
 import traceback
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 import httpx
 from sqlalchemy.orm import Session
 
@@ -65,12 +66,56 @@ from app.services.strategy_builder import (
     validate_indicator_parameters,
     convert_spec_to_output,
 )
+from app.services.qcb_mapper import map_strategy_to_qcb
+from app.services.qcb_evaluator import evaluate_strategy
+
+logger = logging.getLogger(__name__)
+
+
+def _run_qcb_evaluation_background(strategy_id: str, code: str, task_info: dict):
+    """
+    Best-effort background evaluation. Never raises to the request.
+    """
+    try:
+        result = evaluate_strategy(code, task_info, strategy_uuid=strategy_id)
+        if result and "error" not in result:
+            logger.info("QuantCode-Bench evaluation completed for strategy_uuid=%s reward=%s metadata=%s",
+                        strategy_id, result.get("reward"), result.get("metadata"))
+        elif result and "error" in result:
+            logger.warning("QuantCode-Bench evaluation error for strategy_uuid=%s: %s",
+                           strategy_id, result.get("message"))
+    except Exception:
+        # Evaluation failure must not affect backtest result
+        logger.exception("QuantCode-Bench background evaluation failed for strategy_uuid=%s", strategy_id)
 
 
 router = APIRouter(
     prefix="/strategies",
     tags=["strategies"],
 )
+
+
+@router.get("/", response_model=list[StrategyDetailOut])
+def list_strategies(db: Session = Depends(get_db), user: AuthenticatedUser = Depends(verify_user)):
+    """List strategies for the authenticated user."""
+    strategies = db.query(Strategy).filter(Strategy.conversation_id.in_(
+        db.query(Conversation.id).filter(Conversation.user_id == user.id)
+    )).all()
+    return [
+        StrategyDetailOut(
+            strategy_id=s.id,
+            name=s.name,
+            description=s.description,
+            market=s.market,
+            status=s.status.value,
+            status_note=s.status_note,
+            generated_code=s.generated_code,
+            strategy_spec=s.strategy_spec,
+            created_at=s.created_at.isoformat() if s.created_at else None,
+            approved_backtest_id=s.approved_backtest_id,
+        )
+        for s in strategies
+    ]
 
 
 @router.post("/builder", response_model=StrategyGenerateResponse)
@@ -206,6 +251,7 @@ def get_strategy(strategy_id: str,     db: Session = Depends(get_db),
         generated_code=strategy.generated_code,
         strategy_spec=strategy.strategy_spec,
         created_at=strategy.created_at.isoformat() if strategy.created_at else None,
+        approved_backtest_id=strategy.approved_backtest_id,
     )
 
 
@@ -263,6 +309,15 @@ def approve_strategy(strategy_id: str,     db: Session = Depends(get_db),
     reasons = check_approval(strategy)
     if reasons:
         raise HTTPException(status_code=422, detail={"reasons": reasons})
+    # Link approval to the exact backtest that passed the gate
+    latest_bt = (
+        db.query(BacktestResult)
+        .filter(BacktestResult.strategy_id == strategy.id)
+        .order_by(BacktestResult.created_at.desc())
+        .first()
+    )
+    if latest_bt:
+        strategy.approved_backtest_id = latest_bt.id
     strategy.status = StrategyStatus.approved
     strategy.status_note = None
     db.commit()
@@ -367,6 +422,7 @@ def list_deployments(strategy_id: str,     db: Session = Depends(get_db),
 def backtest_strategy(
     strategy_id: str,
     params: BacktestRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(verify_user),
 ):
@@ -387,6 +443,7 @@ def backtest_strategy(
             cash=params.cash,
             commission_pct=params.commission_pct,
             sizer_percents=params.sizer_percents,
+            slippage_pct=params.slippage_pct,
         )
     except BacktestTimeout as exc:
         raise HTTPException(status_code=504, detail=str(exc)) from exc
@@ -413,6 +470,14 @@ def backtest_strategy(
     db.commit()
     db.refresh(result)
 
+    # Enqueue best-effort QuantCode-Bench evaluation after successful backtest
+    try:
+        task_info = map_strategy_to_qcb(strategy)
+        background_tasks.add_task(_run_qcb_evaluation_background, str(strategy.id), strategy.generated_code, task_info)
+    except Exception:
+        # Mapping or enqueue failure must not affect backtest response
+        pass
+
     return BacktestResultOut(
         strategy_id=strategy.id,
         status="backtested",
@@ -424,14 +489,57 @@ def backtest_strategy(
         sharpe=metrics.get("sharpe"),
         sortino=metrics.get("sortino"),
         cagr_pct=metrics.get("cagr_pct"),
+        profit_factor=metrics.get("profit_factor"),
+        avg_win=metrics.get("avg_win"),
+        avg_loss=metrics.get("avg_loss"),
+        avg_trade_pnl=metrics.get("avg_trade_pnl"),
+        expectancy=metrics.get("expectancy"),
         start_date=_date_str(metrics.get("start_date")),
         end_date=_date_str(metrics.get("end_date")),
         trades=list(metrics.get("trades") or []),
         trades_truncated=int(metrics.get("trades_truncated") or 0),
         equity_curve=list(metrics.get("equity_curve") or []),
+        drawdown_curve=list(metrics.get("drawdown_curve") or []),
         warnings=list(metrics.get("warnings", []) or []),
         raw_metrics=metrics,
     )
+
+
+@router.get("/{strategy_id}/backtest-results", response_model=list[BacktestResultOut])
+def list_backtest_results(strategy_id: str, db: Session = Depends(get_db), user: AuthenticatedUser = Depends(verify_user)):
+    strategy = _get_strategy_or_404(db, strategy_id, user.id)
+    results = (
+        db.query(BacktestResult)
+        .filter(BacktestResult.strategy_id == strategy.id)
+        .order_by(BacktestResult.created_at.desc())
+        .all()
+    )
+    out = []
+    for r in results:
+        raw = r.raw_metrics or {}
+        out.append(
+            BacktestResultOut(
+                strategy_id=strategy.id,
+                status="backtested",
+                total_return_pct=r.total_return_pct,
+                benchmark_return_pct=raw.get("benchmark_return_pct"),
+                win_rate_pct=r.win_rate_pct,
+                max_drawdown_pct=r.max_drawdown_pct,
+                num_trades=r.num_trades,
+                sharpe=raw.get("sharpe"),
+                sortino=raw.get("sortino"),
+                cagr_pct=raw.get("cagr_pct"),
+                start_date=str(r.start_date) if r.start_date else None,
+                end_date=str(r.end_date) if r.end_date else None,
+                trades=list(raw.get("trades") or []),
+                trades_truncated=int(raw.get("trades_truncated") or 0),
+                equity_curve=list(raw.get("equity_curve") or []),
+                drawdown_curve=list(raw.get("drawdown_curve") or []),
+                warnings=list(raw.get("warnings", []) or []),
+                raw_metrics=raw,
+            )
+        )
+    return out
 
 
 def _default_market_data_path(market: str) -> str:

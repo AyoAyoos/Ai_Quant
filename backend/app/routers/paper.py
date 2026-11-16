@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.auth import AuthenticatedUser, verify_user
-from app.models import Conversation, DeploymentStatus, PaperDeployment, PaperPosition, PaperTrade
+from app.models import Conversation, DeploymentStatus, PaperDeployment, PaperPosition, PaperTrade, PaperEquitySnapshot
 from app.schemas import PaperDeploymentSummaryOut
 from app.services.paper_bars import PaperBarsError, load_bars
 from app.services.paper_engine import account_snapshot
@@ -95,3 +95,43 @@ def list_active_deployments(
 ):
     """Only the caller's active paper deployments, newest first."""
     return [s for s in list_all_deployments(db, user) if s.status == "active"]
+
+
+@router.get("/deployments/{deployment_id}/equity-snapshots")
+def get_equity_snapshots(
+    deployment_id: str,
+    db: Session = Depends(get_db),
+    user: AuthenticatedUser = Depends(verify_user),
+):
+    """Chronological portfolio equity snapshots for a deployment.
+
+    Snapshots are created per successfully processed historical bar.
+    """
+    from app.models import Strategy
+
+    dep = (
+        db.query(PaperDeployment)
+        .join(Strategy, PaperDeployment.strategy_id == Strategy.id)
+        .join(Conversation, Strategy.conversation_id == Conversation.id)
+        .filter(PaperDeployment.id == deployment_id, Conversation.user_id == user.id)
+        .first()
+    )
+    if not dep:
+        return []
+
+    snaps = (
+        db.query(PaperEquitySnapshot)
+        .filter_by(deployment_id=deployment_id)
+        .order_by(PaperEquitySnapshot.bar_date.asc())
+        .all()
+    )
+    return [
+        {
+            "bar_date": s.bar_date,
+            "cash_balance": float(s.cash_balance),
+            "positions_market_value": float(s.positions_market_value),
+            "equity": float(s.equity),
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+        for s in snaps
+    ]

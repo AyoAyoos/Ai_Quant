@@ -51,6 +51,13 @@ export function formatSignedMoney(value) {
   return body
 }
 
+/** Percentage with explicit "+" on gains. */
+export function formatSignedPercent(value, digits = 2) {
+  if (!isNum(value)) return EM_DASH
+  const sign = value >= 0 ? '+' : ''
+  return `${sign}${value.toFixed(digits)}%`
+}
+
 /** Accepts '2024-09-30', a full ISO timestamp, or a Date. */
 export function formatDate(value) {
   const date = toDate(value)

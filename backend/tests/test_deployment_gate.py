@@ -117,7 +117,7 @@ class TestApprove:
         resp = client.post(f"/strategies/{sid}/approve")
         assert resp.status_code == 422
         reasons = resp.json()["detail"]["reasons"]
-        assert any("re-run" in reason for reason in reasons)
+        assert any("Approval requires at least 10 closed trades" in reason for reason in reasons)
 
     @pytest.mark.parametrize(
         "body",
@@ -145,7 +145,7 @@ class TestApprove:
         assert resp.status_code == 422
         reasons = resp.json()["detail"]["reasons"]
         assert reasons and all(isinstance(reason, str) for reason in reasons)
-        assert any("0 trade" in reason for reason in reasons)
+        assert any("Approval requires at least 10 closed trades" in reason for reason in reasons)
 
     def test_approve_updates_the_status(self, client, db):
         sid = _seed(status=StrategyStatus.backtested, backtest=dict(GOOD_BACKTEST))
@@ -245,3 +245,59 @@ class TestStrategyDetailFields:
         body = resp.json()
         assert body["market"] == "NIFTY50"
         assert body["created_at"], "detail must expose the backend created_at timestamp"
+
+
+class TestApprovalGateCriteria:
+    def test_3_trades_1_criterion_rejected(self, client, db):
+        sid = _seed(status=StrategyStatus.backtested, backtest={"num_trades": 3, "max_drawdown_pct": 20.0, "win_rate_pct": 30.0})
+        resp = client.post(f"/strategies/{sid}/approve")
+        assert resp.status_code == 422
+        reasons = resp.json()["detail"]["reasons"]
+        assert any("at least 10 closed trades" in r for r in reasons)
+
+    def test_10_or_more_trades_1_criterion_rejected(self, client, db):
+        sid = _seed(status=StrategyStatus.backtested, backtest={"num_trades": 12, "max_drawdown_pct": 30.0, "win_rate_pct": 30.0})
+        resp = client.post(f"/strategies/{sid}/approve")
+        assert resp.status_code == 422
+        reasons = resp.json()["detail"]["reasons"]
+        assert any("at least 2 of 4 criteria" in r for r in reasons)
+
+    def test_fewer_than_10_trades_2_criteria_rejected(self, client, db):
+        sid = _seed(status=StrategyStatus.backtested, backtest={"num_trades": 9, "max_drawdown_pct": 10.0, "win_rate_pct": 50.0})
+        resp = client.post(f"/strategies/{sid}/approve")
+        assert resp.status_code == 422
+        reasons = resp.json()["detail"]["reasons"]
+        assert any("at least 10 closed trades" in r for r in reasons)
+
+    def test_10_or_more_trades_2_or_more_criteria_accepted(self, client, db):
+        sid = _seed(status=StrategyStatus.backtested, backtest={"num_trades": 12, "max_drawdown_pct": 10.0, "win_rate_pct": 50.0})
+        # raw_metrics will contain sharpe via default? Ensure sharpe via raw_metrics
+        # We need sharpe in raw_metrics; the backtest row does not store sharpe in column.
+        # The gate reads sharpe from raw_metrics. We'll seed raw_metrics via BacktestResult.
+        # Simpler: use GOOD_BACKTEST which has num_trades 12, drawdown 8.5
+        sid = _seed(status=StrategyStatus.backtested, backtest=dict(GOOD_BACKTEST))
+        resp = client.post(f"/strategies/{sid}/approve")
+        assert resp.status_code == 200
+        # Verify approved_backtest_id persisted
+        detail = client.get(f"/strategies/{sid}").json()
+        assert detail["status"] == "approved"
+        assert detail["approved_backtest_id"] is not None
+
+    def test_failed_approval_does_not_persist_status_or_link(self, client, db):
+        sid = _seed(status=StrategyStatus.backtested, backtest={"num_trades": 3, "max_drawdown_pct": 20.0})
+        resp = client.post(f"/strategies/{sid}/approve")
+        assert resp.status_code == 422
+        detail = client.get(f"/strategies/{sid}").json()
+        assert detail["status"] == "backtested"
+        assert detail["approved_backtest_id"] is None
+
+    def test_historical_unlinked_approval_preserved(self, client, db):
+        sid = _seed(status=StrategyStatus.approved, backtest=None)
+        # Manually set approved_backtest_id to None (historical)
+        with SessionLocal() as s:
+            strat = s.query(Strategy).filter(Strategy.id == sid).first()
+            strat.approved_backtest_id = None
+            s.commit()
+        detail = client.get(f"/strategies/{sid}").json()
+        assert detail["status"] == "approved"
+        assert detail["approved_backtest_id"] is None

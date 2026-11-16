@@ -20,7 +20,7 @@ no commentary, nothing before or after it — matching exactly this shape:
 {
   "name": "<short strategy name>",
   "description": "<one or two plain-English sentences describing the logic>",
-  "code": "<complete Python code as a single string, with \\n for newlines>"
+  "code": "<complete Python code as a single string with actual newlines>"
 }
 
 CRITICAL DESIGN REQUIREMENTS (for the code you generate):
@@ -38,7 +38,7 @@ Rules for the "code" field:
   that subclasses bt.Strategy, fully implementing the strategy discussed in the conversation.
 - Do NOT include: if __name__ blocks, cerebro.run(), cerebro.plot(), CSV loading code,
   print statements, or any "how to run this" text — ONLY the import and the class.
-- Escape the code properly as a JSON string (newlines as \\n, quotes as \\").
+- Provide plain Python source. Do not manually escape newlines or quotes; the JSON encoder will handle escaping.
 """
 
 RESPONSE_SCHEMA = {
@@ -91,6 +91,21 @@ async def finalize_strategy(conversation_history: list[dict]) -> dict | None:
 
         if not all(k in parsed for k in ("name", "description", "code")):
             return None
+
+        # Ensure code is valid Python; try legacy unescape only if needed
+        code = parsed.get("code", "")
+        if isinstance(code, str):
+            try:
+                import ast
+                ast.parse(code)
+            except SyntaxError:
+                candidate = code.replace('\\\\', '\\')
+                candidate = candidate.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t').replace('\\"', '"').replace("\\'", "'")
+                try:
+                    ast.parse(candidate)
+                    parsed["code"] = candidate
+                except SyntaxError:
+                    pass
         return parsed
 
     except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError):

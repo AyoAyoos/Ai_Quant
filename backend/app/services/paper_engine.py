@@ -39,6 +39,7 @@ from app.services.paper_bars import (
     select_next_bar,
 )
 from app.services.strategy_runner import TIMEOUT_DEFAULT_SECONDS
+from app.models import PaperEquitySnapshot
 
 
 class PaperTickError(RuntimeError):
@@ -221,6 +222,44 @@ def _is_warmup_insufficiency(exc: BaseException, slice_len: int) -> bool:
     return "index out of range" in str(exc).lower()
 
 
+def _record_equity_snapshot(
+    db,
+    deployment,
+    bar_date: str,
+    close_price: float,
+    positions: list,
+) -> None:
+    """Create or update an equity snapshot for a processed bar.
+
+    Snapshot is idempotent via UNIQUE(deployment_id, bar_date).
+    """
+    cash_balance = balance_of(deployment)
+    positions_market_value = round(
+        sum(float(close_price) * int(p.quantity) for p in positions), 2
+    )
+    equity = round(float(cash_balance) + positions_market_value, 2)
+
+    # Try to fetch existing snapshot to maintain idempotency
+    existing = (
+        db.query(PaperEquitySnapshot)
+        .filter_by(deployment_id=deployment.id, bar_date=bar_date)
+        .first()
+    )
+    if existing:
+        existing.cash_balance = cash_balance
+        existing.positions_market_value = positions_market_value
+        existing.equity = equity
+    else:
+        snap = PaperEquitySnapshot(
+            deployment_id=deployment.id,
+            bar_date=bar_date,
+            cash_balance=cash_balance,
+            positions_market_value=positions_market_value,
+            equity=equity,
+        )
+        db.add(snap)
+
+
 def _warmup_hold_result(deployment, strategy, bar: dict, note: str) -> dict:
     """Honest HOLD that still advances the watermark past a warmup bar."""
     deployment.last_bar_date = bar["date"]
@@ -242,6 +281,7 @@ def _warmup_hold_result(deployment, strategy, bar: dict, note: str) -> dict:
         "equity": round(balance, 2),
         "realized_pnl": realized_of(deployment),
         "note": note,
+        "warmup_mode": True,
     }
 
 
@@ -258,7 +298,7 @@ def run_paper_tick(
     watermark advances exactly one bar per successful tick and failed ticks
     record ``last_error`` without moving the watermark.
     """
-    from app.models import PaperOrder, PaperPosition, PaperTrade
+    from app.models import PaperOrder, PaperPosition, PaperTrade, PaperEquitySnapshot
 
     symbol = (strategy.market or "NIFTY50").strip().upper()
 
@@ -285,6 +325,13 @@ def run_paper_tick(
         # still advances the watermark past the warmup bar.
         deployment.last_bar_date = bar["date"]
         deployment.last_error = None
+        # Record snapshot for warmup bar
+        positions = (
+            db.query(PaperPosition)
+            .filter_by(deployment_id=deployment.id, symbol=symbol)
+            .all()
+        )
+        _record_equity_snapshot(db, deployment, bar["date"], float(bar["close"]), positions)
         db.commit()
         balance = balance_of(deployment)
         return {
@@ -303,6 +350,7 @@ def run_paper_tick(
             "equity": round(balance, 2),
             "realized_pnl": realized_of(deployment),
             "note": "warmup bar: single-bar history cannot form a strategy signal",
+            "warmup_mode": True,
         }
 
     slice_path = _write_slice_csv(slice_bars)
@@ -319,14 +367,35 @@ def run_paper_tick(
         except (BacktestError, BacktestTimeout) as exc:
             if _is_warmup_insufficiency(exc, len(slice_bars)):
                 db.rollback()
-                result = _warmup_hold_result(
-                    deployment,
-                    strategy,
-                    bar,
-                    f"warmup bar {len(slice_bars)}: insufficient history for "
-                    "strategy indicators — HOLD, watermark advanced",
+                # Advance watermark without signal
+                deployment.last_bar_date = bar["date"]
+                deployment.last_error = None
+                positions = (
+                    db.query(PaperPosition)
+                    .filter_by(deployment_id=deployment.id, symbol=symbol)
+                    .all()
                 )
+                _record_equity_snapshot(db, deployment, bar["date"], float(bar["close"]), positions)
                 db.commit()
+                balance = balance_of(deployment)
+                result = {
+                    "deployment_id": deployment.id,
+                    "strategy_id": strategy.id,
+                    "bar_date": bar["date"],
+                    "signal": "HOLD",
+                    "action": "HOLD",
+                    "price": round(bar["close"], 2),
+                    "quantity": 0,
+                    "order_id": None,
+                    "order_status": None,
+                    "trade_id": None,
+                    "pnl_net": None,
+                    "cash_balance": round(balance, 2),
+                    "equity": round(balance, 2),
+                    "realized_pnl": realized_of(deployment),
+                    "note": f"warmup bar {len(slice_bars)}: insufficient history for strategy indicators — HOLD, watermark advanced",
+                    "warmup_mode": True,
+                }
                 return result
             deployment.last_error = f"signal replay failed on {bar['date']}: {exc}"
             db.commit()
@@ -393,6 +462,13 @@ def run_paper_tick(
             db.refresh(order)
             deployment.last_bar_date = bar["date"]
             deployment.last_error = str(exc)
+            # Record equity snapshot for rejected order bar — account state unchanged
+            positions = (
+                db.query(PaperPosition)
+                .filter_by(deployment_id=deployment.id, symbol=symbol)
+                .all()
+            )
+            _record_equity_snapshot(db, deployment, bar["date"], close, positions)
             db.commit()
             result.update(
                 {
@@ -426,6 +502,13 @@ def run_paper_tick(
         deployment.cash_balance = round(balance - fill["cost"], 2)
         deployment.last_bar_date = bar["date"]
         deployment.last_error = None
+        # Record equity snapshot after BUY fill
+        positions = (
+            db.query(PaperPosition)
+            .filter_by(deployment_id=deployment.id, symbol=symbol)
+            .all()
+        )
+        _record_equity_snapshot(db, deployment, bar["date"], close, positions)
         db.commit()
         db.refresh(order)
         balance = balance_of(deployment)
@@ -478,6 +561,13 @@ def run_paper_tick(
         deployment.realized_pnl = round(realized_of(deployment) + fill["pnl_net"], 2)
         deployment.last_bar_date = bar["date"]
         deployment.last_error = None
+        # Record equity snapshot after SELL fill (position closed)
+        positions = (
+            db.query(PaperPosition)
+            .filter_by(deployment_id=deployment.id, symbol=symbol)
+            .all()
+        )
+        _record_equity_snapshot(db, deployment, bar["date"], close, positions)
         db.commit()
         db.refresh(buy_order)
         db.refresh(trade)
@@ -504,6 +594,12 @@ def run_paper_tick(
     # HOLD: no order, no position change — only the watermark moves.
     deployment.last_bar_date = bar["date"]
     deployment.last_error = None
+    positions = (
+        db.query(PaperPosition)
+        .filter_by(deployment_id=deployment.id, symbol=symbol)
+        .all()
+    )
+    _record_equity_snapshot(db, deployment, bar["date"], close, positions)
     db.commit()
     unrealized = 0.0
     if stored is not None:

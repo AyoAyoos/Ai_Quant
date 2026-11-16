@@ -59,6 +59,12 @@ STRICT RULES:
 9. Use the indicator parameters exactly as specified.
 10. For risk management: implement stop loss, take profit, and trailing stop as percentage-based exits.
 11. For max_trades_per_day: implement a daily trade counter that prevents new entries after the limit.
+12. DO NOT use bt.slippage, bt.slippage.FixedSlippage, or any broker slippage configuration inside strategy code. Slippage is managed by the runner.
+13. DO NOT use self.broker.set_slippage*, self.broker.set_slippage_fixed, or self.broker.set_slippage_perc inside strategy code.
+14. DO NOT use buy_bracket(), sell_bracket(), or any bracket order APIs. Use self.buy() for entries and self.close() for exits only.
+15. DO NOT pass explicit size= argument to self.buy() or self.sell(). Position sizing is handled by the runner's PercentSizer. Use bare self.buy() / self.close().
+16. DO NOT implement short-selling logic. Strategies are long-only unless explicitly specified otherwise.
+17. DO NOT create additional orders or manage orders outside the standard Backtrader flow. Never submit an exit while an entry order is pending.
 
 IMPLEMENTATION REQUIREMENTS (CRITICAL - your code MUST follow these patterns):
 
@@ -82,18 +88,22 @@ C. THRESHOLD CONDITIONS (in next()):
 
 D. ENTRY LOGIC (in next()):
    - Check ALL entry conditions must be met (AND logic)
-   - Only enter if not self.position
+   - Only enter if not self.position and no pending order
+   - Implement pending order guard: if self.order and not self.order.isdone(): return
+   - Use self.buy() with no size argument
    - Increment trade counter on entry
-   - Store entry_price = self.data.close[0] for risk management
+   - Do NOT set entry_price at signal time. Capture actual executed entry price in notify_order when order.Completed and order.isbuy()
 
 E. EXIT LOGIC (in next()):
-   - Check exit conditions OR risk management exits (OR logic)
+   - Check exit conditions as specified by the spec (AND/OR per spec)
    - Only exit if self.position
-   - User-specified exits (e.g., "Exit on opposite signal" = bearish crossover OR RSI overbought)
-   - Risk management exits (stop loss, take profit, trailing stop) - ALWAYS implement these
+   - Do NOT submit exit orders while an entry order is pending
+   - Use self.close() for exits, never self.sell() with explicit size
+   - Risk management exits - ALWAYS implement these using the actual executed entry_price captured in notify_order
    - For stop loss: (entry_price - current_price) / entry_price * 100 >= stop_loss_pct
    - For take profit: (current_price - entry_price) / entry_price * 100 >= take_profit_pct
    - For trailing stop: track highest_price_since_entry, exit if (highest - current) / highest * 100 >= trailing_pct
+   - Reset entry_price and tracking variables after exit
 
 F. MAX TRADES PER DAY:
    - Track self.trade_count and self.last_trade_date
@@ -185,13 +195,13 @@ Return ONLY a JSON object with this exact structure:
 {
   "name": "<short strategy name>",
   "description": "<one or two plain-English sentences describing the logic>",
-  "code": "<complete Python code as a single string with \\n for newlines>"
+  "code": "<complete Python code as a single string with actual newlines>"
 }
 
 The code field must contain:
 - "import backtrader as bt"
 - class GeneratedStrategy(bt.Strategy): with full implementation
-- Properly escaped as JSON string (newlines as \\n, quotes as \\")
+- Plain Python source. Do not manually escape newlines or quotes; the JSON encoder will handle escaping.
 """
 
 
@@ -261,10 +271,10 @@ Generate the complete strategy code following all the rules in the system prompt
     return prompt
 
 
-def validate_generated_code(code: str) -> list[str]:
+def validate_generated_code(code: str) -> dict:
     """
     Validate that the generated code has basic trading logic.
-    Returns list of warnings (non-blocking) and errors (blocking).
+    Returns dict with keys 'warnings' and 'errors'.
     """
     warnings = []
     errors = []
@@ -308,6 +318,33 @@ def validate_generated_code(code: str) -> list[str]:
     ])
     if "entry_price" not in code and has_risk_params:
         warnings.append("Risk management parameters used but entry_price not tracked - stop loss/take profit may not work")
+
+    # Forbidden patterns
+    if "bt.slippage" in code or "FixedSlippage" in code:
+        errors.append("Use of bt.slippage or FixedSlippage is not supported in this Backtrader version")
+    if "self.broker.set_slippage" in code:
+        errors.append("Broker slippage configuration is not allowed inside generated strategy")
+    if "buy_bracket" in code or "sell_bracket" in code:
+        errors.append("Bracket orders are not supported; use self.buy() and self.close()")
+    # Warn about explicit sizing which overrides PercentSizer
+    if "self.buy(" in code and "size=" in code:
+        warnings.append("Explicit size argument on self.buy() overrides PercentSizer; use bare self.buy()")
+    if "self.sell(" in code and "size=" in code:
+        warnings.append("Explicit size argument on self.sell() may override position sizing")
+
+    # Risk management must capture actual executed fill price
+    if has_risk_params:
+        if "notify_order" not in code:
+            errors.append("Risk management requires actual fill price capture via notify_order; missing notify_order")
+        # Detect signal-bar close assignment as entry price - incorrect
+        import re
+        if re.search(r'entry_price\s*=\s*self\.data\.close\[0\]', code):
+            errors.append("entry_price must be set from actual executed order in notify_order, not from signal-bar close")
+        # Pending order protection heuristic
+        if "self.buy(" in code and "self.order" not in code:
+            warnings.append("Missing pending order guard; check self.order before submitting new orders")
+        if "self.close(" in code and "self.order" not in code:
+            warnings.append("Missing pending order guard for exits; check self.order before submitting new orders")
     
     return {"warnings": warnings, "errors": errors}
 
@@ -351,6 +388,24 @@ async def generate_structured_strategy(spec: StrategyBuilderRequest) -> dict:
     
     if not all(k in parsed for k in ("name", "description", "code")):
         raise ValueError("LLM response missing required fields")
+
+    code = parsed["code"]
+    if isinstance(code, str):
+        # Ensure source is valid Python; try legacy unescape only if needed
+        try:
+            import ast
+            ast.parse(code)
+        except SyntaxError:
+            # narrow legacy compatibility: try unescaping common escaped sequences
+            candidate = code.replace('\\\\', '\\')
+            candidate = candidate.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t').replace('\\"', '"').replace("\\'", "'")
+            try:
+                ast.parse(candidate)
+                code = candidate
+            except SyntaxError:
+                # keep original, validation will surface the problem
+                pass
+        parsed["code"] = code
     
     # Validate generated code
     validation = validate_generated_code(parsed["code"])

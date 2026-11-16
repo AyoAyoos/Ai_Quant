@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Column, String, Text, DateTime, ForeignKey, Float, Integer, JSON, Enum
+    Boolean, Column, String, Text, DateTime, ForeignKey, Float, Integer, JSON, Enum,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -18,6 +19,11 @@ def gen_uuid():
 class MessageRole(str, enum.Enum):
     user = "user"
     assistant = "assistant"
+
+
+class ConversationStatus(str, enum.Enum):
+    active = "active"
+    archived = "archived"
 
 
 class StrategyStatus(str, enum.Enum):
@@ -41,6 +47,21 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversations = relationship("Conversation", back_populates="user")
+    projects = relationship("Project", back_populates="user")
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="projects")
+    conversations = relationship("Conversation", back_populates="project", cascade="all, delete-orphan")
 
 
 class Conversation(Base):
@@ -48,11 +69,15 @@ class Conversation(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+    project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=True)
     title = Column(String, default="New conversation")
+    status = Column(Enum(ConversationStatus), default=ConversationStatus.active)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="conversations")
-    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
+    project = relationship("Project", back_populates="conversations")
+    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
     strategies = relationship("Strategy", back_populates="conversation", cascade="all, delete-orphan")
 
 
@@ -83,9 +108,11 @@ class Strategy(Base):
     # Structured strategy specification (for strategy builder workflow)
     strategy_spec = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Immutable reference to the backtest that passed approval. NULL for historical approvals.
+    approved_backtest_id = Column(UUID(as_uuid=False), ForeignKey("backtest_results.id"), nullable=True)
 
     conversation = relationship("Conversation", back_populates="strategies")
-    backtest_results = relationship("BacktestResult", back_populates="strategy", cascade="all, delete-orphan")
+    backtest_results = relationship("BacktestResult", back_populates="strategy", foreign_keys="BacktestResult.strategy_id", cascade="all, delete-orphan")
     deployments = relationship("PaperDeployment", back_populates="strategy", cascade="all, delete-orphan")
 
 
@@ -103,7 +130,7 @@ class BacktestResult(Base):
     raw_metrics = Column(JSON)  # full metrics dump for flexibility
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    strategy = relationship("Strategy", back_populates="backtest_results")
+    strategy = relationship("Strategy", back_populates="backtest_results", foreign_keys="BacktestResult.strategy_id")
 
 
 class PaperDeployment(Base):
@@ -152,6 +179,9 @@ class PaperDeployment(Base):
     )
     trades = relationship(
         "PaperTrade", back_populates="deployment", cascade="all, delete-orphan"
+    )
+    equity_snapshots = relationship(
+        "PaperEquitySnapshot", back_populates="deployment", cascade="all, delete-orphan"
     )
 
 
@@ -226,3 +256,69 @@ class PaperTrade(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     deployment = relationship("PaperDeployment", back_populates="trades")
+
+
+class PaperEquitySnapshot(Base):
+    """Per-bar virtual portfolio equity snapshot for historical replay.
+
+    One snapshot per deployment per successfully processed bar. Equity is
+    cash_balance + market value of open positions at bar close.
+    """
+
+    __tablename__ = "paper_equity_snapshots"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    deployment_id = Column(
+        UUID(as_uuid=False), ForeignKey("paper_deployments.id"), nullable=False
+    )
+    bar_date = Column(String(10), nullable=False)
+    cash_balance = Column(Float, nullable=False)
+    positions_market_value = Column(Float, nullable=False)
+    equity = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    deployment = relationship("PaperDeployment", back_populates="equity_snapshots")
+
+    __table_args__ = (
+        UniqueConstraint('deployment_id', 'bar_date', name='uq_paper_equity_snapshot_deployment_bar'),
+    )
+
+
+class NewsArticle(Base):
+    """One aggregated market-news item.
+
+    Only the headline, a short source snippet and the link are stored — never
+    the full article text and never a publisher image.  ``credibility_level``
+    and ``is_verified`` are assigned by the local taxonomy, not by a provider,
+    so an aggregator can never label its own copy as an official document.
+    """
+
+    __tablename__ = "news_articles"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    external_id = Column(String(64), nullable=False, unique=True, index=True)
+    headline = Column(String(500), nullable=False)
+    summary = Column(Text, nullable=False, default="")
+    source_name = Column(String(160), nullable=False, default="")
+    source_domain = Column(String(160), nullable=False, default="")
+    source_key = Column(String(160), nullable=False, default="")
+    source_url = Column(Text, nullable=False)
+    published_at = Column(DateTime, nullable=False, index=True)
+    fetched_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    region = Column(String(20), nullable=False, default="global", index=True)
+    category = Column(String(30), nullable=False, default="markets", index=True)
+    tickers = Column(JSON, nullable=False, default=list)
+    # Pipe-delimited mirror of ``tickers`` so Postgres can filter with LIKE
+    # without depending on a JSON operator or a GIN index.
+    tickers_text = Column(String(240), nullable=False, default="")
+    sentiment = Column(String(10), nullable=False, default="neutral", index=True)
+    sentiment_score = Column(Float, nullable=False, default=0.0)
+    sentiment_method = Column(String(20), nullable=False, default="lexicon")
+    source_type = Column(String(20), nullable=False, default="aggregator", index=True)
+    content_type = Column(String(20), nullable=False, default="report")
+    credibility_level = Column(Integer, nullable=False, default=2, index=True)
+    impact_level = Column(String(10), nullable=False, default="low", index=True)
+    is_verified = Column(Boolean, nullable=False, default=False)
+    provider = Column(String(30), nullable=False, default="unknown")
+    raw_metadata = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)

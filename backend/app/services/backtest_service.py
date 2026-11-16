@@ -132,7 +132,7 @@ def _compute_cagr_pct(metrics: dict) -> float | None:
     return round(((float(value_end) / float(value_start)) ** (365.0 / days) - 1.0) * 100.0, 4)
 
 
-def _runner_command(data_path, cash, commission_pct, sizer_percents) -> list:
+def _runner_command(data_path, cash, commission_pct, sizer_percents, slippage_pct=0.0) -> list:
     """Build the worker argv.
 
     The runner is launched as a *script file*, never as
@@ -153,6 +153,7 @@ def _runner_command(data_path, cash, commission_pct, sizer_percents) -> list:
         "--cash", str(cash),
         "--commission", str(commission_pct),
         "--sizer-percents", str(sizer_percents),
+        "--slippage", str(slippage_pct),
     ]
 
 
@@ -162,10 +163,11 @@ def run_backtest_sandboxed(
     cash: float = 100000.0,
     commission_pct: float = 0.1,
     sizer_percents: float = 95.0,
+    slippage_pct: float = 0.0,
     timeout_seconds: int = TIMEOUT_DEFAULT_SECONDS,
     max_output_bytes: int = MAX_OUTPUT_BYTES,
 ) -> dict:
-    cmd = _runner_command(data_path, cash, commission_pct, sizer_percents)
+    cmd = _runner_command(data_path, cash, commission_pct, sizer_percents, slippage_pct)
     proc = subprocess.Popen(
         cmd,
         cwd=str(_BACKEND_DIR),

@@ -22,6 +22,7 @@ function useStrategyCount() {
 
 const SIDEBAR_ITEMS = [
   { label: 'Dashboard', to: '/dashboard', icon: 'grid_view', end: true },
+  { label: 'Market News', to: '/news', icon: 'newspaper' },
   {
     label: 'Studio',
     to: '/studio',

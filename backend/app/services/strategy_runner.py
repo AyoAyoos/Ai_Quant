@@ -147,10 +147,23 @@ class _Guardrails(ast.NodeVisitor):
 
 def check_guardrails(code: str) -> None:
     """Raise GuardrailError if the code trips a static rule. No execution."""
+    # Validate syntax first; only attempt legacy unescape if parsing fails
     try:
         tree = ast.parse(code)
-    except SyntaxError as exc:
-        raise GuardrailError(f"strategy code does not parse: {exc.args[0]}")
+    except SyntaxError:
+        # narrow legacy compatibility attempt – try only if backslashes are present
+        if isinstance(code, str) and '\\' in code:
+            candidate = code.replace('\\\\', '\\')
+            candidate = candidate.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t').replace('\\"', '"').replace("\\'", "'")
+            try:
+                tree = ast.parse(candidate)
+                code = candidate
+            except SyntaxError as exc:
+                raise GuardrailError(f"strategy code does not parse: {exc.args[0]}")
+        else:
+            raise GuardrailError(f"strategy code does not parse")
+    else:
+        tree = tree
 
     visitor = _Guardrails()
     try:
@@ -199,6 +212,18 @@ def _extract_trade_metrics(analysis: dict) -> dict:
     if lost_pnl_sum < 0:
         profit_factor = _sanitize(round(abs(won_pnl_sum / lost_pnl_sum), 4))
 
+    avg_trade_pnl = None
+    if total_closed:
+        avg_trade_pnl = _sanitize(round(closed_pnl / total_closed, 2))
+
+    expectancy = None
+    if total_closed and won + lost > 0:
+        win_rate = won / total_closed
+        avg_win_val = _safe_get(analysis, "won", "pnl", "average", default=0.0)
+        avg_loss_val = _safe_get(analysis, "lost", "pnl", "average", default=0.0)
+        if avg_loss_val != 0:
+            expectancy = _sanitize(round((win_rate * avg_win_val) + ((1 - win_rate) * avg_loss_val), 2))
+
     return {
         "num_trades": int(total_closed),
         "win_rate_pct": _sanitize(
@@ -211,6 +236,8 @@ def _extract_trade_metrics(analysis: dict) -> dict:
         "avg_loss": _sanitize(
             round(_safe_get(analysis, "lost", "pnl", "average", default=0.0), 2)
         ),
+        "avg_trade_pnl": avg_trade_pnl,
+        "expectancy": expectancy,
         "closed_pnl": _sanitize(round(closed_pnl, 2)),
     }
 
@@ -286,6 +313,30 @@ def _build_equity_curve(time_return_analysis: dict, value_start: float):
             sampled[-1] = points[-1]
         points = sampled
     return points
+
+
+def _build_drawdown_curve(equity_points):
+    """Build drawdown percentage series from equity points.
+
+    Returns list of [date, drawdown_pct] where drawdown_pct is negative or zero.
+    """
+    if not equity_points:
+        return []
+    peak = -float('inf')
+    result = []
+    for date, value in equity_points:
+        try:
+            v = float(value)
+        except Exception:
+            v = 0.0
+        if v > peak:
+            peak = v
+        if peak <= 0:
+            dd = 0.0
+        else:
+            dd = (v - peak) / peak * 100.0
+        result.append([date, round(dd, 4)])
+    return result
 
 
 def _format_date(value) -> str:
@@ -400,7 +451,7 @@ def load_dataframe(path: str):
 # Cerebro orchestration
 # --------------------------------------------------------------------------- #
 def run_backtest(code: str, data_path: str, cash: float, commission_pct: float,
-                 sizer_percents: float) -> dict:
+                  sizer_percents: float, slippage_pct: float = 0.0) -> dict:
     check_guardrails(code)
 
     # Run in a fresh namespace with real builtins. The guardrail (not builtin
@@ -428,13 +479,13 @@ def run_backtest(code: str, data_path: str, cash: float, commission_pct: float,
         if strategy_cls is None:
             raise ValueError("no bt.Strategy subclass found in the generated code")
 
-        return _run_cerebro(strategy_cls, data_path, cash, commission_pct, sizer_percents)
+        return _run_cerebro(strategy_cls, data_path, cash, commission_pct, sizer_percents, slippage_pct)
     finally:
         del sys.modules[module_name]
 
 
 def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: float,
-                  sizer_percents: float) -> dict:
+                  sizer_percents: float, slippage_pct: float = 0.0) -> dict:
     df = load_dataframe(data_path)
 
     cerebro = bt.Cerebro(stdstats=False)
@@ -448,6 +499,8 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
         stocklike=True,
         commtype=bt.CommInfoBase.COMM_PERC,
     )
+    if slippage_pct > 0:
+        cerebro.broker.set_slippage_perc(slippage_pct)
 
     data = bt.feeds.PandasData(
         dataname=df,
@@ -531,6 +584,9 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
             "price": _sanitize(round(float(broker_position.price), 2)),
         }
 
+    equity_curve = _build_equity_curve(time_return, value_start)
+    drawdown_curve = _build_drawdown_curve(equity_curve)
+
     metrics = {
         "start_date": str(df.index[0].date()),
         "end_date": str(df.index[-1].date()),
@@ -543,7 +599,8 @@ def _run_cerebro(strategy_cls, data_path: str, cash: float, commission_pct: floa
         "cagr_pct": None,  # computed in the parent from value + date span
         "trades": closed_trades if isinstance(closed_trades, list) else [],
         "trades_truncated": dropped_trades,
-        "equity_curve": _build_equity_curve(time_return, value_start),
+        "equity_curve": equity_curve,
+        "drawdown_curve": drawdown_curve,
         "warnings": [],
         "open_position": open_position,
     }
@@ -571,6 +628,7 @@ def main(argv=None) -> int:
     parser.add_argument("--cash", type=float, default=100000.0)
     parser.add_argument("--commission", type=float, default=0.1, help="commission %%")
     parser.add_argument("--sizer-percents", type=float, default=95.0)
+    parser.add_argument("--slippage", type=float, default=0.0, help="slippage %%")
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
@@ -593,6 +651,7 @@ def main(argv=None) -> int:
             cash=args.cash,
             commission_pct=args.commission,
             sizer_percents=args.sizer_percents,
+            slippage_pct=args.slippage,
         )
         print_result({"ok": True, "metrics": metrics})
         return 0
