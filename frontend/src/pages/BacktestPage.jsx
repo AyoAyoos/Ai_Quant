@@ -185,9 +185,7 @@ export default function BacktestPage() {
         <div className="page-head__text">
           <h1 className="page-title">Backtest</h1>
           <p className="page-lede">
-            Run the generated Backtrader code against NIFTY 50 daily history the backend fetches and
-            caches. Results are kept in this browser only — the backend exposes no endpoint to read a
-            stored run back.
+            
           </p>
         </div>
         <StrategyTabs strategyId={id} />
