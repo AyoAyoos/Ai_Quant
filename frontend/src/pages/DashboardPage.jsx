@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Activity,
   ArrowDownRight,
@@ -44,7 +45,7 @@ const INDEX_META = {
   SENSEX: { name: 'SENSEX', description: 'BSE benchmark' },
 }
 
-const NEWS_LIMIT = 7
+const NEWS_PREVIEW_LIMIT = 3
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -668,7 +669,6 @@ function AIMarketBriefing() {
     data?.briefing && typeof data.briefing === 'object' ? data.briefing : null
   const legacyText = typeof data?.briefing === 'string' ? data.briefing : null
   const sentiment = briefing?.sentiment ?? 'Insufficient Data'
-  const generatedBy = data?.generated_by === 'llm' ? 'AI generated' : 'Rule-based summary'
 
   return (
     <section className="panel dashboard-section" aria-labelledby="ai-briefing">
@@ -678,9 +678,11 @@ function AIMarketBriefing() {
             <Brain className="section-title__icon" size={ICON_SIZE} />
             AI Market Briefing
           </h2>
-          <p className="section-subtitle">
-            Facts first, interpretation second · not a trading signal
-          </p>
+          {data && (
+            <span className={`ai-sentiment-chip ai-sentiment-chip--${sentimentTone(sentiment)}`}>
+              Overall sentiment: <strong>{sentiment}</strong>
+            </span>
+          )}
         </div>
         <div className="ai-brief__head-actions">
           <button
@@ -740,23 +742,6 @@ function AIMarketBriefing() {
 
       {data && (
         <div className={`ai-brief${loading ? ' is-refreshing' : ''}`}>
-          <div className="ai-brief__top">
-            <div className="ai-brief__sentiment">
-              <span className="ai-brief__eyebrow">Overall sentiment</span>
-              <span className={`ai-sentiment ai-sentiment--${sentimentTone(sentiment)}`}>
-                {sentiment}
-              </span>
-            </div>
-            <div className="ai-brief__meta">
-              <span className={`ai-source-badge ${data.generated_by === 'llm' ? 'is-ai' : 'is-rules'}`}>
-                {generatedBy}
-              </span>
-              <span>Mode: {data.mode ?? activeMode}</span>
-              <span>Generated {formatIstIso(data.timestamp_ist ?? data.timestamp)} IST</span>
-              {data.cached && <span className="ai-cached">Cached</span>}
-            </div>
-          </div>
-
           <div className="ai-brief__direction">
             <h3 className="ai-block__title">
               <Target size={14} /> Market direction
@@ -888,22 +873,19 @@ function AIMarketBriefing() {
   )
 }
 
-/* ================================================================ MARKET NEWS */
+/* ============================================================== NEWS PREVIEW */
 
-function NewsCard({ item }) {
-  const hasUrl = Boolean(item.url)
+function NewsPreviewCard({ item }) {
   return (
-    <article className="news-card">
-      <div className="news-card__meta">
-        <span className="news-card__source">{item.source || 'Unknown source'}</span>
-        <span className="news-card__dot" aria-hidden="true">·</span>
-        <span>
+    <article className="news-preview-card">
+      <div className="news-preview-card__meta">
+        <span className="news-preview-card__source">{item.source || 'Unknown source'}</span>
+        <span className="news-preview-card__time">
           <Clock size={11} /> {formatIst(item.published_at)} IST
         </span>
       </div>
-
-      <h3 className="news-card__headline">
-        {hasUrl ? (
+      <h3 className="news-preview-card__headline">
+        {item.url ? (
           <a href={item.url} target="_blank" rel="noreferrer noopener">
             {item.title}
           </a>
@@ -911,47 +893,12 @@ function NewsCard({ item }) {
           item.title
         )}
       </h3>
-
-      {item.summary ? (
-        <p className="news-card__summary">{item.summary}</p>
-      ) : (
-        <p className="news-card__summary news-card__summary--unavailable">
-          Summary not provided by the source.
-        </p>
-      )}
-
-      <div className="news-card__footer">
-        <div className="news-card__tags">
-          {(item.related_symbols ?? []).slice(0, 3).map((symbol) => (
-            <span key={symbol} className="news-card__tag">
-              {symbol.replace('.NS', '').replace('^', '')}
-            </span>
-          ))}
-          {(item.related_sectors ?? []).slice(0, 2).map((sector) => (
-            <span key={sector} className="news-card__tag news-card__tag--sector">
-              {sector}
-            </span>
-          ))}
-          {!item.related_symbols?.length && !item.related_sectors?.length && (
-            <span className="news-card__tag">Market news</span>
-          )}
-        </div>
-        {hasUrl && (
-          <a
-            className="news-card__link"
-            href={item.url}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            Read More <ExternalLink size={12} />
-          </a>
-        )}
-      </div>
+      {item.summary && <p className="news-preview-card__summary">{item.summary}</p>}
     </article>
   )
 }
 
-function MarketNewsSection() {
+function LatestNewsPreview() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -960,7 +907,7 @@ function MarketNewsSection() {
     setLoading(true)
     setError(null)
     try {
-      const result = await fetchMarketNews({ limit: 20 })
+      const result = await fetchMarketNews({ limit: NEWS_PREVIEW_LIMIT })
       setData(result)
     } catch (err) {
       setError(err.message || 'News could not be fetched.')
@@ -973,78 +920,46 @@ function MarketNewsSection() {
     load()
   }, [load])
 
-  const news = (data?.news ?? []).slice(0, NEWS_LIMIT)
-  const unavailable = !error && (!data || data.status === 'unavailable' || !news.length)
+  const news = (data?.news ?? []).slice(0, NEWS_PREVIEW_LIMIT)
+  const unavailable = !error && !loading && (!data || data.status === 'unavailable' || !news.length)
 
   return (
-    <section className="panel dashboard-section" aria-labelledby="market-news">
+    <section className="panel dashboard-section news-preview" aria-labelledby="latest-market-news">
       <div className="panel__head">
-        <div>
-          <h2 className="section-title" id="market-news">
-            <Newspaper className="section-title__icon" size={ICON_SIZE} />
-            Market News &amp; Events
-          </h2>
-          <p className="section-subtitle">
-            Latest Indian market headlines · publication time shown, not retrieval time
-          </p>
-        </div>
-        <div className="market-live__meta">
-          <span className="disclaimer-text">
-            {data?.retrieved_at
-              ? `Retrieved ${formatIst(data.retrieved_at)} IST`
-              : loading
-                ? 'Retrieving headlines…'
-                : 'Retrieval time unavailable'}
-          </span>
-          <button type="button" className="btn btn--sm btn--ghost" onClick={load} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spinner" /> : <RefreshCw size={14} />}
-            Refresh
-          </button>
-        </div>
+        <h2 className="section-title" id="latest-market-news">
+          <Newspaper className="section-title__icon" size={ICON_SIZE} />
+          Latest Market News &amp; Events
+        </h2>
+        <Link to="/news" className="news-preview__link">
+          Go to Market News <ExternalLink size={13} />
+        </Link>
       </div>
 
       {loading && !data && (
-        <div className="news-grid">
-          {[0, 1, 2, 3].map((key) => (
-            <div key={key} className="news-card">
+        <div className="news-preview__grid">
+          {[0, 1, 2].map((key) => (
+            <div key={key} className="news-preview-card" aria-hidden="true">
               <div className="skeleton skeleton--line" />
               <div className="skeleton skeleton--line skeleton--line-lg" />
-              <div className="skeleton skeleton--line" />
             </div>
           ))}
         </div>
       )}
 
       {error && (
-        <Note tone="danger" title="News request failed">
-          <span>{error}. No headlines are generated locally.</span>
+        <Note tone="danger" title="News unavailable">
+          <span>{error}</span>
         </Note>
       )}
 
-      {unavailable && !error && (
-        <Note tone="warning" title="No recent headlines available">
-          <span>
-            The news provider returned no usable Indian market headlines. This can happen when the
-            provider is rate-limited or when no new articles are available. QuantNiti does not
-            invent headlines or timestamps.
-          </span>
-        </Note>
-      )}
+      {unavailable && <p className="news-preview__empty">No recent headlines available.</p>}
 
       {news.length > 0 && (
-        <>
-          <div className="news-grid">
-            {news.map((item, index) => (
-              <NewsCard key={`${item.title}-${index}`} item={item} />
-            ))}
-          </div>
-          <p className="news-disclaimer">
-            <Info size={13} /> Headlines are aggregated from Yahoo Finance and Google News
-            RSS, with a link to the original source. Publication time is when the article was
-            published; the section header shows when QuantNiti retrieved the list. Some providers
-            restrict full-text access behind the source link.
-          </p>
-        </>
+        <div className="news-preview__grid">
+          {news.map((item, index) => (
+            <NewsPreviewCard key={`${item.title}-${index}`} item={item} />
+          ))}
+        </div>
       )}
     </section>
   )
@@ -1104,7 +1019,7 @@ export default function DashboardPage() {
 
         <AIMarketBriefing />
 
-        <MarketNewsSection />
+        <LatestNewsPreview />
       </div>
     </div>
   )
