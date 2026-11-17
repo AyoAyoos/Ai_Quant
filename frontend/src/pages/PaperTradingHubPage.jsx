@@ -125,7 +125,7 @@ export default function PaperTradingHubPage() {
         </Note>
       )}
 
-      <section className="panel panel--accent" aria-labelledby="paper-active">
+      <section className="panel panel--neutral" aria-labelledby="paper-active">
         <div className="panel__head">
           <h2 className="section-title" id="paper-active">
             Active paper deployments

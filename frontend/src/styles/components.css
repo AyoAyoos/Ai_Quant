@@ -287,6 +287,60 @@
   box-shadow: var(--focus-ring), var(--shadow-1);
 }
 
+/* Neutral panel surface: uniform slate border, no accent tint. */
+.panel--neutral {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: var(--shadow-1);
+}
+
+/* ------------------------------------------------------- segmented tabs */
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.segmented__item {
+  padding: 6px 16px;
+  border-radius: var(--r-lg);
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #3e3c86;
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.segmented__item:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.segmented__item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(62, 60, 134, 0.18);
+}
+
+.segmented__item--active {
+  background: #3e3c86;
+  border-color: #3e3c86;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(62, 60, 134, 0.28);
+}
+
+.segmented__item--active:hover {
+  background: #342f73;
+  border-color: #342f73;
+  color: #ffffff;
+}
+
 .panel__head {
   display: flex;
   align-items: flex-start;
