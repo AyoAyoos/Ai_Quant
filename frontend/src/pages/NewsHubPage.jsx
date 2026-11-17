@@ -34,6 +34,7 @@ import {
 } from '../lib/api.js'
 import {
   formatDateTime,
+  formatInt,
   formatNumber,
 } from '../lib/format.js'
 import Note from '../components/Note.jsx'
@@ -120,12 +121,31 @@ function SentimentPill({ sentiment, score, method }) {
   )
 }
 
+async function fetchAllNews(filters) {
+  const perRequest = 200
+  const articles = []
+  let total = 0
+  let stale = true
+
+  for (let offset = 0; ; offset += perRequest) {
+    const result = await fetchNews({ ...filters, limit: perRequest, offset })
+    const page = result.articles ?? []
+    articles.push(...page)
+    total = result.total ?? 0
+    stale = result.stale ?? true
+    if (page.length < perRequest || articles.length >= total) break
+  }
+
+  return { articles, total, stale }
+}
+
 export default function NewsHubPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const [overview, setOverview] = useState(null)
-  const [articles, setArticles] = useState([])
+  const [filteredArticles, setFilteredArticles] = useState([])
   const [total, setTotal] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
   const [trending, setTrending] = useState([])
   const [stale, setStale] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -145,16 +165,18 @@ export default function NewsHubPage() {
   const minCredibility = params.get('min_credibility') || ''
   const hours = params.get('hours') || '168'
   const sort = params.get('sort') || 'recent'
-  const limit = Number(params.get('limit')) || 40
-  const offset = Number(params.get('offset')) || 0
+  const pageSize = Number(params.get('limit')) || 40
 
   const mountRef = useRef(true)
+  const articlesRef = useRef(null)
+  const previousPageRef = useRef(currentPage)
 
   const setFilter = useCallback((key, value) => {
     const next = new URLSearchParams(params)
     if (value === '' || value == null) next.delete(key)
     else next.set(key, String(value))
     next.set('offset', '0')
+    setCurrentPage(1)
     navigate(`?${next.toString()}`, { replace: true })
   }, [params, navigate])
 
@@ -166,7 +188,7 @@ export default function NewsHubPage() {
       const [overviewResult, listResult, trendingResult, sourcesResult] =
         await Promise.all([
           fetchNewsOverview({ hours }),
-          fetchNews({
+          fetchAllNews({
             region: region || undefined,
             category: category || undefined,
             sourceType: sourceType || undefined,
@@ -177,14 +199,12 @@ export default function NewsHubPage() {
             minCredibility: minCredibility || undefined,
             hours: Number(hours) || 168,
             sort,
-            limit,
-            offset,
           }),
           fetchNewsTrending({ hours: 24, limit: 8 }),
           fetchNewsSources(),
         ])
       setOverview(overviewResult)
-      setArticles(listResult.articles ?? [])
+      setFilteredArticles(listResult.articles ?? [])
       setTotal(listResult.total ?? 0)
       setTrending(trendingResult.tickers ?? [])
       setSourcesStatus(sourcesResult)
@@ -196,13 +216,25 @@ export default function NewsHubPage() {
     }
   }, [
     region, category, sourceType, contentType, sentiment, ticker, q,
-    minCredibility, hours, sort, limit, offset,
+    minCredibility, hours, sort,
   ])
 
   useEffect(() => {
+    mountRef.current = true
     load()
     return () => { mountRef.current = false }
   }, [load])
+
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(Math.max(prev, 1), Math.max(1, Math.ceil(total / pageSize))))
+  }, [total, pageSize])
+
+  useEffect(() => {
+    if (previousPageRef.current !== currentPage) {
+      articlesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      previousPageRef.current = currentPage
+    }
+  }, [currentPage])
 
   useEffect(() => {
     const timer = window.setInterval(load, 60000)
@@ -222,8 +254,11 @@ export default function NewsHubPage() {
     }
   }, [load])
 
-  const pageCount = Math.max(1, Math.ceil(total / limit))
-  const currentPage = Math.max(1, Math.floor(offset / limit) + 1)
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const pagedArticles = useMemo(
+    () => filteredArticles.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filteredArticles, currentPage, pageSize],
+  )
 
   const counts = useMemo(() => {
     if (!overview) return null
@@ -732,18 +767,18 @@ export default function NewsHubPage() {
       </section>
 
       {/* Articles */}
-      <section className="panel articles-panel" aria-labelledby="articles">
+      <section className="panel articles-panel" aria-labelledby="articles" ref={articlesRef}>
         <h2 className="section-title" id="articles">
-          Articles ({formatNumber(total)})
+          Articles ({formatInt(total)})
         </h2>
-        {loading && articles.length === 0 && (
+        {loading && filteredArticles.length === 0 && (
           <div className="empty-state">
             <span className="empty-state__icon">⏳</span>
             <h3 className="empty-state__title">Loading news…</h3>
             <p className="empty-state__text">Fetching the latest from all enabled sources.</p>
           </div>
         )}
-        {!loading && articles.length === 0 && (
+        {!loading && filteredArticles.length === 0 && (
           <div className="empty-state">
             <span className="empty-state__icon">📭</span>
             <h3 className="empty-state__title">No articles match your filters</h3>
@@ -758,10 +793,10 @@ export default function NewsHubPage() {
             </div>
           </div>
         )}
-        {!loading && articles.length > 0 && (
+        {!loading && filteredArticles.length > 0 && (
           <>
           <div className="article-grid">
-            {articles.map((article) => (
+            {pagedArticles.map((article) => (
               <article key={article.id} className="news-card news-card--article">
                 <div className="news-card__meta">
                   <span className={`region-chip region--${article.region}`}>
@@ -833,17 +868,17 @@ export default function NewsHubPage() {
             <button
               className="btn btn--sm btn--outline"
               disabled={currentPage <= 1}
-              onClick={() => setFilter('offset', Math.max(0, offset - limit))}
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
             >
               <Minus size={ICON_SIZE} /> Prev
             </button>
             <span className="pagination__info">
-              Page {currentPage} of {pageCount} · {formatNumber(total)} articles
+              Page {currentPage} of {totalPages} · {formatInt(total)} articles
             </span>
             <button
               className="btn btn--sm btn--outline"
-              disabled={currentPage >= pageCount}
-              onClick={() => setFilter('offset', offset + limit)}
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
             >
               Next <ArrowUpRight size={ICON_SIZE} />
             </button>
