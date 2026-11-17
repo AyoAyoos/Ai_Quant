@@ -200,31 +200,14 @@
   position: relative;
   overflow: hidden;
   background: #ffffff;
-  border: 1px solid var(--border);
+  border: 1px solid #e2e8f0;
   border-radius: var(--r-lg);
   padding: var(--sp-5);
-  padding-top: calc(var(--sp-5) + 2px);
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
   box-shadow: var(--shadow-1);
 }
-
-/* 3px top accent bar per KPI. */
-.overview-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--primary);
-}
-
-.overview-card--articles::before { background: #434190; }
-.overview-card--impact::before { background: #b45309; }
-.overview-card--official::before { background: #15803d; }
-.overview-card--community::before { background: #8b639b; }
 
 .overview-card__icon {
   position: absolute;
@@ -354,14 +337,10 @@
   padding: var(--sp-3);
   border-radius: var(--r-md);
   background: var(--surface-lowest);
-  border: 1px solid var(--border);
+  border: 1px solid #e2e8f0;
   min-width: 96px;
   flex: 1;
 }
-
-.sentiment-item--bullish { border-left: 3px solid #15803d; }
-.sentiment-item--bearish { border-left: 3px solid #b91c1c; }
-.sentiment-item--neutral { border-left: 3px solid var(--border-strong); }
 
 .sentiment-item__label {
   font-size: var(--fs-caption);
@@ -902,6 +881,135 @@
   color: var(--muted);
 }
 
+/* ------------------------------------------------------- credibility guide */
+
+.credibility-guide {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.credibility-guide__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--sp-3);
+  padding: 10px var(--sp-4);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.credibility-guide__toggle:hover {
+  background: #f3f0fa;
+}
+
+.credibility-guide__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #3e3c86;
+}
+
+.credibility-guide__icon {
+  color: #3e3c86;
+  flex: none;
+}
+
+.credibility-guide__toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.credibility-guide__chevron {
+  transition: transform var(--dur) var(--ease);
+}
+
+.credibility-guide__chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.credibility-guide__body {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #e2e8f0;
+}
+
+.credibility-col {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  min-width: 0;
+}
+
+.credibility-col + .credibility-col {
+  border-left: 1px solid #e2e8f0;
+}
+
+.credibility-col__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-md);
+}
+
+.credibility-col__badge--official {
+  background: #e8f5ee;
+  color: #15803d;
+}
+
+.credibility-col__badge--reported {
+  background: #eef2ff;
+  color: #3e3c86;
+}
+
+.credibility-col__badge--community {
+  background: #f3f0fa;
+  color: #64748b;
+}
+
+.credibility-col__text {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.credibility-col__label {
+  color: #3e3c86;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.credibility-col__verified {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.credibility-col__desc {
+  color: #64748b;
+}
+
 /* ---------------------------------------------------------------- sources tab */
 
 .sources-grid {
@@ -1144,6 +1252,11 @@
   .clear-all-btn { grid-column: 2; }
   .news-head { align-items: flex-start; }
   .news-head__actions { justify-content: flex-start; }
+  .credibility-guide__body { grid-template-columns: minmax(0, 1fr); }
+  .credibility-col + .credibility-col {
+    border-left: 0;
+    border-top: 1px solid #e2e8f0;
+  }
 }
 
 @media (max-width: 460px) {

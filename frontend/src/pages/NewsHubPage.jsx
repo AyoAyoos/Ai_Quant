@@ -13,6 +13,7 @@ import {
 import {
   ArrowUpRight,
   BadgeCheck,
+  ChevronDown,
   ExternalLink,
   Flame,
   Info,
@@ -132,6 +133,7 @@ export default function NewsHubPage() {
   const [error, setError] = useState(null)
   const [sourcesStatus, setSourcesStatus] = useState(null)
   const [activeTab, setActiveTab] = useState(params.get('tab') || 'feed')
+  const [credibilityOpen, setCredibilityOpen] = useState(true)
 
   const region = params.get('region') || ''
   const category = params.get('category') || ''
@@ -850,15 +852,64 @@ export default function NewsHubPage() {
         )}
       </section>
 
-      <Note tone="info" title="How to read credibility">
-        <strong>Official / primary</strong> (exchange filings, regulators,
-        central banks) are the only articles marked verified.{' '}
-        <strong>Newswire</strong> and <strong>publisher</strong> articles are
-        reported, not independently verified by this app.{' '}
-        <strong>Community</strong> (Reddit) posts are speculation — never
-        presented as verified news. AI summaries are never shown; every summary
-        is the source's own snippet.
-      </Note>
+      <section
+        className={`credibility-guide ${credibilityOpen ? 'credibility-guide--open' : ''}`}
+        aria-labelledby="credibility-guide-title"
+      >
+        <button
+          type="button"
+          className="credibility-guide__toggle"
+          onClick={() => setCredibilityOpen((open) => !open)}
+          aria-expanded={credibilityOpen}
+          aria-controls="credibility-guide-body"
+        >
+          <span className="credibility-guide__title" id="credibility-guide-title">
+            <Info size={14} className="credibility-guide__icon" aria-hidden="true" />
+            Credibility Guide
+          </span>
+          <span className="credibility-guide__toggle-label">
+            {credibilityOpen ? 'Hide' : 'Show'}
+            <ChevronDown
+              size={14}
+              className={`credibility-guide__chevron ${credibilityOpen ? 'is-open' : ''}`}
+              aria-hidden="true"
+            />
+          </span>
+        </button>
+
+        {credibilityOpen && (
+          <div className="credibility-guide__body" id="credibility-guide-body">
+            <div className="credibility-col">
+              <span className="credibility-col__badge credibility-col__badge--official" aria-hidden="true">
+                <ShieldCheck size={14} />
+              </span>
+              <p className="credibility-col__text">
+                <strong className="credibility-col__label">Official / Primary</strong>{' '}
+                <span className="credibility-col__verified">Marked Verified</span>{' '}
+                <span className="credibility-col__desc">(exchange filings, regulators, central banks).</span>
+              </p>
+            </div>
+            <div className="credibility-col">
+              <span className="credibility-col__badge credibility-col__badge--reported" aria-hidden="true">
+                <Newspaper size={14} />
+              </span>
+              <p className="credibility-col__text">
+                <strong className="credibility-col__label">Newswire &amp; Publisher</strong>{' '}
+                <span className="credibility-col__desc">Reported journalism, not independently verified.</span>
+              </p>
+            </div>
+            <div className="credibility-col">
+              <span className="credibility-col__badge credibility-col__badge--community" aria-hidden="true">
+                <Users size={14} />
+              </span>
+              <p className="credibility-col__text">
+                <strong className="credibility-col__label">Community (Reddit)</strong>{' '}
+                <span className="credibility-col__desc">Speculation only; snippets are verbatim from source (no AI summaries).</span>
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   )
 }
