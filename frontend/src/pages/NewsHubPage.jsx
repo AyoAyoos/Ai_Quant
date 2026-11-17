@@ -121,6 +121,17 @@ function SentimentPill({ sentiment, score, method }) {
   )
 }
 
+function parseMultiFilter(value) {
+  return value ? value.split(',').filter(Boolean) : []
+}
+
+function matchesSelectedFilters(article, regions, sources, sentiments) {
+  if (regions.length && !regions.includes(article.region)) return false
+  if (sources.length && !sources.includes(article.source_type)) return false
+  if (sentiments.length && !sentiments.includes(article.sentiment)) return false
+  return true
+}
+
 async function fetchAllNews(filters) {
   const perRequest = 200
   const articles = []
@@ -143,8 +154,7 @@ export default function NewsHubPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const [overview, setOverview] = useState(null)
-  const [filteredArticles, setFilteredArticles] = useState([])
-  const [total, setTotal] = useState(0)
+  const [apiArticles, setApiArticles] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
   const [trending, setTrending] = useState([])
   const [stale, setStale] = useState(true)
@@ -155,11 +165,11 @@ export default function NewsHubPage() {
   const [activeTab, setActiveTab] = useState(params.get('tab') || 'feed')
   const [credibilityOpen, setCredibilityOpen] = useState(true)
 
-  const region = params.get('region') || ''
+  const selectedRegions = parseMultiFilter(params.get('region'))
   const category = params.get('category') || ''
-  const sourceType = params.get('source_type') || ''
+  const selectedSources = parseMultiFilter(params.get('source_type'))
   const contentType = params.get('content_type') || ''
-  const sentiment = params.get('sentiment') || ''
+  const selectedSentiments = parseMultiFilter(params.get('sentiment'))
   const ticker = params.get('ticker') || ''
   const q = params.get('q') || ''
   const minCredibility = params.get('min_credibility') || ''
@@ -180,6 +190,33 @@ export default function NewsHubPage() {
     navigate(`?${next.toString()}`, { replace: true })
   }, [params, navigate])
 
+  const toggleFilter = useCallback((key, values, value) => {
+    const nextValues = values.includes(value)
+      ? values.filter((item) => item !== value)
+      : [...values, value]
+    setFilter(key, nextValues.join(','))
+  }, [setFilter])
+
+  const clearAllFilters = useCallback(() => {
+    const next = new URLSearchParams(params)
+    const keys = ['region', 'category', 'source_type', 'content_type', 'sentiment', 'ticker', 'q', 'min_credibility']
+    keys.forEach((key) => next.delete(key))
+    next.set('offset', '0')
+    setCurrentPage(1)
+    navigate(`?${next.toString()}`, { replace: true })
+  }, [params, navigate])
+
+  const hasActiveFilters = Boolean(
+    q || ticker || selectedRegions.length || selectedSources.length || selectedSentiments.length,
+  )
+
+  const filteredArticles = useMemo(
+    () => apiArticles.filter((article) =>
+      matchesSelectedFilters(article, selectedRegions, selectedSources, selectedSentiments)),
+    [apiArticles, selectedRegions, selectedSources, selectedSentiments],
+  )
+  const total = filteredArticles.length
+
   const load = useCallback(async () => {
     if (!mountRef.current) return
     setLoading(true)
@@ -189,11 +226,8 @@ export default function NewsHubPage() {
         await Promise.all([
           fetchNewsOverview({ hours }),
           fetchAllNews({
-            region: region || undefined,
             category: category || undefined,
-            sourceType: sourceType || undefined,
             contentType: contentType || undefined,
-            sentiment: sentiment || undefined,
             ticker: ticker || undefined,
             q: q || undefined,
             minCredibility: minCredibility || undefined,
@@ -204,8 +238,7 @@ export default function NewsHubPage() {
           fetchNewsSources(),
         ])
       setOverview(overviewResult)
-      setFilteredArticles(listResult.articles ?? [])
-      setTotal(listResult.total ?? 0)
+      setApiArticles(listResult.articles ?? [])
       setTrending(trendingResult.tickers ?? [])
       setSourcesStatus(sourcesResult)
       setStale(listResult.stale ?? true)
@@ -215,8 +248,7 @@ export default function NewsHubPage() {
       if (mountRef.current) setLoading(false)
     }
   }, [
-    region, category, sourceType, contentType, sentiment, ticker, q,
-    minCredibility, hours, sort,
+    category, contentType, ticker, q, minCredibility, hours, sort,
   ])
 
   useEffect(() => {
@@ -687,6 +719,16 @@ export default function NewsHubPage() {
               value={q}
               onChange={(e) => setFilter('q', e.target.value)}
             />
+            {q && (
+              <button
+                type="button"
+                className="filter-field__clear"
+                aria-label="Clear search"
+                onClick={() => setFilter('q', '')}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            )}
           </label>
           <label className="filter-field filter-field--ticker">
             <span className="filter-field__prefix">#</span>
@@ -696,6 +738,16 @@ export default function NewsHubPage() {
               value={ticker}
               onChange={(e) => setFilter('ticker', e.target.value)}
             />
+            {ticker && (
+              <button
+                type="button"
+                className="filter-field__clear"
+                aria-label="Clear ticker"
+                onClick={() => setFilter('ticker', '')}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            )}
           </label>
           <label className="filter-sort">
             <span className="filter-sort__label">Sort</span>
@@ -710,17 +762,8 @@ export default function NewsHubPage() {
             </select>
           </label>
           <button
-            className="btn btn--ghost btn--sm clear-all-btn"
-            onClick={() => {
-              setFilter('region', '')
-              setFilter('category', '')
-              setFilter('source_type', '')
-              setFilter('content_type', '')
-              setFilter('sentiment', '')
-              setFilter('ticker', '')
-              setFilter('q', '')
-              setFilter('min_credibility', '')
-            }}
+            className={`btn btn--ghost btn--sm clear-all-btn ${hasActiveFilters ? 'clear-all-btn--active' : ''}`}
+            onClick={clearAllFilters}
           >
             <X size={13} /> Clear all
           </button>
@@ -732,10 +775,12 @@ export default function NewsHubPage() {
             {REGIONS.map((item) => (
               <button
                 key={item.key}
-                className={`filter-chip ${region === item.key ? 'filter-chip--active' : ''}`}
-                onClick={() => setFilter('region', item.key)}
+                className={`filter-chip ${selectedRegions.includes(item.key) ? 'filter-chip--active' : ''}`}
+                aria-pressed={selectedRegions.includes(item.key)}
+                onClick={() => toggleFilter('region', selectedRegions, item.key)}
               >
                 {item.label}
+                {selectedRegions.includes(item.key) && <X size={11} className="filter-chip__close" aria-hidden="true" />}
               </button>
             ))}
           </div>
@@ -744,10 +789,12 @@ export default function NewsHubPage() {
             {SOURCE_TYPES.map((item) => (
               <button
                 key={item.key}
-                className={`filter-chip ${sourceType === item.key ? 'filter-chip--active' : ''}`}
-                onClick={() => setFilter('source_type', item.key)}
+                className={`filter-chip ${selectedSources.includes(item.key) ? 'filter-chip--active' : ''}`}
+                aria-pressed={selectedSources.includes(item.key)}
+                onClick={() => toggleFilter('source_type', selectedSources, item.key)}
               >
                 {item.label}
+                {selectedSources.includes(item.key) && <X size={11} className="filter-chip__close" aria-hidden="true" />}
               </button>
             ))}
           </div>
@@ -756,10 +803,12 @@ export default function NewsHubPage() {
             {SENTIMENTS.map((item) => (
               <button
                 key={item.key}
-                className={`filter-chip ${sentiment === item.key ? 'filter-chip--active' : ''}`}
-                onClick={() => setFilter('sentiment', item.key)}
+                className={`filter-chip ${selectedSentiments.includes(item.key) ? 'filter-chip--active' : ''}`}
+                aria-pressed={selectedSentiments.includes(item.key)}
+                onClick={() => toggleFilter('sentiment', selectedSentiments, item.key)}
               >
                 {item.label}
+                {selectedSentiments.includes(item.key) && <X size={11} className="filter-chip__close" aria-hidden="true" />}
               </button>
             ))}
           </div>
