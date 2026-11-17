@@ -35,6 +35,35 @@
   border-bottom: 1px solid #e3d9e5;
 }
 
+.sidebar-header__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.sidebar-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--r-md);
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.sidebar-close:hover {
+  background: #f4f0f7;
+  border-color: #d9cfe8;
+  color: #3e3c86;
+}
+
 .sidebar-header h2 {
   font-family: var(--font-display);
   font-size: var(--fs-lg);
@@ -284,23 +313,14 @@
   padding: var(--sp-4);
 }
 
-/* Mobile responsiveness */
+/* Mobile responsiveness: the parent Studio drawer handles positioning. */
 @media (max-width: 1024px) {
   .conversation-sidebar {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 60;
-    width: 300px;
-    max-width: 85vw;
-    box-shadow: 12px 0 40px rgba(30, 22, 54, 0.3);
-    transform: translateX(-105%);
-    transition: transform var(--dur) var(--ease);
-  }
-
-  .conversation-sidebar--open {
-    transform: translateX(0);
+    position: static;
+    width: 100%;
+    max-width: none;
+    box-shadow: none;
+    transform: none;
   }
 
   .chat-page__main {

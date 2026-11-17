@@ -7,6 +7,7 @@ import {
   Trash2,
   Edit2,
   Loader2,
+  X,
 } from 'lucide-react'
 import { fetchConversations, updateConversation, deleteConversation, archiveConversation, restoreConversation, fetchConversation } from '../lib/api.js'
 import { showToast } from '../lib/toast.js'
@@ -167,6 +168,8 @@ export default function ConversationSidebar({
   onConversationSelect,
   onNewChat: _onNewChat,
   isLoading: _isLoading,
+  onClose,
+  onCountChange,
 }) {
   const navigate = useNavigate()
   const [conversations, setConversations] = useState([])
@@ -322,11 +325,28 @@ export default function ConversationSidebar({
     })
   }, [conversations, searchQuery])
 
+  useEffect(() => {
+    onCountChange?.(filteredAndSortedConversations.length)
+  }, [filteredAndSortedConversations.length, onCountChange])
+
   if (loading) {
     return (
       <div className="conversation-sidebar loading">
         <div className="sidebar-header">
-          <h2>Conversations</h2>
+          <div className="sidebar-header__top">
+            <h2>Conversations</h2>
+            {onClose && (
+              <button
+                type="button"
+                className="sidebar-close"
+                onClick={onClose}
+                aria-label="Close conversations"
+                title="Close conversations"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
         <div className="sidebar-loading">
           <Loader2 size={24} className="spinner" />
@@ -338,7 +358,20 @@ export default function ConversationSidebar({
   return (
     <div className="conversation-sidebar">
       <div className="sidebar-header">
-        <h2>Conversations</h2>
+        <div className="sidebar-header__top">
+          <h2>Conversations</h2>
+          {onClose && (
+            <button
+              type="button"
+              className="sidebar-close"
+              onClick={onClose}
+              aria-label="Close conversations"
+              title="Close conversations"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
         <div className="sidebar-header-actions">
           <input
             type="text"

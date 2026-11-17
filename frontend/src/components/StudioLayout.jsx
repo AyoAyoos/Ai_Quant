@@ -8,7 +8,8 @@ export default function StudioLayout() {
   const [activeConversationId, setActiveConversationId] = useState(() => 
     searchParams.get('conversation')
   )
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [conversationCount, setConversationCount] = useState(0)
 
   // Sync URL with active conversation
   useEffect(() => {
@@ -37,6 +38,8 @@ export default function StudioLayout() {
           activeConversationId={activeConversationId}
           onConversationSelect={handleConversationSelect}
           onNewChat={handleNewChat}
+          onClose={() => setSidebarOpen(false)}
+          onCountChange={setConversationCount}
           isLoading={false}
         />
       </div>
@@ -46,21 +49,10 @@ export default function StudioLayout() {
           activeConversationId={activeConversationId}
           onNewChat={handleNewChat}
           isSidebarOpen={sidebarOpen}
-          onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+          onSidebarToggle={() => setSidebarOpen((open) => !open)}
+          conversationCount={conversationCount}
         />
       </div>
-
-      {/* Mobile sidebar toggle button */}
-      <button
-        className="studio-layout__mobile-toggle"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        aria-label={sidebarOpen ? 'Close conversation history' : 'Open conversation history'}
-        aria-expanded={sidebarOpen}
-      >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Loader2, Menu, X } from 'lucide-react'
+import { Loader2, PanelLeft, Plus } from 'lucide-react'
 import { CHAT_TIMEOUT_MS, postChat } from '../lib/api.js'
 import { formatElapsed } from '../lib/format.js'
 import { useElapsedTimer } from '../lib/useElapsedTimer.js'
@@ -63,6 +63,7 @@ export default function ChatPage({
   onNewChat,
   isSidebarOpen = true,
   onSidebarToggle,
+  conversationCount = 0,
 }) {
   const location = useLocation()
   const [thread, setThread] = useState({ conversationId: null, messages: [] })
@@ -466,15 +467,31 @@ export default function ChatPage({
 
   return (
     <div className="chat-page">
-      {/* Mobile sidebar toggle button */}
-      <button
-        className="chat-page__mobile-toggle"
-        onClick={onSidebarToggle}
-        aria-label={isSidebarOpen ? 'Close conversation history' : 'Open conversation history'}
-        aria-expanded={isSidebarOpen}
-      >
-        {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
+      <div className="studio-toolbar">
+        <div className="studio-toolbar__left">
+          <button
+            type="button"
+            className={`studio-toolbar__toggle${isSidebarOpen ? ' is-active' : ''}`}
+            onClick={onSidebarToggle}
+            aria-label={isSidebarOpen ? 'Close conversations' : 'Open conversations'}
+            aria-expanded={isSidebarOpen}
+          >
+            <PanelLeft size={16} aria-hidden="true" />
+            <span>Conversations</span>
+            {conversationCount > 0 && (
+              <span className="studio-toolbar__count">{conversationCount}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            className="studio-toolbar__new"
+            onClick={() => onNewChat?.()}
+          >
+            <Plus size={15} aria-hidden="true" />
+            <span>New Chat</span>
+          </button>
+        </div>
+      </div>
 
       <div className="chat-page__main">
         <div className="chat-page__scroll">
@@ -482,32 +499,37 @@ export default function ChatPage({
             <div className="chat-empty chat-empty--center-focus">
               <div className="chat-empty__main">
                 <div className="chat-empty__hero">
+                  <span className="studio-badge">AI Strategy Studio</span>
                   <h1 className="chat-empty__title">Design a NIFTY 50 strategy by conversation</h1>
                 </div>
                 {composerNode}
-              </div>
 
-              <div className="chat-empty__builder chat-empty__builder--bottom">
-                <a
-                  href="/studio/builder"
-                  className="btn btn--primary chat-empty__builder-btn"
-                  disabled={loading}
-                  onClick={() => setOpeningBuilder(true)}
-                >
-                  {openingBuilder ? (
-                    <>
-                      <span className="chat-empty__builder-spin" aria-hidden="true">
-                        <Loader2 size={16} />
-                      </span>
-                      <span>Opening Builder…</span>
-                    </>
-                  ) : (
-                    <span>Open Strategy Builder</span>
-                  )}
-                </a>
-                <p className="chat-empty__builder-text">
-                  Prefer a structured form? Build your strategy visually with the Strategy Builder.
-                </p>
+                <div className="studio-or" aria-hidden="true">
+                  <span>OR</span>
+                </div>
+
+                <div className="studio-builder">
+                  <a
+                    href="/studio/builder"
+                    className="btn btn--primary chat-empty__builder-btn"
+                    disabled={loading}
+                    onClick={() => setOpeningBuilder(true)}
+                  >
+                    {openingBuilder ? (
+                      <>
+                        <span className="chat-empty__builder-spin" aria-hidden="true">
+                          <Loader2 size={16} />
+                        </span>
+                        <span>Opening Builder…</span>
+                      </>
+                    ) : (
+                      <span>Open Strategy Builder</span>
+                    )}
+                  </a>
+                  <p className="chat-empty__builder-text">
+                    Prefer a structured form? Build your strategy visually with the Strategy Builder.
+                  </p>
+                </div>
               </div>
             </div>
           ) : (
