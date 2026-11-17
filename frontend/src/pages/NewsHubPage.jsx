@@ -11,13 +11,18 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 import {
-  AlertTriangle,
   ArrowUpRight,
+  BadgeCheck,
   ExternalLink,
+  Flame,
+  Info,
   Minus,
   Newspaper,
   RefreshCw,
-  ShieldAlert,
+  Search,
+  ShieldCheck,
+  Users,
+  X,
 } from 'lucide-react'
 import {
   fetchNews,
@@ -452,20 +457,30 @@ export default function NewsHubPage() {
   // Feed tab
   return (
     <div className="page news-hub-page">
-      <div className="page-head">
+      <div className="page-head news-head">
         <div className="page-head__text">
           <h1 className="page-title">
             <Newspaper size={20} /> Market News Hub
+            <span className="info-tip" tabIndex={0} aria-label="About sources and credibility">
+              <Info size={15} />
+              <span className="info-tip__bubble" role="tooltip">
+                Aggregated news from Indian publishers, official sources
+                (NSE/BSE/SEBI/RBI), US/Wall Street, China, Europe, Japan,
+                Reddit sentiment and more. Every article carries a credibility
+                rating — official sources are verified; everything else is
+                reported, not independently confirmed.
+              </span>
+            </span>
           </h1>
-          <p className="page-lede">
-            Aggregated market news from Indian publishers, official sources
-            (NSE/BSE/SEBI/RBI), US/Wall Street, China, Europe, Japan, Reddit
-            sentiment and other intelligence. Every article carries a
-            credibility rating — official sources are verified; everything else
-            is reported, not independently confirmed.
+          <p className="news-subtitle">
+            Real-time Indian &amp; global market intelligence with source verification
           </p>
         </div>
-        <div className="page-head__actions">
+        <div className="page-head__actions news-head__actions">
+          <span className={`stale-indicator ${stale ? 'stale-indicator--stale' : 'stale-indicator--fresh'}`}>
+            <span className="stale-indicator__dot" />
+            {stale ? 'Stale — refresh to update' : 'Fresh'}
+          </span>
           <button
             className="btn btn--primary"
             onClick={handleRefresh}
@@ -481,17 +496,6 @@ export default function NewsHubPage() {
               </>
             )}
           </button>
-          <span className="stale-indicator">
-            {stale ? (
-              <>
-                <AlertTriangle size={ICON_SIZE} /> Stale — refresh to update
-              </>
-            ) : (
-              <>
-                <ShieldAlert size={ICON_SIZE} /> Fresh
-              </>
-            )}
-          </span>
         </div>
       </div>
 
@@ -501,7 +505,10 @@ export default function NewsHubPage() {
       <section className="panel overview-strip" aria-labelledby="overview">
         <h2 className="section-title" id="overview">Overview</h2>
         <div className="overview-grid">
-          <div className="overview-card">
+          <div className="overview-card overview-card--articles">
+            <span className="overview-card__icon" aria-hidden="true">
+              <Newspaper size={15} />
+            </span>
             <span className="overview-card__label">Articles</span>
             <span className="overview-card__value">{counts?.total ?? '—'}</span>
             <span className="overview-card__delta">
@@ -509,23 +516,61 @@ export default function NewsHubPage() {
             </span>
           </div>
           <div className="overview-card overview-card--impact">
+            <span className="overview-card__icon" aria-hidden="true">
+              <Flame size={15} />
+            </span>
             <span className="overview-card__label">High impact</span>
             <span className="overview-card__value">{counts?.highImpact ?? '—'}</span>
+            <span className="overview-card__delta">priority signals</span>
           </div>
           <div className="overview-card overview-card--official">
+            <span className="overview-card__icon" aria-hidden="true">
+              <ShieldCheck size={15} />
+            </span>
             <span className="overview-card__label">Official / verified</span>
             <span className="overview-card__value">{counts?.official ?? '—'}</span>
+            <span className="overview-card__delta">exchange &amp; regulators</span>
           </div>
           <div className="overview-card overview-card--community">
+            <span className="overview-card__icon" aria-hidden="true">
+              <Users size={15} />
+            </span>
             <span className="overview-card__label">Community posts</span>
             <span className="overview-card__value">{counts?.community ?? '—'}</span>
+            <span className="overview-card__delta">sentiment only</span>
           </div>
         </div>
 
         <div className="overview-sentiment">
-          <h3 className="overview-sentiment__title">Market sentiment</h3>
+          <div className="overview-sentiment__head">
+            <h3 className="overview-sentiment__title">Market Sentiment</h3>
+            {sentimentSnapshot && (
+              <span className="sentiment-sample">
+                Sample: {formatNumber(sentimentSnapshot.sample_size)} ·{' '}
+                {sentimentSnapshot.method === 'provider' ? 'provider scores' : 'lexicon scores'}
+              </span>
+            )}
+          </div>
           {sentimentSnapshot && (
             <>
+              <div
+                className="sentiment-bar"
+                role="img"
+                aria-label={`Bullish ${sentimentSnapshot.bullish_pct}%, bearish ${sentimentSnapshot.bearish_pct}%, neutral ${sentimentSnapshot.neutral_pct}%`}
+              >
+                <span
+                  className="sentiment-bar__seg sentiment-bar__seg--bullish"
+                  style={{ width: `${sentimentSnapshot.bullish_pct}%` }}
+                />
+                <span
+                  className="sentiment-bar__seg sentiment-bar__seg--bearish"
+                  style={{ width: `${sentimentSnapshot.bearish_pct}%` }}
+                />
+                <span
+                  className="sentiment-bar__seg sentiment-bar__seg--neutral"
+                  style={{ width: `${sentimentSnapshot.neutral_pct}%` }}
+                />
+              </div>
               <div className="sentiment-breakdown">
                 <div className="sentiment-item sentiment-item--bullish">
                   <span className="sentiment-item__label">Bullish</span>
@@ -546,10 +591,6 @@ export default function NewsHubPage() {
                   </span>
                 </div>
               </div>
-              <p className="sentiment-note">
-                Sample: {formatNumber(sentimentSnapshot.sample_size)} ·{' '}
-                {sentimentSnapshot.method === 'provider' ? 'provider scores' : 'lexicon scores'}
-              </p>
             </>
           )}
         </div>
@@ -559,29 +600,37 @@ export default function NewsHubPage() {
       {trending.length > 0 && (
         <section className="panel trending-strip" aria-labelledby="trending-header">
           <div className="panel__head">
-            <h2 className="section-title" id="trending-header">Trending tickers</h2>
-            <button className="btn btn--sm btn--outline" onClick={() => setTab('trending')}>
+            <h2 className="section-title" id="trending-header">Trending Tickers</h2>
+            <button className="see-all-link" onClick={() => setTab('trending')}>
               See all <ArrowUpRight size={ICON_SIZE} />
             </button>
           </div>
           <div className="trending-list">
             {trending.slice(0, 6).map((item) => (
               <div key={item.ticker} className="trending-item">
-                <Link
-                  className="trending-item__ticker"
-                  to={`/news?q=${encodeURIComponent(item.ticker)}`}
-                >
-                  {item.ticker}
-                </Link>
-                <span className={`trend-chip trend--${item.velocity}`}>
-                  {item.mentions} mentions
-                  {item.delta_pct != null && ` · ${item.delta_pct >= 0 ? '+' : ''}${item.delta_pct}%`}
-                </span>
-                <SentimentPill
-                  sentiment={item.sentiment}
-                  score={item.sentiment_score}
-                  method="lexicon"
-                />
+                <div className="trending-item__top">
+                  <Link
+                    className="trending-item__ticker"
+                    to={`/news?q=${encodeURIComponent(item.ticker)}`}
+                  >
+                    {item.ticker}
+                  </Link>
+                  <SentimentPill
+                    sentiment={item.sentiment}
+                    score={item.sentiment_score}
+                    method="lexicon"
+                  />
+                </div>
+                <div className="trending-item__bottom">
+                  <span className="trending-item__mentions">
+                    {item.mentions} <span>mentions</span>
+                  </span>
+                  {item.delta_pct != null && (
+                    <span className={`trend-chip trend--${item.velocity}`}>
+                      {item.delta_pct >= 0 ? '+' : ''}{item.delta_pct}%
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -591,9 +640,40 @@ export default function NewsHubPage() {
       {/* Controls */}
       <section className="panel controls-panel" aria-labelledby="filters">
         <h2 className="section-title" id="filters">Filters</h2>
-        <div className="filter-bar">
+
+        <div className="filter-toolbar">
+          <label className="filter-field filter-field--search">
+            <Search size={14} aria-hidden="true" />
+            <input
+              className="filter-input"
+              placeholder="Search headlines, sources or tickers…"
+              value={q}
+              onChange={(e) => setFilter('q', e.target.value)}
+            />
+          </label>
+          <label className="filter-field filter-field--ticker">
+            <span className="filter-field__prefix">#</span>
+            <input
+              className="filter-input"
+              placeholder="Ticker · RELIANCE, NVDA…"
+              value={ticker}
+              onChange={(e) => setFilter('ticker', e.target.value)}
+            />
+          </label>
+          <label className="filter-sort">
+            <span className="filter-sort__label">Sort</span>
+            <select
+              className="filter-select"
+              value={sort}
+              onChange={(e) => setFilter('sort', e.target.value)}
+            >
+              <option value="recent">Most recent</option>
+              <option value="impact">High impact</option>
+              <option value="credibility">Credibility</option>
+            </select>
+          </label>
           <button
-            className={`filter-chip ${!region && !category && !sourceType && !contentType && !sentiment && !ticker && !q && !minCredibility ? 'filter-chip--active' : ''}`}
+            className="btn btn--ghost btn--sm clear-all-btn"
             onClick={() => {
               setFilter('region', '')
               setFilter('category', '')
@@ -605,8 +685,11 @@ export default function NewsHubPage() {
               setFilter('min_credibility', '')
             }}
           >
-            Clear all
+            <X size={13} /> Clear all
           </button>
+        </div>
+
+        <div className="filter-pills">
           <div className="chip-group">
             <span className="chip-group__label">Region</span>
             {REGIONS.map((item) => (
@@ -620,7 +703,7 @@ export default function NewsHubPage() {
             ))}
           </div>
           <div className="chip-group">
-            <span className="chip-group__label">Source type</span>
+            <span className="chip-group__label">Source</span>
             {SOURCE_TYPES.map((item) => (
               <button
                 key={item.key}
@@ -643,25 +726,6 @@ export default function NewsHubPage() {
               </button>
             ))}
           </div>
-        </div>
-        <div className="filter-bar filter-bar--search">
-          <span className="chip-group__label">Search</span>
-          <input
-            className="input input--search"
-            placeholder="Headline, source or ticker…"
-            value={q}
-            onChange={(e) => setFilter('q', e.target.value)}
-          />
-          <span className="chip-group__label">Ticker</span>
-          <input
-            className="input input--search"
-            placeholder="RELIANCE, NVDA…"
-            value={ticker}
-            onChange={(e) => setFilter('ticker', e.target.value)}
-          />
-          <button className="btn btn--sm btn--outline" onClick={() => setFilter('sort', sort === 'recent' ? 'impact' : 'recent')}>
-            Sort by {sort === 'recent' ? 'impact' : 'recent'}
-          </button>
         </div>
       </section>
 
@@ -697,32 +761,43 @@ export default function NewsHubPage() {
           <div className="article-grid">
             {articles.map((article) => (
               <article key={article.id} className="news-card news-card--article">
-                <div className="news-card__head">
-                  <div className="news-card__meta">
-                    <span className={`region-chip region--${article.region}`}>
-                      {article.region_label}
-                    </span>
-                    <CredibilityBadge level={article.credibility_level} />
-                    {article.is_verified && (
-                      <span className="verified-badge" title="Verified official source">Verified</span>
-                    )}
-                    {article.content_type === 'opinion' && (
-                      <span className="opinion-badge" title="Opinion / analysis">Opinion</span>
-                    )}
-                    <span className="published-chip">{formatAge(article.published_at)}</span>
-                  </div>
-                  <h3 className="news-card__headline">
-                    <Link
-                      className="news-card__headline-link"
-                      to={`/news?q=${encodeURIComponent(article.headline)}`}
-                      title={article.headline}
-                    >
-                      {article.headline}
-                    </Link>
-                  </h3>
-                  {article.summary && (
-                    <p className="news-card__summary">{article.summary}</p>
+                <div className="news-card__meta">
+                  <span className={`region-chip region--${article.region}`}>
+                    {article.region_label}
+                  </span>
+                  <span
+                    className={`source-type-badge ${article.is_verified ? 'source-type-badge--official' : ''}`}
+                  >
+                    {article.is_verified && <BadgeCheck size={12} aria-hidden="true" />}
+                    {article.source_type_label}
+                  </span>
+                  {article.content_type === 'opinion' && (
+                    <span className="opinion-badge" title="Opinion / analysis">Opinion</span>
                   )}
+                  <span className="published-chip">{formatAge(article.published_at)}</span>
+                </div>
+                <h3 className="news-card__headline">
+                  <Link
+                    className="news-card__headline-link"
+                    to={`/news?q=${encodeURIComponent(article.headline)}`}
+                    title={article.headline}
+                  >
+                    {article.headline}
+                  </Link>
+                </h3>
+                {article.summary && (
+                  <p className="news-card__summary">{article.summary}</p>
+                )}
+                <div className="news-card__tags">
+                  {article.tickers.slice(0, 4).map((ticker) => (
+                    <span
+                      key={ticker}
+                      className="news-card__tag news-card__tag--ticker"
+                      title={ticker}
+                    >
+                      {ticker}
+                    </span>
+                  ))}
                 </div>
                 <div className="news-card__footer">
                   <div className="news-card__source">
@@ -731,23 +806,12 @@ export default function NewsHubPage() {
                       <span className="news-card__domain">· {article.source_domain}</span>
                     )}
                   </div>
-                  <div className="news-card__tags">
-                    {article.tickers.slice(0, 4).map((ticker) => (
-                      <span
-                        key={ticker}
-                        className="news-card__tag news-card__tag--ticker"
-                        title={ticker}
-                      >
-                        {ticker}
-                      </span>
-                    ))}
+                  <div className="news-card__footer-right">
                     <SentimentPill
                       sentiment={article.sentiment}
                       score={article.sentiment_score}
                       method={article.sentiment_method}
                     />
-                  </div>
-                  <div className="news-card__actions">
                     <a
                       className="news-card__link"
                       href={article.source_url}
@@ -755,7 +819,7 @@ export default function NewsHubPage() {
                       rel="noopener noreferrer"
                       title={`Open original article on ${article.source_name}`}
                     >
-                      Read on {article.source_name} <ExternalLink size={ICON_SIZE} />
+                      Read <ExternalLink size={ICON_SIZE} />
                     </a>
                   </div>
                 </div>
