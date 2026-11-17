@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
-  Info,
   LineChart,
   Loader2,
   Newspaper,
@@ -669,11 +668,15 @@ function AIMarketBriefing() {
     data?.briefing && typeof data.briefing === 'object' ? data.briefing : null
   const legacyText = typeof data?.briefing === 'string' ? data.briefing : null
   const sentiment = briefing?.sentiment ?? 'Insufficient Data'
+  const vixMatch =
+    typeof briefing?.volatility_analysis === 'string'
+      ? briefing.volatility_analysis.match(/INDIA VIX is at\s+([\d,.]+)\s*\(([-+]?[\d.]+)%\)/i)
+      : null
 
   return (
-    <section className="panel dashboard-section" aria-labelledby="ai-briefing">
-      <div className="panel__head">
-        <div>
+    <section className="panel dashboard-section ai-briefing-panel" aria-labelledby="ai-briefing">
+      <div className="panel__head ai-briefing__head">
+        <div className="ai-briefing__heading">
           <h2 className="section-title" id="ai-briefing">
             <Brain className="section-title__icon" size={ICON_SIZE} />
             AI Market Briefing
@@ -797,9 +800,20 @@ function AIMarketBriefing() {
                   'Volatility analysis was not returned by the AI provider.'}
               </p>
               {briefing?.volatility_level && (
-                <span className="ai-vol-level">
-                  INDIA VIX level: <strong>{briefing.volatility_level}</strong>
-                </span>
+                <div className="ai-vol-metric">
+                  <span className="ai-vol-metric__label">INDIA VIX:</span>
+                  {vixMatch && (
+                    <span className="ai-vol-metric__value">
+                      {vixMatch[1]} ({vixMatch[2]}%)
+                    </span>
+                  )}
+                  {vixMatch && <span className="ai-vol-metric__dot" aria-hidden="true">·</span>}
+                  <span
+                    className={`ai-vol-metric__regime is-${String(briefing.volatility_level).toLowerCase()}`}
+                  >
+                    {briefing.volatility_level}
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -838,20 +852,6 @@ function AIMarketBriefing() {
             </div>
           </div>
 
-          <div className="ai-brief__interpretation">
-            <h3 className="ai-block__title">
-              <Brain size={14} /> AI interpretation
-            </h3>
-            <p>
-              {briefing?.interpretation ??
-                legacyText ??
-                'No interpretation was returned. Review the factual observations above.'}
-            </p>
-            <p className="ai-brief__disclaimer">
-              <Info size={13} /> {data.disclaimer}
-            </p>
-          </div>
-
           {data.note && (
             <Note tone="info" title="About this briefing">
               <span>{data.note}</span>
@@ -866,6 +866,7 @@ function AIMarketBriefing() {
               Facts as of {formatIstIso(data.timestamp_ist ?? data.timestamp)} IST
             </span>
             {data.market_status?.status && <span>Market: {data.market_status.status}</span>}
+            {data.disclaimer && <span className="ai-brief__disclaimer">{data.disclaimer}</span>}
           </div>
         </div>
       )}
