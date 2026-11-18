@@ -65,11 +65,11 @@ export default function SettingsPage() {
         <div className="kv">
           <div className="kv__item">
             <span className="kv__key">Provider</span>
-            <span className="kv__value kv__value--muted">Groq</span>
+            <span className="kv__value kv__value--muted">Gemini</span>
           </div>
           <div className="kv__item">
             <span className="kv__key">Model</span>
-            <span className="kv__value kv__value--muted">openai/gpt-oss-120b</span>
+            <span className="kv__value kv__value--muted">gemini-3.5-flash-lite (+ fallbacks)</span>
           </div>
           <div className="kv__item">
             <span className="kv__key">Chat timeout</span>
@@ -80,7 +80,7 @@ export default function SettingsPage() {
           <div className="kv__item">
             <span className="kv__key">Status</span>
             <span className="kv__value kv__value--muted">
-              Requires a free Groq API key — everything except chat works without one.
+              Requires a Gemini API key — everything except chat works without one.
             </span>
           </div>
         </div>

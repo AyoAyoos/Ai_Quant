@@ -156,7 +156,7 @@ const STACK = [
   { name: 'FastAPI', role: 'Async backend', note: 'Uvicorn · Pydantic v2' },
   { name: 'PostgreSQL 16', role: 'Audit storage', note: 'Alembic migrations' },
   { name: 'Backtrader', role: 'Event simulation', note: '1.9.78.123' },
-  { name: 'Groq', role: 'Code generation', note: 'openai/gpt-oss-120b' },
+  { name: 'Gemini', role: 'Code generation', note: 'gemini-3.5-flash-lite + fallbacks' },
   { name: 'yfinance', role: 'NIFTY ingestion', note: '^NSEI daily' },
   { name: 'Docker', role: 'Multi-container', note: 'Compose · nginx' },
   { name: 'pytest', role: 'Test suite', note: 'Guardrail coverage' },
@@ -196,7 +196,7 @@ const DOCKER_CMD = 'docker compose up --build'
 
 const MANUAL_CMD = [
   '# 1. Environment & database',
-  'cp .env.example .env        # then paste GROQ_API_KEY',
+  'cp .env.example .env        # then paste GEMINI_API_KEY',
   'docker compose up -d db',
   '',
   '# 2. FastAPI backend',
@@ -561,7 +561,7 @@ export default function DocumentationContent({ isLandingSubset = false }) {
         <SectionHead
           eyebrow="Developer setup"
           title="Running in under a minute"
-          lede="Two paths. Both need a free Groq API key — everything except chat works without one."
+          lede="Two paths. Both need a Gemini API key — everything except chat works without one."
         />
         <div className="landing__paths">
           <article className="landing__path landing__path--dark">

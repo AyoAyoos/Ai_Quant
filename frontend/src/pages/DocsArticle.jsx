@@ -133,7 +133,7 @@ export default function DocsArticle() {
           <div className="landing__ribbon-text">
             <h2 className="landing__ribbon-title">Ready to test your first algorithmic thesis?</h2>
             <p className="landing__ribbon-body">
-              Clone the repo, drop in a Groq key, and start describing strategies in plain English. The
+              Clone the repo, drop in a Gemini key, and start describing strategies in plain English. The
               assistant will ask you for everything it needs before it writes a line of code.
             </p>
           </div>

@@ -45,7 +45,7 @@ history, passed through a quality gate, and then advanced bar-by-bar in a
 
 | Capability | Where |
 |---|---|
-| Conversational strategy design with a Groq-hosted LLM | `/studio`, `POST /chat` |
+| Conversational strategy design with a Gemini-hosted LLM | `/studio`, `POST /chat` |
 | Structured (form-driven) strategy generation | `/studio/builder`, `POST /strategies/builder` |
 | Sandboxed Backtrader backtests over cached NIFTY 50 daily bars | `POST /strategies/{id}/backtest` |
 | Quality gate: `draft → backtested → approved → paper_trading` | `/strategies/{id}/approval` |
@@ -73,7 +73,7 @@ builder rejects other markets because no other dataset is wired up.
 ┌───────────────▼──────────────────────────────────────────────────────┐
 │  FastAPI backend (7 routers, ~60 routes)                             │
 │                                                                      │
-│  chat ─── Groq LLM ──► strategy_extractor ──► strategies             │
+│  chat ─── Gemini LLM ──► strategy_extractor ──► strategies             │
 │  strategies ──► backtest_service ──► subprocess: strategy_runner      │
 │  strategies ──► deployment_gate ──► paper_engine ──► paper_bars       │
 │  dashboard ──► market_data_extended ──► yfinance                     │
@@ -176,7 +176,7 @@ Ai_Quant/
 - Postgres 16 (local compose) or hosted Neon
 - Backtrader 1.9.78 for strategy execution
 - pandas / numpy, yfinance for market data
-- Groq (OpenAI-compatible API) for the LLM
+- Gemini (OpenAI-compatible API) for the LLM
 - pytest 8.4
 
 **Frontend**
@@ -203,7 +203,7 @@ Ai_Quant/
 - Python 3.11+
 - Node.js 22+ and npm
 - Postgres 16 (or a Neon connection string)
-- A free [Groq API key](https://console.groq.com) — only chat/builder need it;
+- A free [Gemini API key](https://aistudio.google.com/apikey) — only chat/builder need it;
   every other feature works without a key
 - Optional: Docker Desktop (for the compose stack)
 
@@ -220,7 +220,7 @@ python -m venv ..\venv
 pip install -r requirements.txt
 
 Copy-Item .env.example .env
-# edit backend/.env: set DATABASE_URL and GROQ_API_KEY
+# edit backend/.env: set DATABASE_URL and GEMINI_API_KEY
 
 ..\venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
@@ -294,9 +294,10 @@ note the drift against the shipped `.env.example` in the last column.
 | Variable | Default in code | Used for | `.env.example` |
 |---|---|---|---|
 | `DATABASE_URL` | `postgresql://quant_user:quant_pass@localhost:5432/quant_trading` | SQLAlchemy engine | matches |
-| `GROQ_API_KEY` | `""` (disabled) | Chat + builder LLM calls | placeholder |
-| `GROQ_MODEL` | `openai/gpt-oss-120b` | Groq model id | matches |
-| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | OpenAI-compatible endpoint | matches |
+| `GEMINI_API_KEY` | `""` (disabled) | Chat + builder LLM calls | placeholder |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Primary model (15 RPM / 500 RPD) | matches |
+| `GEMINI_FALLBACK_MODELS` | `gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-3.8-flash,gemini-3.6-flash,gemini-3-flash,gemini-2.5-flash` | Comma-separated failover chain | matches |
+| `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAI-compatible endpoint | matches |
 | `DEFAULT_MARKET` | `NIFTY50` | Declared but **unused** — NIFTY 50 is fixed in code | matches |
 | `MARKET_DATA_REFRESH_DAYS` | `1` | CSV cache staleness | matches |
 | `SANDBOX_MEMORY_MB` | `2048` | POSIX address-space cap for the worker | matches |
@@ -360,7 +361,7 @@ All JSON errors are normalised by `JsonErrorMiddleware`. Gate refusals return
 
 | Method | Path | Body / behaviour |
 |---|---|---|
-| POST | `/chat` | `{conversation_id?, content}` → `{conversation_id, reply, strategy_id?, strategy_name?, strategy_description?}`. Creates a conversation when `conversation_id` is omitted. Requires `GROQ_API_KEY`. |
+| POST | `/chat` | `{conversation_id?, content}` → `{conversation_id, reply, strategy_id?, strategy_name?, strategy_description?}`. Creates a conversation when `conversation_id` is omitted. Requires `GEMINI_API_KEY`. |
 
 ### Conversations & projects — `app/routers/conversations.py`
 
@@ -541,8 +542,9 @@ so approval is tied to a specific run.
 
 ## Chat and strategy extraction
 
-`services/llm_service.py` calls Groq's OpenAI-compatible chat endpoint using
-`httpx`. The system prompt tells the model to:
+`services/llm_service.py` calls Gemini's OpenAI-compatible chat endpoint through
+`services/llm_client.py`, which retries with the next model in `GEMINI_MODEL` /
+`GEMINI_FALLBACK_MODELS` whenever the primary is rate-limited. The system prompt tells the model to:
 
 1. Ask clarifying questions while the request is vague.
 2. Emit a strict, machine-parseable block once the strategy is fully defined —
@@ -1133,7 +1135,7 @@ the local/self-hosted option.
 
 - Build: `pip install -r requirements.txt` (root directory `backend`)
 - Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- Env: `DATABASE_URL`, `GROQ_API_KEY`, `GROQ_MODEL`, `ALLOWED_ORIGINS`
+- Env: `DATABASE_URL`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_FALLBACK_MODELS`, `GEMINI_BASE_URL`, `ALLOWED_ORIGINS`
   (comma-separated frontend origins, e.g. `https://your-app.vercel.app`), plus
   `SANDBOX_MEMORY_MB=2048` if the instance is memory-constrained.
 
@@ -1164,7 +1166,7 @@ and the QCB bind mount requires `D:/QuantCode-Bench` to exist on the host.
 
 | Symptom | Cause / fix |
 |---|---|
-| Chat returns `503` "LLM not configured" | `GROQ_API_KEY` is empty. Add a key to `backend/.env` and restart. |
+| Chat returns `503` "LLM not configured" | `GEMINI_API_KEY` is empty. Add a key to `backend/.env` and restart. |
 | Backtest returns `503` "Could not load market data" | Yahoo unreachable and no cached CSV. Check `backend/data/NIFTY50.csv` / network. |
 | Backtest returns `422` | Guardrail refusal or the strategy has no generated code. Read `detail`. |
 | Backtest returns `504` | The worker exceeded its 120 s timeout. Simplify the strategy or raise the limit in `strategy_runner.py`. |
