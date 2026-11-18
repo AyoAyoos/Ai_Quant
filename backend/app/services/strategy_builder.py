@@ -10,13 +10,10 @@ This service handles the structured strategy generation workflow:
 """
 import json
 import re
-import asyncio
 
-import httpx
-
-from app.config import settings
+from app.config import settings  # kept for callers/tests that patch credentials
 from app.services.finalize_service import finalize_strategy
-from app.services.llm_errors import LLMNotConfiguredError, LLMRateLimitError
+from app.services.llm_client import chat_completion_raw
 from app.services.strategy_extractor import extract_strategy, clean_reply_for_display
 from app.schemas import (
     StrategyBuilderRequest,
@@ -358,47 +355,19 @@ async def generate_structured_strategy(spec: StrategyBuilderRequest) -> dict:
     Returns dict with: name, description, code
     Raises on failure.
     """
-    api_key = (settings.groq_api_key or "").strip()
-    if not api_key:
-        raise LLMNotConfiguredError(
-            "LLM API key is not configured. Set GROQ_API_KEY in backend/.env "
-            "and restart the backend."
-        )
     prompt = build_strategy_prompt(spec)
-    
-    payload = {
-        "model": settings.groq_model,
-        "messages": [
+
+    raw = await chat_completion_raw(
+        [
             {"role": "system", "content": STRATEGY_BUILDER_SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": prompt},
         ],
-        "temperature": 0.1,
-        "response_format": STRATEGY_BUILDER_RESPONSE_SCHEMA,
-    }
-    headers = {"Authorization": f"Bearer {api_key}"}
-    
-    delays = [2, 4]
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = None
-        for attempt in range(len(delays) + 1):
-            resp = await client.post(
-                f"{settings.groq_base_url}/chat/completions",
-                json=payload,
-                headers=headers,
-            )
-            if getattr(resp, 'status_code', 200) == 429:
-                if attempt < len(delays):
-                    await asyncio.sleep(delays[attempt])
-                    continue
-                raise LLMRateLimitError(
-                    "AI rate limit reached — please wait a few seconds and click Try Again"
-                )
-            resp.raise_for_status()
-            break
-        data = resp.json()
-        raw = data["choices"][0]["message"]["content"]
-        parsed = json.loads(raw)
-    
+        temperature=0.1,
+        response_format=STRATEGY_BUILDER_RESPONSE_SCHEMA,
+        timeout=120,
+    )
+    parsed = json.loads(raw)
+
     if not all(k in parsed for k in ("name", "description", "code")):
         raise ValueError("LLM response missing required fields")
 

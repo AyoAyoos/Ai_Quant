@@ -1,17 +1,10 @@
 """
-LLM service - talks to Groq's OpenAI-compatible API.
+Chat LLM service - thin wrapper over the shared Gemini client.
 
-Why Groq: free developer tier, very fast inference, and hosts open-source
-models (Llama 3.1, Qwen2.5, Mixtral) so it satisfies the "keep the AI free /
-open-source model" requirement from the project brief. Swappable later for
-a local Ollama server by changing base_url + model in config.py.
+The provider, model chain and failover live in ``services/llm_client.py`` so
+chat, the structured builder and finalize all behave identically.
 """
-import asyncio
-
-import httpx
-
-from app.config import settings
-from app.services.llm_errors import LLMNotConfiguredError, LLMRateLimitError
+from app.services.llm_client import chat_completion_raw
 
 SYSTEM_PROMPT = """You are a quantitative trading strategy assistant embedded in an app.
 
@@ -86,35 +79,8 @@ async def chat_completion(messages: list[dict]) -> str:
     messages: list of {"role": "user"|"assistant", "content": str}
     Returns the assistant's reply text.
     """
-    api_key = (settings.groq_api_key or "").strip()
-    if not api_key:
-        raise LLMNotConfiguredError(
-            "LLM API key is not configured. Set GROQ_API_KEY in backend/.env "
-            "and restart the backend."
-        )
-    payload = {
-        "model": settings.groq_model,
-        "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
-        "temperature": 0.2,
-    }
-    headers = {"Authorization": f"Bearer {api_key}"}
-
-    delays = [2, 4]
-    async with httpx.AsyncClient(timeout=60) as client:
-        for attempt in range(len(delays) + 1):
-            resp = await client.post(
-                f"{settings.groq_base_url}/chat/completions",
-                json=payload,
-                headers=headers,
-            )
-            if getattr(resp, 'status_code', 200) == 429:
-                if attempt < len(delays):
-                    await asyncio.sleep(delays[attempt])
-                    continue
-                raise LLMRateLimitError(
-                    "AI rate limit reached - please wait a few seconds and click Try Again"
-                )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-    raise LLMRateLimitError("AI rate limit reached - please wait a few seconds and click Try Again")
+    return await chat_completion_raw(
+        [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+        temperature=0.2,
+        timeout=60,
+    )

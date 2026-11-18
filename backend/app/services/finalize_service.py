@@ -9,9 +9,11 @@ to do ONE thing ("convert this into JSON") is far more reliable than one
 asked to juggle "chat naturally AND remember to format your final answer."
 """
 import json
-import httpx
+import logging
 
-from app.config import settings
+from app.services.llm_client import chat_completion_raw
+
+logger = logging.getLogger(__name__)
 
 FINALIZE_SYSTEM_PROMPT = """You convert a finished trading-strategy conversation into JSON.
 You will be given the full chat history. Output ONLY a JSON object — no markdown fences,
@@ -66,28 +68,14 @@ async def finalize_strategy(conversation_history: list[dict]) -> dict | None:
     Never raises — a failed finalize call should not crash the chat endpoint;
     the caller should just treat it as "not finalized yet."
     """
-    api_key = (settings.groq_api_key or "").strip()
-    if not api_key:
-        return None
-    payload = {
-        "model": settings.groq_model,
-        "messages": [{"role": "system", "content": FINALIZE_SYSTEM_PROMPT}] + conversation_history,
-        "temperature": 0.1,
-        "response_format": RESPONSE_SCHEMA,
-    }
-    headers = {"Authorization": f"Bearer {api_key}"}
-
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                f"{settings.groq_base_url}/chat/completions",
-                json=payload,
-                headers=headers,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            raw = data["choices"][0]["message"]["content"]
-            parsed = json.loads(raw)
+        raw = await chat_completion_raw(
+            [{"role": "system", "content": FINALIZE_SYSTEM_PROMPT}] + conversation_history,
+            temperature=0.1,
+            response_format=RESPONSE_SCHEMA,
+            timeout=60,
+        )
+        parsed = json.loads(raw)
 
         if not all(k in parsed for k in ("name", "description", "code")):
             return None
@@ -108,9 +96,8 @@ async def finalize_strategy(conversation_history: list[dict]) -> dict | None:
                     pass
         return parsed
 
-    except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError):
-        # If your model doesn't support json_schema mode, this is where you'd
-        # see it fail — check Groq's docs for which models support it, and
-        # fall back to "type": "json_object" (valid JSON, no schema enforcement)
-        # if needed.
+    except Exception as exc:
+        # Missing key, exhausted quota, bad JSON or an unsupported schema all
+        # mean "not finalized yet". Log the failure type only — never the key.
+        logger.warning("Finalize call failed: %s", type(exc).__name__)
         return None

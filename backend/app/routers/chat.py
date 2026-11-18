@@ -70,7 +70,7 @@ async def send_message(
     try:
         reply = await chat_completion(history)
     except LLMNotConfiguredError as exc:
-        # Missing GROQ_API_KEY (fail-fast validation in llm_service): a setup
+        # Missing GEMINI_API_KEY (fail-fast validation in llm_client): a setup
         # problem the operator can fix, so surface it as 503 with the
         # actionable message rather than a generic upstream 502.
         raise HTTPException(status_code=503, detail=str(exc)) from exc

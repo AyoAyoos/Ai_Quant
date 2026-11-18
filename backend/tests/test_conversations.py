@@ -254,7 +254,7 @@ class TestChatIntegration:
     def _mock_chat_completion(self, monkeypatch):
         """Mock the LLM chat completion for chat integration tests.
 
-        The real LLM call requires GROQ_API_KEY which is not available in CI.
+        The real LLM call requires GEMINI_API_KEY which is not available in CI.
         This fixture provides a deterministic mock response so integration
         tests can verify conversation/message persistence without external deps.
         """

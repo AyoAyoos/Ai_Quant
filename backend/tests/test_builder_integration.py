@@ -22,7 +22,7 @@ def _mock_llm_success(monkeypatch):
     # Test-only dummy key: HTTP is fully mocked below, so no real LLM call
     # occurs. This only satisfies the empty-key guard in strategy_builder.
     from app.config import settings as _settings
-    monkeypatch.setattr(_settings, "groq_api_key", "test-dummy-key")
+    monkeypatch.setattr(_settings, "gemini_api_key", "test-dummy-key")
     mock_llm_resp = json.dumps({
         "name": "EMA RSI Strategy",
         "description": "Buys when EMA 20 crosses above EMA 50 and RSI is below 30. Sells on opposite signal or risk management exits.",
@@ -102,7 +102,7 @@ class GeneratedStrategy(bt.Strategy):
                 }
         return MockResponse()
 
-    monkeypatch.setattr("app.services.strategy_builder.httpx.AsyncClient.post", mock_post)
+    monkeypatch.setattr("app.services.llm_client.httpx.AsyncClient.post", mock_post)
 
 
 class TestBuilderEndpoint:

@@ -5,10 +5,25 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     database_url: str = "postgresql://quant_user:quant_pass@localhost:5432/quant_trading"
 
-    # LLM provider config (Groq recommended: fast, free tier, Llama/Qwen models)
-    groq_api_key: str = ""
-    groq_model: str = "openai/gpt-oss-120b"
-    groq_base_url: str = "https://api.groq.com/openai/v1"
+    # LLM provider config. Gemini's OpenAI-compatible endpoint keeps the rest of
+    # the app unchanged; the model chain spreads load across the free-tier quota.
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_fallback_models: str = (
+        "gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-3.8-flash,"
+        "gemini-3.6-flash,gemini-3-flash,gemini-2.5-flash"
+    )
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+
+    def llm_model_chain(self) -> list[str]:
+        """Primary model followed by fallbacks, with duplicates removed."""
+        models = [self.gemini_model]
+        models += [
+            name.strip()
+            for name in self.gemini_fallback_models.split(",")
+            if name.strip()
+        ]
+        return list(dict.fromkeys(models))
 
     # Market focus for MVP
     default_market: str = "NIFTY50"

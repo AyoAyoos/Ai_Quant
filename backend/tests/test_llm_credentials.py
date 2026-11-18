@@ -107,7 +107,7 @@ def _mock_post_raising(exc: Exception):
 class TestMissingKeyNeverReachesHTTP:
     @pytest.mark.parametrize("value", ["", "   ", "\t\n ", None])
     def test_builder_blank_key_raises_config_error(self, monkeypatch, value):
-        monkeypatch.setattr(settings, "groq_api_key", value)
+        monkeypatch.setattr(settings, "gemini_api_key", value)
         calls = {"n": 0}
 
         async def boom(*args, **kwargs):
@@ -115,24 +115,24 @@ class TestMissingKeyNeverReachesHTTP:
             raise AssertionError("HTTP must not be attempted without a key")
 
         monkeypatch.setattr(
-            "app.services.strategy_builder.httpx.AsyncClient.post", boom
+            "app.services.llm_client.httpx.AsyncClient.post", boom
         )
 
         with pytest.raises(LLMNotConfiguredError) as excinfo:
             asyncio.run(generate_structured_strategy(_spec()))
 
-        assert "GROQ_API_KEY" in str(excinfo.value)
+        assert "GEMINI_API_KEY" in str(excinfo.value)
         assert calls["n"] == 0
 
     def test_chat_blank_key_raises_config_error(self, monkeypatch):
-        monkeypatch.setattr(settings, "groq_api_key", "   ")
+        monkeypatch.setattr(settings, "gemini_api_key", "   ")
         calls = {"n": 0}
 
         async def boom(*args, **kwargs):
             calls["n"] += 1
             raise AssertionError("HTTP must not be attempted without a key")
 
-        monkeypatch.setattr("app.services.llm_service.httpx.AsyncClient.post", boom)
+        monkeypatch.setattr("app.services.llm_client.httpx.AsyncClient.post", boom)
 
         with pytest.raises(LLMNotConfiguredError):
             asyncio.run(chat_completion([{"role": "user", "content": "hi"}]))
@@ -142,11 +142,11 @@ class TestMissingKeyNeverReachesHTTP:
 
 class TestHeaderConstruction:
     def test_builder_sends_nonempty_bearer(self, monkeypatch):
-        monkeypatch.setattr(settings, "groq_api_key", "test-key-123")
+        monkeypatch.setattr(settings, "gemini_api_key", "test-key-123")
         capture: dict = {}
         body = json.dumps({"name": "N", "description": "D", "code": VALID_CODE})
         monkeypatch.setattr(
-            "app.services.strategy_builder.httpx.AsyncClient.post",
+            "app.services.llm_client.httpx.AsyncClient.post",
             _mock_post_returning(body, capture),
         )
 
@@ -159,11 +159,11 @@ class TestHeaderConstruction:
         assert result["code"] == VALID_CODE
 
     def test_whitespace_around_key_is_trimmed(self, monkeypatch):
-        monkeypatch.setattr(settings, "groq_api_key", "  test-key-123\n")
+        monkeypatch.setattr(settings, "gemini_api_key", "  test-key-123\n")
         capture: dict = {}
         body = json.dumps({"name": "N", "description": "D", "code": VALID_CODE})
         monkeypatch.setattr(
-            "app.services.strategy_builder.httpx.AsyncClient.post",
+            "app.services.llm_client.httpx.AsyncClient.post",
             _mock_post_returning(body, capture),
         )
 
@@ -171,10 +171,10 @@ class TestHeaderConstruction:
         assert capture["headers"]["Authorization"] == "Bearer test-key-123"
 
     def test_chat_sends_nonempty_bearer(self, monkeypatch):
-        monkeypatch.setattr(settings, "groq_api_key", "test-key-123")
+        monkeypatch.setattr(settings, "gemini_api_key", "test-key-123")
         capture: dict = {}
         monkeypatch.setattr(
-            "app.services.llm_service.httpx.AsyncClient.post",
+            "app.services.llm_client.httpx.AsyncClient.post",
             _mock_post_returning("hello", capture),
         )
 
@@ -187,9 +187,9 @@ class TestHeaderConstruction:
 class TestNoSecretLeakage:
     def test_service_error_does_not_contain_key(self, monkeypatch):
         secret = "gsk_leak_probe_do_not_log_000"
-        monkeypatch.setattr(settings, "groq_api_key", secret)
+        monkeypatch.setattr(settings, "gemini_api_key", secret)
         monkeypatch.setattr(
-            "app.services.strategy_builder.httpx.AsyncClient.post",
+            "app.services.llm_client.httpx.AsyncClient.post",
             _mock_post_raising(httpx.ConnectError("connection refused")),
         )
 
@@ -200,9 +200,9 @@ class TestNoSecretLeakage:
 
     def test_endpoint_error_does_not_contain_key(self, client, db, monkeypatch):
         secret = "gsk_leak_probe_do_not_log_000"
-        monkeypatch.setattr(settings, "groq_api_key", secret)
+        monkeypatch.setattr(settings, "gemini_api_key", secret)
         monkeypatch.setattr(
-            "app.services.strategy_builder.httpx.AsyncClient.post",
+            "app.services.llm_client.httpx.AsyncClient.post",
             _mock_post_raising(httpx.ConnectError("connection refused")),
         )
 
@@ -214,26 +214,26 @@ class TestNoSecretLeakage:
 
     def test_openapi_schema_does_not_contain_key(self, client, monkeypatch):
         secret = "gsk_leak_probe_do_not_log_000"
-        monkeypatch.setattr(settings, "groq_api_key", secret)
+        monkeypatch.setattr(settings, "gemini_api_key", secret)
         assert secret not in client.get("/openapi.json").text
 
 
 class TestBuilderEndpointConfigError:
     def test_missing_key_returns_503_actionable(self, client, db, monkeypatch):
-        monkeypatch.setattr(settings, "groq_api_key", "")
+        monkeypatch.setattr(settings, "gemini_api_key", "")
 
         resp = client.post("/strategies/builder", json=_spec_dict())
 
         assert resp.status_code == 503
         detail = resp.json()["detail"]
-        assert "GROQ_API_KEY" in detail
+        assert "GEMINI_API_KEY" in detail
         assert "backend/.env" in detail
 
     def test_mocked_success_still_generates(self, client, db, monkeypatch):
-        monkeypatch.setattr(settings, "groq_api_key", "test-dummy-key")
+        monkeypatch.setattr(settings, "gemini_api_key", "test-dummy-key")
         body = json.dumps({"name": "EMA RSI", "description": "D", "code": VALID_CODE})
         monkeypatch.setattr(
-            "app.services.strategy_builder.httpx.AsyncClient.post",
+            "app.services.llm_client.httpx.AsyncClient.post",
             _mock_post_returning(body),
         )
 
@@ -248,10 +248,10 @@ class TestBuilderEndpointConfigError:
 
 class TestChatEndpointConfigError:
     def test_missing_key_returns_503(self, client, db, monkeypatch):
-        monkeypatch.setattr(settings, "groq_api_key", "")
+        monkeypatch.setattr(settings, "gemini_api_key", "")
         resp = client.post("/chat", json={"content": "build me a strategy"})
         assert resp.status_code == 503
-        assert "GROQ_API_KEY" in resp.json()["detail"]
+        assert "GEMINI_API_KEY" in resp.json()["detail"]
 
 
 def _seed_strategy(session, user_id: str, name: str = "Seeded") -> str:

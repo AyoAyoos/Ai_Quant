@@ -4,7 +4,7 @@ import json
 import pytest
 
 from app.schemas import IndicatorSpec, RiskManagementSpec, StrategyBuilderRequest
-from app.services import strategy_builder
+from app.services import llm_client, strategy_builder
 
 
 def _spec(indicators, entry=None, exit=None, style="intraday", timeframe="15m"):
@@ -46,8 +46,8 @@ def _mock_llm(monkeypatch, code=None):
         async def __aexit__(self, *a): return False
         async def post(self, *a, **k): return _Resp()
 
-    monkeypatch.setattr(strategy_builder, "httpx", type("X", (), {"AsyncClient": _Client}))
-    monkeypatch.setattr(strategy_builder.settings, "groq_api_key", "test-key", raising=False)
+    monkeypatch.setattr(llm_client, "httpx", type("X", (), {"AsyncClient": _Client}))
+    monkeypatch.setattr(llm_client.settings, "gemini_api_key", "test-key", raising=False)
 
 
 def test_validate_bollinger_bands_alone_accepts_aliases():
