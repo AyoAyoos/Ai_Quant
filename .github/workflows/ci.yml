@@ -8,8 +8,22 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: quant_user
+          POSTGRES_PASSWORD: quant_pass
+          POSTGRES_DB: quant_trading
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quant_user -d quant_trading"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_URL: postgresql://quant_user:quant_pass@localhost:5432/quant_trading
       # Address-space cap for the worker; pandas cannot import below ~1.5GB.
       SANDBOX_MEMORY_MB: 2048
     defaults:
