@@ -386,7 +386,7 @@ async def generate_structured_strategy(spec: StrategyBuilderRequest) -> dict:
                 json=payload,
                 headers=headers,
             )
-            if resp.status_code == 429:
+            if getattr(resp, 'status_code', 200) == 429:
                 if attempt < len(delays):
                     await asyncio.sleep(delays[attempt])
                     continue

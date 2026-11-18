@@ -13,3 +13,7 @@ class LLMNotConfiguredError(ValueError):
     Subclasses ``ValueError`` so callers that already catch ``ValueError``
     keep working, while dedicated handlers can surface the setup problem.
     """
+
+
+class LLMRateLimitError(Exception):
+    """Upstream LLM provider rate-limited the request after retries."""
