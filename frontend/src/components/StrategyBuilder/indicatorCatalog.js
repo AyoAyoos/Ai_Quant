@@ -53,6 +53,9 @@ export const INDICATORS = [
     id: 'VOLUME',
     name: 'Volume',
     description: 'Volume Indicator',
-    params: [],
+    params: [
+      { key: 'period', label: 'Period', type: 'number', min: 1, max: 200, default: 20 },
+      { key: 'multiplier', label: 'Multiplier', type: 'number', min: 0.1, max: 20, step: 0.1, default: 1.5 },
+    ],
   },
 ]

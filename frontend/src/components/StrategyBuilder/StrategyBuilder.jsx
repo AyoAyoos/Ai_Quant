@@ -138,14 +138,16 @@ export default function StrategyBuilder() {
         market: config.market,
         trading_style: config.tradingStyle,
         timeframe: config.timeframe,
-        indicators: config.indicators.map((indicatorId) => ({
-          // State stores ids ('BOLLINGER_BANDS'); the backend schema accepts
-          // display names ('Bollinger Bands'). Map id -> name, fall back to
-          // the raw value so unknown ids still surface a backend 422.
-          name:
-            INDICATOR_CATALOG.find((i) => i.id === indicatorId)?.name ?? indicatorId,
-          parameters: config.indicatorParams[indicatorId] || {},
-        })),
+        indicators: config.indicators.map((indicatorId) => {
+          const catalogEntry = INDICATOR_CATALOG.find((i) => i.id === indicatorId)
+          const name = catalogEntry?.name ?? indicatorId
+          const paramDefaults = Object.fromEntries(
+            (catalogEntry?.params ?? []).map((p) => [p.key, p.default])
+          )
+          const userParams = config.indicatorParams[indicatorId] || {}
+          const parameters = { ...paramDefaults, ...userParams }
+          return { name, parameters }
+        }),
         entry_conditions: config.entryConditions.map((c) =>
           `${c.left} ${c.operator} ${c.right}`
         ),

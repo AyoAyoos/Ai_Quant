@@ -10,11 +10,13 @@ This service handles the structured strategy generation workflow:
 """
 import json
 import re
+import asyncio
+
 import httpx
 
 from app.config import settings
 from app.services.finalize_service import finalize_strategy
-from app.services.llm_errors import LLMNotConfiguredError
+from app.services.llm_errors import LLMNotConfiguredError, LLMRateLimitError
 from app.services.strategy_extractor import extract_strategy, clean_reply_for_display
 from app.schemas import (
     StrategyBuilderRequest,
@@ -110,13 +112,13 @@ F. MAX TRADES PER DAY:
    - Reset counter when date changes
    - Skip new entries if trade_count >= max_trades_per_day
 
-INDICATOR MAPPING (use these EXACT Backtrader indicator classes):
+ INDICATOR MAPPING (use these EXACT Backtrader indicator classes):
 - EMA -> bt.indicators.EMA
 - SMA -> bt.indicators.SMA
 - RSI -> bt.indicators.RSI
 - MACD -> bt.indicators.MACD
-- Bollinger Bands -> bt.indicators.BollingerBands
-- Volume -> self.data.volume (no indicator needed, use directly)
+- Bollinger Bands -> bt.indicators.BollingerBands(self.data.close, period=..., devfactor=...) and reference bands via `.lines.top`, `.lines.mid`, `.lines.bot` (e.g. `self.bb.lines.top[0]`)
+- Volume -> self.data.volume and bt.indicators.SMA(self.data.volume, period=...) for volume averages; always guard against zero-volume bars/index data so no division-by-zero occurs (e.g., check denominator > 0 before dividing).
 
 COMPLETE WORKING EXAMPLE (daily-appropriate):
 For spec: EMA(20,50), RSI(14,30,70), entry="EMA 20 crosses above EMA 50", exit="Exit on opposite signal", SL=1%, TP=2%, trailing=0.5%, max_trades=3
@@ -375,13 +377,24 @@ async def generate_structured_strategy(spec: StrategyBuilderRequest) -> dict:
     }
     headers = {"Authorization": f"Bearer {api_key}"}
     
+    delays = [2, 4]
     async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(
-            f"{settings.groq_base_url}/chat/completions",
-            json=payload,
-            headers=headers,
-        )
-        resp.raise_for_status()
+        resp = None
+        for attempt in range(len(delays) + 1):
+            resp = await client.post(
+                f"{settings.groq_base_url}/chat/completions",
+                json=payload,
+                headers=headers,
+            )
+            if resp.status_code == 429:
+                if attempt < len(delays):
+                    await asyncio.sleep(delays[attempt])
+                    continue
+                raise LLMRateLimitError(
+                    "AI rate limit reached — please wait a few seconds and click Try Again"
+                )
+            resp.raise_for_status()
+            break
         data = resp.json()
         raw = data["choices"][0]["message"]["content"]
         parsed = json.loads(raw)
@@ -429,29 +442,57 @@ def validate_indicator_parameters(spec: StrategyBuilderRequest) -> list[str]:
     # Expected parameter schemas per indicator
     param_schemas = {
         "EMA": {"fast": (int, 1, 200), "slow": (int, 1, 200)},
-        "SMA": {"period": (int, 1, 200)},
+        "SMA": {"period": (int, 1, 200), "fast": (int, 1, 200), "slow": (int, 1, 200)},
         "RSI": {"period": (int, 1, 100), "oversold": (int, 1, 50), "overbought": (int, 50, 100)},
         "MACD": {"fast": (int, 1, 50), "slow": (int, 1, 100), "signal": (int, 1, 50)},
         "Bollinger Bands": {"period": (int, 1, 100), "devfactor": (float, 0.1, 5.0)},
-        "Volume": {},  # No parameters
+        "Volume": {"period": (int, 1, 200), "multiplier": (float, 0.1, 20.0)},
     }
     
     for ind in spec.indicators:
+        # Normalize aliases defensively (schema also normalizes on input)
+        aliases = {
+            "deviation_factor": "devfactor", "dev_factor": "devfactor", "std_dev": "devfactor",
+            "stddev": "devfactor", "std": "devfactor",
+            "fast_period": "fast", "slow_period": "slow", "signal_period": "signal",
+            "vol_multiplier": "multiplier", "volume_multiplier": "multiplier",
+        }
+        for src, dst in aliases.items():
+            if src in ind.parameters:
+                if dst not in ind.parameters:
+                    ind.parameters[dst] = ind.parameters[src]
+                ind.parameters.pop(src, None)
+
         schema = param_schemas.get(ind.name, {})
-        for param_name, (param_type, min_val, max_val) in schema.items():
+
+        if ind.name == "SMA":
+            has_pair = "fast" in ind.parameters and "slow" in ind.parameters
+            has_period = "period" in ind.parameters
+            if not has_pair and not has_period:
+                errors.append("Indicator SMA must include either 'period' or both 'fast' and 'slow'")
+            required = []  # flexible
+        elif ind.name == "Volume":
+            # Volume params are optional (safe defaults can be used by generator/runner context)
+            required = []
+        else:
+            required = list(schema.keys())
+
+        for param_name in required:
             if param_name not in ind.parameters:
                 errors.append(f"Indicator {ind.name} missing required parameter: {param_name}")
-            else:
-                value = ind.parameters[param_name]
-                if not isinstance(value, param_type):
-                    errors.append(f"Indicator {ind.name} parameter {param_name} must be {param_type.__name__}")
-                elif not (min_val <= value <= max_val):
-                    errors.append(f"Indicator {ind.name} parameter {param_name} must be between {min_val} and {max_val}")
-        
-        # Check for unexpected parameters
-        for param_name in ind.parameters:
+
+        for param_name, value in list(ind.parameters.items()):
             if param_name not in schema:
                 errors.append(f"Indicator {ind.name} has unexpected parameter: {param_name}")
+                continue
+            param_type, min_val, max_val = schema[param_name]
+            if param_type is float and isinstance(value, int):
+                value = float(value)
+                ind.parameters[param_name] = value
+            if not isinstance(value, param_type):
+                errors.append(f"Indicator {ind.name} parameter {param_name} must be {param_type.__name__}")
+            elif not (min_val <= value <= max_val):
+                errors.append(f"Indicator {ind.name} parameter {param_name} must be between {min_val} and {max_val}")
     
     return errors
 
