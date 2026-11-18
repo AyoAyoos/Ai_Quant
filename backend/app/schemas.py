@@ -181,6 +181,8 @@ class BacktestResultOut(BaseModel):
     trades_truncated: int = 0
     equity_curve: list[list] = []
     drawdown_curve: list[list] = []
+    monthly_returns: list[dict] = []
+    yearly_returns: list[dict] = []
     warnings: list[str] = []
     raw_metrics: dict | None = None
 
@@ -387,8 +389,28 @@ class IndicatorSpec(BaseModel):
     @field_validator("parameters")
     @classmethod
     def validate_indicator_parameters(cls, v: dict, info) -> dict:
-        # Parameters are validated per-indicator in the service layer
-        return v
+        # Normalize common frontend/LLM key aliases so valid configs don't 422.
+        if not isinstance(v, dict):
+            return v
+        out = dict(v)
+        aliases = {
+            "deviation_factor": "devfactor",
+            "dev_factor": "devfactor",
+            "std_dev": "devfactor",
+            "stddev": "devfactor",
+            "std": "devfactor",
+            "fast_period": "fast",
+            "slow_period": "slow",
+            "signal_period": "signal",
+            "vol_multiplier": "multiplier",
+            "volume_multiplier": "multiplier",
+        }
+        for src, dst in aliases.items():
+            if src in out:
+                if dst not in out:
+                    out[dst] = out[src]
+                out.pop(src, None)
+        return out
 
 
 class RiskManagementSpec(BaseModel):
@@ -451,6 +473,12 @@ class StrategyBuilderRequest(BaseModel):
         names = [ind.name for ind in v]
         if len(names) != len(set(names)):
             raise ValueError("Duplicate indicator names are not allowed")
+        return v
+
+    @field_validator("risk_management")
+    @classmethod
+    def validate_risk_management(cls, v: RiskManagementSpec) -> RiskManagementSpec:
+        # allow explicit 0-style disabled handling at caller level; schema keeps gt=0 for enabled values
         return v
 
     @field_validator("entry_conditions")

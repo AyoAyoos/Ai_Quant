@@ -35,6 +35,8 @@ import httpx
 import pandas as pd
 import yfinance as yf
 
+from app.services.yahoo_retry import retry_call
+
 logger = logging.getLogger(__name__)
 
 _IST = ZoneInfo("Asia/Kolkata")
@@ -291,15 +293,27 @@ def interval_is_intraday(interval: str) -> bool:
 
 
 def _fetch_ticker_data(ticker: str, period: str, interval: str) -> pd.DataFrame:
-    """Fetch data from yfinance in a worker thread."""
-    frame = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=False)
-    if frame is None or frame.empty:
-        raise ValueError(f"yfinance returned no data for {ticker}")
-    return frame
+    """Fetch data from yfinance in a worker thread (with bounded retries)."""
+
+    def _do():
+        f = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=False)
+        if f is None or f.empty:
+            raise ValueError(f"yfinance returned no data for {ticker}")
+        return f
+
+    return retry_call(
+        fn=_do,
+        ticker=ticker,
+        period=period,
+        interval=interval,
+        max_attempts=3,
+        is_empty=lambda f: f is None or getattr(f, "empty", True),
+    )
 
 
 def _download_batch(tickers: Iterable[str], period: str, interval: str) -> pd.DataFrame:
     """One batched Yahoo request for many tickers (much kinder than 45 calls)."""
+    # Do not retry whole batch aggressively per instructions; keep behavior stable.
     return yf.download(
         list(tickers),
         period=period,
@@ -373,7 +387,7 @@ def _next_open_datetime(now: datetime) -> datetime:
 def get_market_status(now: Optional[datetime] = None) -> dict:
     """Current NSE cash-session status in IST.
 
-    PRE-OPEN is the 09:00–09:15 window only.  Earlier mornings are CLOSED,
+    PRE-OPEN is the 09:00ΓÇô09:15 window only.  Earlier mornings are CLOSED,
     which is the behaviour a trader expects (the old implementation labelled
     every pre-09:15 moment, including midnight, as PRE-OPEN).  Exchange
     holidays are CLOSED for the whole day and the next open skips them.
@@ -389,15 +403,15 @@ def get_market_status(now: Optional[datetime] = None) -> dict:
 
     if holiday_name:
         status = "CLOSED"
-        reason = f"NSE holiday — {holiday_name}"
+        reason = f"NSE holiday ΓÇö {holiday_name}"
     elif weekday > 4:
-        status, reason = "CLOSED", "Weekend — NSE cash market closed"
+        status, reason = "CLOSED", "Weekend ΓÇö NSE cash market closed"
     elif minutes < _PRE_OPEN_MINUTES:
         status, reason = "CLOSED", "Before the NSE pre-open window"
     elif minutes < _OPEN_MINUTES:
-        status, reason = "PRE-OPEN", "NSE pre-open session (09:00–09:15 IST)"
+        status, reason = "PRE-OPEN", "NSE pre-open session (09:00ΓÇô09:15 IST)"
     elif minutes < _CLOSE_MINUTES:
-        status, reason = "OPEN", "NSE cash session (09:15–15:30 IST)"
+        status, reason = "OPEN", "NSE cash session (09:15ΓÇô15:30 IST)"
     else:
         status, reason = "CLOSED", "After the NSE cash session"
 
@@ -710,7 +724,7 @@ async def fetch_market_breadth() -> dict:
         "total": total,
         "advance_decline_ratio": round(advancing / declining, 2) if declining > 0 else None,
         "advance_decline_ratio_display": (
-            f"{advancing / declining:.2f}" if declining > 0 else ("∞" if advancing > 0 else None)
+            f"{advancing / declining:.2f}" if declining > 0 else ("Γê₧" if advancing > 0 else None)
         ),
         "universe_size": len(INSTRUMENT_UNIVERSE),
         "status": "ok" if total else "unavailable",

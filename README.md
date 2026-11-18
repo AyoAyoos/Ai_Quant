@@ -1103,7 +1103,7 @@ Test fixtures live in `backend/tests/fixtures/` (strategy files plus a 740-row
 
 **Backend job**
 
-1. Starts a `postgres:16-alpine` service with the compose credentials.
+1. Uses `DATABASE_URL` from the repository's GitHub Actions secrets (hosted Postgres).
 2. Adds a 4 GB swapfile (the backtest worker needs memory headroom).
 3. Installs Python 3.11 dependencies from `backend/requirements.txt`.
 4. Runs `alembic upgrade head` to prove migrations apply cleanly.

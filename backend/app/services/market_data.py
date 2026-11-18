@@ -15,6 +15,7 @@ from pathlib import Path
 import pandas as pd
 
 from app.config import settings
+from app.services.yahoo_retry import retry_call
 
 # Yahoo Finance ticker per supported market (MVP: NIFTY 50 only).
 MARKET_TICKERS = {
@@ -52,17 +53,29 @@ def download_market_data(market: str) -> Path:
     if ticker is None:
         raise MarketDataError(f"no Yahoo Finance symbol configured for market={market!r}")
 
-    frame = yf.download(
-        tickers=ticker,
-        period=_DATA_PERIOD,
-        interval="1d",
-        auto_adjust=False,
-        group_by="column",
-        progress=False,
-    )
+    def _fetch():
+        return yf.download(
+            tickers=ticker,
+            period=_DATA_PERIOD,
+            interval="1d",
+            auto_adjust=False,
+            group_by="column",
+            progress=False,
+        )
+
+    try:
+        frame = retry_call(
+            fn=_fetch,
+            ticker=ticker,
+            period=_DATA_PERIOD,
+            interval="1d",
+            max_attempts=3,
+            is_empty=lambda f: f is None or getattr(f, "empty", True),
+        )
+    except ValueError as exc:
+        raise MarketDataError(str(exc)) from exc
     if frame is None or frame.empty:
         raise MarketDataError(f"yfinance returned no data for {ticker}")
-
     # Single-ticker downloads can come back with a MultiIndex on the columns;
     # flatten to the plain OHLCV names the runner expects.
     if isinstance(frame.columns, pd.MultiIndex):

@@ -60,7 +60,7 @@ from app.services.paper_engine import (
     balance_of,
     run_paper_tick,
 )
-from app.services.llm_errors import LLMNotConfiguredError
+from app.services.llm_errors import LLMNotConfiguredError, LLMRateLimitError
 from app.services.strategy_builder import (
     generate_structured_strategy,
     validate_indicator_parameters,
@@ -145,6 +145,8 @@ async def generate_strategy(
         try:
             # Generate strategy using LLM
             generated = await generate_structured_strategy(payload)
+        except LLMRateLimitError as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
         except httpx.HTTPError as exc:
             raise HTTPException(
                 status_code=502,

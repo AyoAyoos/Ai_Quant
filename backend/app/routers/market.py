@@ -2,7 +2,7 @@
 
 The landing page polls these for an optional *real* NIFTY 50 feed. When the
 market is closed (or Yahoo is unreachable) the endpoint answers 503 and the
-frontend keeps its local simulator running — the chart never goes blank.
+frontend keeps its local simulator running ΓÇö the chart never goes blank.
 """
 
 import asyncio
@@ -12,6 +12,8 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.services.yahoo_retry import retry_call
+
 router = APIRouter(
     prefix="/market",
     tags=["market"],
@@ -19,7 +21,7 @@ router = APIRouter(
 
 _IST = ZoneInfo("Asia/Kolkata")
 _TICKER = "^NSEI"
-# NSE cash-market session, IST, Monday(0)–Friday(4).
+# NSE cash-market session, IST, Monday(0)ΓÇôFriday(4).
 _OPEN_MINUTES = 9 * 60 + 15
 _CLOSE_MINUTES = 15 * 60 + 30
 
@@ -44,7 +46,7 @@ class NiftyHistoryOut(BaseModel):
 
 
 def market_is_open(now: datetime | None = None) -> bool:
-    """True during the NSE cash session (Mon–Fri, 09:15–15:30 IST)."""
+    """True during the NSE cash session (MonΓÇôFri, 09:15ΓÇô15:30 IST)."""
     now = now or datetime.now(_IST)
     if now.weekday() > 4:
         return False
@@ -53,12 +55,23 @@ def market_is_open(now: datetime | None = None) -> bool:
 
 
 def _fetch_latest_1m() -> dict:
-    """Blocking yfinance call — always executed in a worker thread."""
+    """Blocking yfinance call ΓÇö always executed in a worker thread."""
     import yfinance as yf
 
-    frame = yf.Ticker(_TICKER).history(period="1d", interval="1m")
-    if frame is None or frame.empty:
-        raise ValueError("yfinance returned no 1-minute bars for ^NSEI")
+    def _do():
+        frame = yf.Ticker(_TICKER).history(period="1d", interval="1m")
+        if frame is None or frame.empty:
+            raise ValueError("yfinance returned no 1-minute bars for ^NSEI")
+        return frame
+
+    frame = retry_call(
+        fn=_do,
+        ticker=_TICKER,
+        period="1d",
+        interval="1m",
+        max_attempts=3,
+        is_empty=lambda f: f is None or getattr(f, "empty", True),
+    )
     row = frame.iloc[-1]
     ts = int(frame.index[-1].timestamp())
     return {
@@ -71,12 +84,23 @@ def _fetch_latest_1m() -> dict:
 
 
 def _fetch_1m_bars(ticker: str, limit: int = 150) -> list[dict]:
-    """Blocking yfinance call — always executed in a worker thread."""
+    """Blocking yfinance call ΓÇö always executed in a worker thread."""
     import yfinance as yf
 
-    frame = yf.Ticker(ticker).history(period="1d", interval="1m")
-    if frame is None or frame.empty:
-        raise ValueError(f"yfinance returned no 1-minute bars for {ticker}")
+    def _do():
+        frame = yf.Ticker(ticker).history(period="1d", interval="1m")
+        if frame is None or frame.empty:
+            raise ValueError(f"yfinance returned no 1-minute bars for {ticker}")
+        return frame
+
+    frame = retry_call(
+        fn=_do,
+        ticker=ticker,
+        period="1d",
+        interval="1m",
+        max_attempts=3,
+        is_empty=lambda f: f is None or getattr(f, "empty", True),
+    )
     frame = frame.dropna().tail(limit)
     bars = []
     for ts, row in frame.iterrows():
@@ -100,7 +124,7 @@ def _fetch_1m_bars(ticker: str, limit: int = 150) -> list[dict]:
 async def nifty_live() -> NiftyLiveOut:
     """Latest 1-minute ^NSEI candle.
 
-    503 when the market is closed or Yahoo has no fresh bar — the caller
+    503 when the market is closed or Yahoo has no fresh bar ΓÇö the caller
     must fall back to simulated data.
     """
     open_now = market_is_open()
@@ -116,11 +140,11 @@ async def nifty_live() -> NiftyLiveOut:
 
 @router.get("/nifty-history", response_model=list[NiftyHistoryOut])
 async def nifty_history(limit: int = 150) -> list[NiftyHistoryOut]:
-    """Today's NIFTY 50 (^NSEI) 1-minute bars (oldest → newest), capped at `limit`.
+    """Today's NIFTY 50 (^NSEI) 1-minute bars (oldest ΓåÆ newest), capped at `limit`.
 
     The frontend loads this once on mount to populate the chart, then keeps
     the live edge fresh via /market/nifty-live. 503 when Yahoo has nothing
-    usable — the caller must fall back to simulated data.
+    usable ΓÇö the caller must fall back to simulated data.
     """
     try:
         bars = await asyncio.to_thread(_fetch_1m_bars, _TICKER, max(1, min(limit, 375)))

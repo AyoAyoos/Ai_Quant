@@ -2,7 +2,7 @@
 
 Kept separate from the service modules so routers can map "the operator has
 not configured a key" to a distinct, actionable response (503) instead of the
-generic 502 they use for upstream/validation failures — and so the missing
+generic 502 they use for upstream/validation failures - and so the missing
 credential is never mistaken for a malformed LLM response.
 """
 
